@@ -1,0 +1,97 @@
+:host {
+  display: block;
+}
+
+.search {
+  inline-size: 300px;
+  max-inline-size: 40vw;
+}
+
+/* Pre-orders bar chart — a presentational widget, not a Material control. */
+.chart {
+  block-size: 168px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  block-size: 100%;
+  justify-content: flex-end;
+}
+.bar {
+  inline-size: 100%;
+  min-block-size: 4px;
+  border-radius: var(--mat-sys-corner-small) var(--mat-sys-corner-small) 0 0;
+  background: var(--mat-sys-secondary-container);
+}
+.bar--strong {
+  background: var(--mat-sys-primary);
+}
+.bar-label {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.markets-table {
+  inline-size: 100%;
+  background: transparent;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+.row-item--tight {
+  align-items: flex-start;
+}
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.avatar {
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--mat-sys-corner-full);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  font: var(--mat-sys-label-medium);
+  font-weight: 700;
+}
+
+.dot {
+  inline-size: 8px;
+  block-size: 8px;
+  margin-block-start: 6px;
+  border-radius: var(--mat-sys-corner-full);
+  flex-shrink: 0;
+  background: var(--mat-sys-outline);
+}
+.dot--urgent {
+  background: var(--mat-sys-error);
+}
+
+.count-badge {
+  min-inline-size: 22px;
+  padding-inline: 7px;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  text-align: center;
+}

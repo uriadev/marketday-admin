@@ -1,0 +1,64 @@
+@use 'sass:map';
+@use '@angular/material' as mat;
+@use './marketday-palette' as md;
+
+// Structural base: ripples, overlay, elevation, option/optgroup. Emitted once.
+@include mat.core();
+
+html {
+  @include mat.theme(
+    (
+      color: (
+        primary: md.$marketday-primary,
+        tertiary: md.$marketday-tertiary,
+        theme-type: light,
+      ),
+      typography: (
+        plain-family: 'Hanken Grotesk',
+        brand-family: 'Bricolage Grotesque',
+        bold-weight: 700,
+        medium-weight: 600,
+        regular-weight: 400,
+      ),
+      density: 0,
+    )
+  );
+
+  @include mat.form-field-overrides((
+   container-height: 40px,
+   container-vertical-padding: 8px,
+   outlined-container-shape: 20px,
+  ));
+
+  color-scheme: light;
+
+  --mat-sys-background: #fff;
+}
+
+// System-level components (dialog, menu, snackbar) render against these.
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+// Dark theme, same palettes.
+// @media (prefers-color-scheme: dark) {
+//   html {
+//     @include mat.theme(
+//       (
+//         color: (
+//           primary: md.$marketday-primary,
+//           tertiary: md.$marketday-tertiary,
+//           theme-type: dark,
+//         ),
+//       )
+//     );
+//     // --mat-sys-surface: #{map.get(md.$marketday-brand, ink)};
+//     // --mat-sys-background: #{map.get(md.$marketday-brand, ink)};
+//     color-scheme: dark;
+//   }
+// }

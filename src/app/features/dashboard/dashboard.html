@@ -1,0 +1,176 @@
+<md-page-header heading="Overview" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search markets, vendors, users"
+      aria-label="Search the console"
+    />
+  </mat-form-field>
+
+  <button matButton="outlined" type="button" [matMenuTriggerFor]="rangeMenu">
+    {{ range() }}
+    <mat-icon iconPositionEnd>expand_more</mat-icon>
+  </button>
+  <mat-menu #rangeMenu="matMenu">
+    @for (option of ranges; track option) {
+      <button mat-menu-item type="button" (click)="range.set(option)">{{ option }}</button>
+    }
+  </mat-menu>
+</md-page-header>
+
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading overview" />
+}
+
+<div class="mx-auto flex max-w-[1200px] flex-col gap-4 px-6 py-5">
+  @if (facade.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">The overview didn’t load.</span>
+      <button matButton type="button" (click)="facade.load()">Retry</button>
+    </div>
+  }
+
+  @if (snapshot(); as data) {
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ data.today }}</h2>
+        <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ data.summary }}</p>
+      </div>
+      <div class="flex shrink-0 gap-2">
+        <button matButton="outlined" type="button" disabled matTooltip="Coming soon">Export</button>
+        <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+          <mat-icon>add</mat-icon>
+          Add market
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      @for (stat of data.stats; track stat.label) {
+        <md-stat-tile
+          [label]="stat.label"
+          [value]="stat.value"
+          [hint]="stat.hint"
+          [tone]="stat.tone"
+        />
+      }
+    </div>
+
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.55fr_1fr]">
+      <div class="flex flex-col gap-4">
+        <mat-card appearance="outlined">
+          <div class="flex flex-col gap-4 p-[18px]">
+            <div class="flex items-center justify-between">
+              <span class="text-title-medium font-bold text-on-surface"
+                >Pre-orders per market day</span
+              >
+              <span class="text-label-large text-on-surface-variant">Last 8 weeks</span>
+            </div>
+            <div
+              class="chart"
+              role="img"
+              aria-label="Pre-orders per market day rising over the last eight weeks"
+            >
+              @for (bar of data.preorders; track bar.label) {
+                <div class="bar-col">
+                  <div
+                    class="bar"
+                    [class.bar--strong]="bar.emphasis"
+                    [style.height.%]="bar.value"
+                  ></div>
+                  <span class="bar-label">{{ bar.label }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-card>
+
+        <mat-card appearance="outlined">
+          <div class="flex items-center justify-between px-[18px] py-4">
+            <span class="text-title-medium font-bold text-on-surface">Markets trading today</span>
+            <span class="text-label-large font-semibold text-on-surface-variant">View all</span>
+          </div>
+          <table mat-table [dataSource]="marketsToday()" class="markets-table">
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Market</th>
+              <td mat-cell *matCellDef="let market" class="font-semibold text-on-surface">
+                {{ market.name }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="hours">
+              <th mat-header-cell *matHeaderCellDef>Hours</th>
+              <td mat-cell *matCellDef="let market">{{ market.hours }}</td>
+            </ng-container>
+            <ng-container matColumnDef="vendors">
+              <th mat-header-cell *matHeaderCellDef>Vendors</th>
+              <td mat-cell *matCellDef="let market">{{ market.vendors }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let market">
+                <md-status-pill [tone]="market.status === 'trading' ? 'positive' : 'muted'">
+                  {{ market.statusLabel }}
+                </md-status-pill>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="marketColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: marketColumns"></tr>
+          </table>
+        </mat-card>
+      </div>
+
+      <div class="flex flex-col gap-4">
+        <mat-card appearance="outlined">
+          <div class="flex flex-col gap-3 p-[18px]">
+            <div class="flex items-center justify-between">
+              <span class="text-title-medium font-bold text-on-surface"
+                >Vendors awaiting approval</span
+              >
+              <span class="count-badge">{{ data.pendingVendors.length }}</span>
+            </div>
+            @for (vendor of data.pendingVendors; track vendor.id) {
+              <div class="row-item">
+                <span class="avatar" aria-hidden="true">{{ initials(vendor.name) }}</span>
+                <span class="row-text">
+                  <span class="text-body-medium font-semibold text-on-surface">{{
+                    vendor.name
+                  }}</span>
+                  <span class="text-label-large text-on-surface-variant">{{ vendor.meta }}</span>
+                </span>
+                <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+                  Review
+                </button>
+              </div>
+            }
+          </div>
+        </mat-card>
+
+        <mat-card appearance="outlined">
+          <div class="flex flex-col gap-3 p-[18px]">
+            <div class="flex items-center justify-between">
+              <span class="text-title-medium font-bold text-on-surface">Latest enquiries</span>
+              <span class="text-label-large font-semibold text-on-surface-variant">Inbox</span>
+            </div>
+            @for (enquiry of data.latestEnquiries; track enquiry.id) {
+              <div class="row-item row-item--tight">
+                <span class="dot" [class.dot--urgent]="enquiry.urgency === 'urgent'"></span>
+                <span class="row-text">
+                  <span class="text-body-medium font-semibold text-on-surface">{{
+                    enquiry.title
+                  }}</span>
+                  <span class="text-label-large text-on-surface-variant">{{ enquiry.meta }}</span>
+                </span>
+              </div>
+            }
+          </div>
+        </mat-card>
+      </div>
+    </div>
+  }
+</div>

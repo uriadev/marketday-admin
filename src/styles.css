@@ -1,3 +1,186 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global styles. Tailwind utilities layered on Angular Material's system tokens. */
 
 @import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Wire Material's system tokens (emitted by theme.scss's `mat.theme(...)`)
+   into Tailwind's theme, so utilities are generated straight from them
+   (bg-primary, text-on-surface-variant, rounded-large, shadow-elevation-2,
+   text-headline-large, ...). `inline` is required, not just `@theme`: these
+   `--mat-sys-*` values are redefined at runtime under `[data-theme='dark']`
+   and `prefers-color-scheme`, and inline keeps utilities pointing at the
+   live variable instead of a value resolved once at build time.
+--------------------------------------------------------------------------- */
+@theme inline {
+  /* Roles → bg-*, text-*, border-*, fill-*, etc. */
+  --color-background: var(--mat-sys-background);
+  --color-on-background: var(--mat-sys-on-background);
+
+  --color-surface: var(--mat-sys-surface);
+  --color-on-surface: var(--mat-sys-on-surface);
+  --color-surface-variant: var(--mat-sys-surface-variant);
+  --color-on-surface-variant: var(--mat-sys-on-surface-variant);
+  --color-surface-dim: var(--mat-sys-surface-dim);
+  --color-surface-bright: var(--mat-sys-surface-bright);
+  --color-surface-container-lowest: var(--mat-sys-surface-container-lowest);
+  --color-surface-container-low: var(--mat-sys-surface-container-low);
+  --color-surface-container: var(--mat-sys-surface-container);
+  --color-surface-container-high: var(--mat-sys-surface-container-high);
+  --color-surface-container-highest: var(--mat-sys-surface-container-highest);
+  --color-surface-tint: var(--mat-sys-surface-tint);
+  --color-inverse-surface: var(--mat-sys-inverse-surface);
+  --color-inverse-on-surface: var(--mat-sys-inverse-on-surface);
+  --color-inverse-primary: var(--mat-sys-inverse-primary);
+
+  --color-primary: var(--mat-sys-primary);
+  --color-on-primary: var(--mat-sys-on-primary);
+  --color-primary-container: var(--mat-sys-primary-container);
+  --color-on-primary-container: var(--mat-sys-on-primary-container);
+  --color-primary-fixed: var(--mat-sys-primary-fixed);
+  --color-primary-fixed-dim: var(--mat-sys-primary-fixed-dim);
+  --color-on-primary-fixed: var(--mat-sys-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--mat-sys-on-primary-fixed-variant);
+
+  --color-secondary: var(--mat-sys-secondary);
+  --color-on-secondary: var(--mat-sys-on-secondary);
+  --color-secondary-container: var(--mat-sys-secondary-container);
+  --color-on-secondary-container: var(--mat-sys-on-secondary-container);
+  --color-secondary-fixed: var(--mat-sys-secondary-fixed);
+  --color-secondary-fixed-dim: var(--mat-sys-secondary-fixed-dim);
+  --color-on-secondary-fixed: var(--mat-sys-on-secondary-fixed);
+  --color-on-secondary-fixed-variant: var(--mat-sys-on-secondary-fixed-variant);
+
+  --color-tertiary: var(--mat-sys-tertiary);
+  --color-on-tertiary: var(--mat-sys-on-tertiary);
+  --color-tertiary-container: var(--mat-sys-tertiary-container);
+  --color-on-tertiary-container: var(--mat-sys-on-tertiary-container);
+  --color-tertiary-fixed: var(--mat-sys-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--mat-sys-tertiary-fixed-dim);
+  --color-on-tertiary-fixed: var(--mat-sys-on-tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--mat-sys-on-tertiary-fixed-variant);
+
+  --color-error: var(--mat-sys-error);
+  --color-on-error: var(--mat-sys-on-error);
+  --color-error-container: var(--mat-sys-error-container);
+  --color-on-error-container: var(--mat-sys-on-error-container);
+
+  --color-outline: var(--mat-sys-outline);
+  --color-outline-variant: var(--mat-sys-outline-variant);
+  --color-scrim: var(--mat-sys-scrim);
+  --color-shadow: var(--mat-sys-shadow);
+
+  --color-neutral-variant-20: var(--mat-sys-neutral-variant20);
+  --color-neutral-10: var(--mat-sys-neutral10);
+
+  /* Corner tokens → rounded-* */
+  --radius-none: var(--mat-sys-corner-none);
+  --radius-extra-small: var(--mat-sys-corner-extra-small);
+  --radius-extra-small-top: var(--mat-sys-corner-extra-small-top);
+  --radius-small: var(--mat-sys-corner-small);
+  --radius-medium: var(--mat-sys-corner-medium);
+  --radius-large: var(--mat-sys-corner-large);
+  --radius-large-top: var(--mat-sys-corner-large-top);
+  --radius-large-start: var(--mat-sys-corner-large-start);
+  --radius-large-end: var(--mat-sys-corner-large-end);
+  --radius-extra-large: var(--mat-sys-corner-extra-large);
+  --radius-extra-large-top: var(--mat-sys-corner-extra-large-top);
+  --radius-full: var(--mat-sys-corner-full);
+
+  /* Elevation levels → shadow-elevation-* */
+  --shadow-elevation-0: var(--mat-sys-level0);
+  --shadow-elevation-1: var(--mat-sys-level1);
+  --shadow-elevation-2: var(--mat-sys-level2);
+  --shadow-elevation-3: var(--mat-sys-level3);
+  --shadow-elevation-4: var(--mat-sys-level4);
+  --shadow-elevation-5: var(--mat-sys-level5);
+
+  /* Type scale → text-* (bundles size, line-height, tracking, weight) */
+  --text-display-large: var(--mat-sys-display-large-size);
+  --text-display-large--line-height: var(--mat-sys-display-large-line-height);
+  --text-display-large--letter-spacing: var(--mat-sys-display-large-tracking);
+  --text-display-large--font-weight: var(--mat-sys-display-large-weight);
+
+  --text-display-medium: var(--mat-sys-display-medium-size);
+  --text-display-medium--line-height: var(--mat-sys-display-medium-line-height);
+  --text-display-medium--letter-spacing: var(--mat-sys-display-medium-tracking);
+  --text-display-medium--font-weight: var(--mat-sys-display-medium-weight);
+
+  --text-display-small: var(--mat-sys-display-small-size);
+  --text-display-small--line-height: var(--mat-sys-display-small-line-height);
+  --text-display-small--letter-spacing: var(--mat-sys-display-small-tracking);
+  --text-display-small--font-weight: var(--mat-sys-display-small-weight);
+
+  --text-headline-large: var(--mat-sys-headline-large-size);
+  --text-headline-large--line-height: var(--mat-sys-headline-large-line-height);
+  --text-headline-large--letter-spacing: var(--mat-sys-headline-large-tracking);
+  --text-headline-large--font-weight: var(--mat-sys-headline-large-weight);
+
+  --text-headline-medium: var(--mat-sys-headline-medium-size);
+  --text-headline-medium--line-height: var(--mat-sys-headline-medium-line-height);
+  --text-headline-medium--letter-spacing: var(--mat-sys-headline-medium-tracking);
+  --text-headline-medium--font-weight: var(--mat-sys-headline-medium-weight);
+
+  --text-headline-small: var(--mat-sys-headline-small-size);
+  --text-headline-small--line-height: var(--mat-sys-headline-small-line-height);
+  --text-headline-small--letter-spacing: var(--mat-sys-headline-small-tracking);
+  --text-headline-small--font-weight: var(--mat-sys-headline-small-weight);
+
+  --text-title-large: var(--mat-sys-title-large-size);
+  --text-title-large--line-height: var(--mat-sys-title-large-line-height);
+  --text-title-large--letter-spacing: var(--mat-sys-title-large-tracking);
+  --text-title-large--font-weight: var(--mat-sys-title-large-weight);
+
+  --text-title-medium: var(--mat-sys-title-medium-size);
+  --text-title-medium--line-height: var(--mat-sys-title-medium-line-height);
+  --text-title-medium--letter-spacing: var(--mat-sys-title-medium-tracking);
+  --text-title-medium--font-weight: var(--mat-sys-title-medium-weight);
+
+  --text-title-small: var(--mat-sys-title-small-size);
+  --text-title-small--line-height: var(--mat-sys-title-small-line-height);
+  --text-title-small--letter-spacing: var(--mat-sys-title-small-tracking);
+  --text-title-small--font-weight: var(--mat-sys-title-small-weight);
+
+  --text-body-large: var(--mat-sys-body-large-size);
+  --text-body-large--line-height: var(--mat-sys-body-large-line-height);
+  --text-body-large--letter-spacing: var(--mat-sys-body-large-tracking);
+  --text-body-large--font-weight: var(--mat-sys-body-large-weight);
+
+  --text-body-medium: var(--mat-sys-body-medium-size);
+  --text-body-medium--line-height: var(--mat-sys-body-medium-line-height);
+  --text-body-medium--letter-spacing: var(--mat-sys-body-medium-tracking);
+  --text-body-medium--font-weight: var(--mat-sys-body-medium-weight);
+
+  --text-body-small: var(--mat-sys-body-small-size);
+  --text-body-small--line-height: var(--mat-sys-body-small-line-height);
+  --text-body-small--letter-spacing: var(--mat-sys-body-small-tracking);
+  --text-body-small--font-weight: var(--mat-sys-body-small-weight);
+
+  --text-label-large: var(--mat-sys-label-large-size);
+  --text-label-large--line-height: var(--mat-sys-label-large-line-height);
+  --text-label-large--letter-spacing: var(--mat-sys-label-large-tracking);
+  --text-label-large--font-weight: var(--mat-sys-label-large-weight);
+
+  --text-label-medium: var(--mat-sys-label-medium-size);
+  --text-label-medium--line-height: var(--mat-sys-label-medium-line-height);
+  --text-label-medium--letter-spacing: var(--mat-sys-label-medium-tracking);
+  --text-label-medium--font-weight: var(--mat-sys-label-medium-weight);
+
+  --text-label-small: var(--mat-sys-label-small-size);
+  --text-label-small--line-height: var(--mat-sys-label-small-line-height);
+  --text-label-small--letter-spacing: var(--mat-sys-label-small-tracking);
+  --text-label-small--font-weight: var(--mat-sys-label-small-weight);
+
+  /* Type families → font-* */
+  --font-plain: var(--mat-sys-body-large-font);
+  --font-brand: var(--mat-sys-display-large-font);
+}
+
+/* The signed-in shell paints its own ground; keep the document behind it in step.
+   Components read the `--mat-sys-*` roles directly — the design's near-white panel
+   is `surface-container-lowest`, the drawer rail `surface-container-low`, the page
+   ground `background`. */
+body {
+  /* background: var(--mat-sys-background); */
+  /* color: var(--mat-sys-on-surface); */
+  /* font: var(--mat-sys-body-medium); */
+}
