@@ -1,0 +1,62 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 28px 32px;
+}
+
+/* One column, as the design draws it — settings are read top to bottom. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-inline-size: 760px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-block-end: 24px;
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+.section:last-of-type {
+  padding-block-end: 0;
+  border-block-end: none;
+  gap: 4px;
+}
+
+/* Removing a photo is the one destructive thing on this screen. */
+.remove {
+  --mat-text-button-label-text-color: var(--mat-sys-error);
+  --mat-text-button-state-layer-color: var(--mat-sys-error);
+}
+
+.picker {
+  display: none;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: 56px;
+}

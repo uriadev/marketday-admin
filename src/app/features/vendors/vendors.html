@@ -1,0 +1,209 @@
+<md-page-header heading="Vendors" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search vendors or staff"
+      aria-label="Search vendors or staff"
+      [value]="filters().q"
+      (input)="onSearch($event)"
+    />
+  </mat-form-field>
+  <button
+    matIconButton
+    type="button"
+    aria-label="More directory actions"
+    [matMenuTriggerFor]="more"
+  >
+    <mat-icon>more_vert</mat-icon>
+  </button>
+  <mat-menu #more="matMenu">
+    <button mat-menu-item type="button" disabled>Import vendors</button>
+    <button mat-menu-item type="button" disabled>Manage categories</button>
+    <button mat-menu-item type="button" disabled>Directory settings</button>
+  </mat-menu>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading vendors" />
+}
+
+<div class="intro">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ heading() }}</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
+    </div>
+    <div class="flex shrink-0 gap-2">
+      <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+        Export list
+      </button>
+      <a matButton="filled" routerLink="/vendors/invite">
+        <mat-icon>add</mat-icon>
+        Invite vendor
+      </a>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      matButton="tonal"
+      type="button"
+      [disabled]="!store.hasActiveFilters()"
+      (click)="clearFilters()"
+    >
+      <mat-icon>check</mat-icon>
+      {{ store.hasActiveFilters() ? 'Clear filters' : 'All vendors' }}
+    </button>
+
+    <mat-chip-listbox
+      multiple
+      aria-label="Narrow the directory"
+      [value]="activeToggles()"
+      (change)="setToggles($event.value)"
+    >
+      @for (option of toggles; track option.value) {
+        <mat-chip-option [value]="option.value">
+          {{ option.label }}
+          @if (toggleCount(option.value); as count) {
+            <span class="chip-count">{{ count }}</span>
+          }
+        </mat-chip-option>
+      }
+    </mat-chip-listbox>
+
+    <button matButton="outlined" type="button" [matMenuTriggerFor]="marketMenu">
+      Market: {{ filters().market ?? 'any' }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #marketMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setParam({ market: null })">Any market</button>
+      @for (option of store.markets(); track option) {
+        <button mat-menu-item type="button" (click)="setParam({ market: option })">
+          {{ option }}
+        </button>
+      }
+    </mat-menu>
+  </div>
+</div>
+
+<div class="scroller">
+  @if (store.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ store.error() }}</span>
+      <button matButton type="button" (click)="store.load()">Retry</button>
+    </div>
+  } @else if (store.isFilteredEmpty()) {
+    <md-empty-state
+      icon="storefront"
+      headline="No vendors match those filters"
+      body="Try a different market, or clear the filters to see the whole directory."
+    >
+      <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+    </md-empty-state>
+  } @else {
+    <div class="table-card">
+      <table mat-table [dataSource]="page()" class="directory">
+        <ng-container matColumnDef="vendor">
+          <th mat-header-cell *matHeaderCellDef scope="col">Vendor</th>
+          <td mat-cell *matCellDef="let vendor">
+            <div class="flex items-center gap-3.5">
+              <md-avatar [name]="vendor.name" />
+              <div class="min-w-0">
+                <a class="vendor-name" [routerLink]="['/vendors', vendor.slug]">{{
+                  vendor.name
+                }}</a>
+                <div class="text-label-large text-on-surface-variant">{{ vendor.meta }}</div>
+              </div>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="markets">
+          <th mat-header-cell *matHeaderCellDef scope="col">Markets</th>
+          <td mat-cell *matCellDef="let vendor">
+            <div class="flex flex-wrap gap-1.5">
+              @for (label of marketChips(vendor); track label) {
+                <md-status-pill tone="muted">{{ label }}</md-status-pill>
+              }
+              @if (marketOverflow(vendor); as extra) {
+                <md-status-pill tone="muted">+{{ extra }}</md-status-pill>
+              }
+              @if (vendor.appliedLabel; as applied) {
+                <md-status-pill tone="warn">{{ applied }}</md-status-pill>
+              }
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="staff">
+          <th mat-header-cell *matHeaderCellDef scope="col">Staff</th>
+          <td mat-cell *matCellDef="let vendor">
+            <div class="flex items-center gap-2.5">
+              <md-face-pile [names]="vendor.staff" />
+              <span class="text-label-large text-on-surface-variant">{{ staffLabel(vendor) }}</span>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+          <td mat-cell *matCellDef="let vendor">
+            @if (vendor.standing === 'pending') {
+              <button
+                matButton="filled"
+                type="button"
+                disabled
+                matTooltip="The application review screen is coming soon"
+              >
+                Review
+              </button>
+            } @else {
+              <md-status-pill [tone]="standingTone(vendor)">{{
+                vendor.standingLabel
+              }}</md-status-pill>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef scope="col">
+            <span class="sr-only">Actions</span>
+          </th>
+          <td mat-cell *matCellDef="let vendor">
+            <button
+              matIconButton
+              type="button"
+              [attr.aria-label]="'Actions for ' + vendor.name"
+              [matMenuTriggerFor]="rowMenu"
+            >
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #rowMenu="matMenu">
+              <a mat-menu-item [routerLink]="['/vendors', vendor.slug]">Open vendor</a>
+              <button mat-menu-item type="button" disabled>Message vendor</button>
+              <button mat-menu-item type="button" disabled>Suspend vendor</button>
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+
+      <mat-paginator
+        [length]="store.visible().length"
+        [pageSize]="pageSize()"
+        [pageIndex]="pageIndex()"
+        [pageSizeOptions]="[10, 25, 50]"
+        (page)="onPage($event)"
+        aria-label="Choose a page of vendors"
+      />
+    </div>
+  }
+</div>

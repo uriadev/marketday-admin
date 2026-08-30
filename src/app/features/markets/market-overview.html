@@ -1,0 +1,139 @@
+@if (market(); as data) {
+  <div class="layout">
+    <div class="main">
+      <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        @for (stat of data.stats; track stat.label) {
+          <md-stat-tile
+            [label]="stat.label"
+            [value]="stat.value"
+            [suffix]="stat.suffix ?? ''"
+            [tone]="stat.tone"
+          />
+        }
+      </div>
+
+      <mat-card appearance="outlined">
+        <div class="flex flex-col gap-3.5 p-4.5">
+          <div class="flex flex-wrap items-baseline justify-between gap-4">
+            <div>
+              <span class="text-title-medium font-bold text-on-surface"
+                >Stall map · {{ data.marketDayLabel }}</span
+              >
+              <p class="mt-0.5 mb-0 text-label-large text-on-surface-variant">
+                {{ data.stallMapHint }}
+              </p>
+            </div>
+            <div class="legend">
+              <span class="legend-item"
+                ><span class="swatch swatch--confirmed"></span>Confirmed</span
+              >
+              <span class="legend-item"><span class="swatch swatch--unpaid"></span>Unpaid</span>
+              <span class="legend-item"><span class="swatch swatch--free"></span>Free</span>
+            </div>
+          </div>
+
+          <ul class="stall-grid">
+            @for (stall of data.stalls; track stall.id) {
+              <li class="stall" [class]="'stall--' + stall.state">
+                <span class="stall-id">{{ stall.id }}</span>
+                <span class="stall-vendor">{{ stall.vendor }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </mat-card>
+
+      <mat-card appearance="outlined">
+        <div class="flex items-center justify-between px-4.5 py-2">
+          <!-- px-4.5 py-4 -->
+          <span class="text-title-medium font-bold text-on-surface">Vendors this week</span>
+          <button matButton type="button" disabled matTooltip="The vendors tab is coming soon">
+            See all {{ data.vendorCount }}
+          </button>
+        </div>
+        <ul class="m-0 list-none p-0">
+          @for (vendor of data.weekVendors; track vendor.id) {
+            <li class="vendor-row">
+              <md-avatar [name]="vendor.name" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-body-medium font-semibold text-on-surface">{{
+                  vendor.name
+                }}</span>
+                <span class="block text-label-large text-on-surface-variant">{{
+                  vendor.meta
+                }}</span>
+              </span>
+              <md-status-pill [tone]="vendor.fee === 'unpaid' ? 'warn' : 'positive'">
+                {{ vendor.fee === 'unpaid' ? 'Fee unpaid' : 'Confirmed' }}
+              </md-status-pill>
+              <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+                {{ vendor.fee === 'unpaid' ? 'Send reminder' : 'Open' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </mat-card>
+    </div>
+
+    <aside class="rail" aria-label="Market day actions">
+      @if (data.decisions.length > 0) {
+        <section class="section">
+          <h3 class="section-title">Needs a decision</h3>
+          @for (decision of data.decisions; track decision.id) {
+            <mat-card appearance="outlined">
+              <div class="flex flex-col gap-2.5 p-3.5">
+                <span class="text-body-medium font-bold text-on-surface">{{ decision.title }}</span>
+                <p class="m-0 text-body-medium text-on-surface-variant">{{ decision.body }}</p>
+                <div class="flex flex-wrap gap-2">
+                  @if (decision.primaryAction; as primary) {
+                    <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+                      {{ primary }}
+                    </button>
+                  }
+                  <button
+                    [matButton]="decision.primaryAction ? 'text' : 'outlined'"
+                    type="button"
+                    disabled
+                    matTooltip="Coming soon"
+                  >
+                    {{ decision.secondaryAction }}
+                  </button>
+                </div>
+              </div>
+            </mat-card>
+          }
+        </section>
+      }
+
+      <section class="section">
+        <h3 class="section-title">Market day checklist</h3>
+        @for (item of data.checklist; track item.id) {
+          <mat-checkbox [checked]="item.done" disabled>{{ item.label }}</mat-checkbox>
+        }
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Recent activity</h3>
+        @for (entry of data.activity; track entry.id) {
+          <p class="m-0 text-body-medium text-on-surface-variant">{{ entry.text }}</p>
+        }
+      </section>
+
+      <div class="danger">
+        <span class="text-body-large font-bold">Cancel this market day</span>
+        <p class="m-0 text-body-medium">
+          Refunds stall fees and notifies vendors and pre-order customers.
+        </p>
+        <button
+          matButton="outlined"
+          type="button"
+          class="self-start"
+          disabled
+          matTooltip="Coming soon"
+        >
+          Cancel day
+        </button>
+      </div>
+    </aside>
+  </div>
+}

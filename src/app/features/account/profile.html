@@ -1,0 +1,174 @@
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading your account" />
+}
+
+@if (facade.hasError()) {
+  <div class="scroller">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <button matButton type="button" (click)="facade.load()">Retry</button>
+    </div>
+  </div>
+}
+
+@if (facade.profile(); as profile) {
+  <div class="scroller">
+    <form class="column" [formGroup]="form" (ngSubmit)="save()">
+      <p class="m-0 text-body-medium text-on-surface-variant">
+        How you appear to vendors and other organisers.
+      </p>
+
+      <section class="section">
+        <div class="flex flex-wrap items-center gap-5">
+          <md-avatar [name]="fullName()" [src]="avatarUrl()" [size]="80" />
+          <div class="flex flex-col gap-2.5">
+            <div class="flex flex-wrap gap-2">
+              <button
+                matButton="outlined"
+                type="button"
+                [disabled]="uploading()"
+                (click)="openPicker()"
+              >
+                {{ uploading() ? 'Uploading…' : 'Upload photo' }}
+              </button>
+              @if (avatarUrl()) {
+                <button matButton type="button" class="remove" (click)="removePhoto()">
+                  Remove
+                </button>
+              }
+            </div>
+            <span class="text-label-large text-on-surface-variant">
+              JPG or PNG, at least 200×200px.
+            </span>
+          </div>
+        </div>
+        <input
+          #picker
+          class="picker"
+          type="file"
+          [accept]="photoAccept"
+          aria-label="Choose a profile photo"
+          (change)="onPhotoPicked($event)"
+        />
+      </section>
+
+      <section class="section">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <mat-form-field>
+            <mat-label>First name</mat-label>
+            <input matInput formControlName="firstName" />
+            @if (form.controls.firstName.hasError('required')) {
+              <mat-error>Give your first name</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Last name</mat-label>
+            <input matInput formControlName="lastName" />
+            @if (form.controls.lastName.hasError('required')) {
+              <mat-error>Give your last name</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Email</mat-label>
+          <input matInput [value]="profile.email" disabled />
+          <mat-hint>Changing this needs a fresh sign-in — write to support</mat-hint>
+        </mat-form-field>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Phone</mat-label>
+            <input matInput type="tel" formControlName="phone" />
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Role</mat-label>
+            <input matInput [value]="profile.role" disabled />
+            <mat-hint>Only a super admin can change this</mat-hint>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="m-0 text-body-large font-bold text-on-surface">Security</h3>
+
+        <div class="card">
+          <div class="min-w-0">
+            <span class="block text-body-medium font-semibold text-on-surface">Password</span>
+            <span class="block text-label-large text-on-surface-variant">
+              {{ profile.passwordChanged }}
+            </span>
+          </div>
+          <button
+            matButton
+            type="button"
+            class="shrink-0"
+            [disabled]="sendingReset()"
+            (click)="changePassword()"
+          >
+            {{ sendingReset() ? 'Sending…' : 'Change' }}
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="min-w-0">
+            <span class="block text-body-medium font-semibold text-on-surface">
+              Two-factor authentication
+            </span>
+            <span class="block text-label-large text-on-surface-variant">
+              {{ twoFactorOn() ? profile.twoFactorHint : 'Off' }}
+            </span>
+          </div>
+          <mat-slide-toggle
+            formControlName="twoFactor"
+            aria-label="Two-factor authentication"
+            class="shrink-0"
+          />
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="m-0 text-body-large font-bold text-on-surface">Notifications</h3>
+        @for (key of notificationKeys; track key) {
+          <div class="toggle-row">
+            <span class="text-body-medium text-on-surface">{{ notificationLabels[key] }}</span>
+            <mat-slide-toggle
+              [formControl]="notificationControl(key)"
+              [aria-label]="notificationLabels[key]"
+            />
+          </div>
+        }
+      </section>
+
+      @if (facade.saveError(); as message) {
+        <div
+          class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+          role="alert"
+        >
+          <mat-icon class="text-error">error</mat-icon>
+          <span class="flex-1">{{ message }}</span>
+        </div>
+      }
+
+      <div class="flex flex-wrap gap-2">
+        <button matButton="filled" type="submit" [disabled]="form.pristine || facade.isSaving()">
+          {{ facade.isSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+        <button
+          matButton
+          type="button"
+          [disabled]="form.pristine || facade.isSaving()"
+          (click)="reset()"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+}

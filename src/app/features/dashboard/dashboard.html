@@ -136,7 +136,7 @@
             </div>
             @for (vendor of data.pendingVendors; track vendor.id) {
               <div class="row-item">
-                <span class="avatar" aria-hidden="true">{{ initials(vendor.name) }}</span>
+                <md-avatar [name]="vendor.name" />
                 <span class="row-text">
                   <span class="text-body-medium font-semibold text-on-surface">{{
                     vendor.name

@@ -60,19 +60,6 @@
   min-inline-size: 0;
 }
 
-.avatar {
-  inline-size: 40px;
-  block-size: 40px;
-  border-radius: var(--mat-sys-corner-full);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  background: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-  font: var(--mat-sys-label-medium);
-  font-weight: 700;
-}
-
 .dot {
   inline-size: 8px;
   block-size: 8px;

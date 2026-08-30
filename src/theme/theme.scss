@@ -24,10 +24,21 @@ html {
     )
   );
 
-  @include mat.form-field-overrides((
+  @include mat.form-field-overrides((    
    container-height: 40px,
    container-vertical-padding: 8px,
    outlined-container-shape: 20px,
+  ));
+
+  @include mat.card-overrides((
+    outlined-container-color: #fff
+    // title-text-size: 1.2rem,
+    // title-text-weight: 600,
+    // subtitle-text-size: .75em,
+  ));
+
+  @include mat.paginator-overrides((
+    container-background-color: #fff
   ));
 
   color-scheme: light;

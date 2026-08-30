@@ -1,0 +1,101 @@
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading the enquiry" />
+}
+
+@if (facade.hasError()) {
+  <div class="p-6 text-body-medium" role="alert">{{ facade.error() }}</div>
+}
+
+@if (thread(); as data) {
+  <div class="thread-head">
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <h2 class="m-0 text-title-large font-bold text-on-surface">{{ data.subject }}</h2>
+        @if (data.status === 'resolved') {
+          <md-status-pill tone="positive">Resolved</md-status-pill>
+        }
+      </div>
+      <p class="mt-1 mb-0 text-label-large text-on-surface-variant">{{ data.meta }}</p>
+    </div>
+
+    <div class="flex shrink-0 items-center gap-2">
+      <button matButton="outlined" type="button" [matMenuTriggerFor]="assignMenu">
+        {{ data.assignee ?? 'Assign' }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #assignMenu="matMenu">
+        <button mat-menu-item type="button" (click)="facade.assign(null)">Unassigned</button>
+        @for (agent of agents; track agent) {
+          <button mat-menu-item type="button" (click)="facade.assign(agent)">{{ agent }}</button>
+        }
+      </mat-menu>
+
+      <button
+        matButton="filled"
+        type="button"
+        [disabled]="data.status === 'resolved'"
+        (click)="facade.resolve()"
+      >
+        {{ data.status === 'resolved' ? 'Resolved' : 'Resolve' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="messages">
+    @for (message of data.messages; track message.id) {
+      <div class="message">
+        <md-avatar
+          [name]="message.author"
+          [tone]="message.kind === 'incoming' ? 'muted' : 'accent'"
+        />
+        <div class="bubble" [class.bubble--note]="message.kind === 'note'">
+          <span class="bubble-meta">{{ message.meta }}</span>
+          <p class="m-0 text-body-medium whitespace-pre-line text-on-surface">{{ message.body }}</p>
+        </div>
+      </div>
+    }
+
+    <div class="composer">
+      <div class="composer-bar">
+        <mat-button-toggle-group
+          [value]="mode()"
+          (change)="mode.set($event.value)"
+          aria-label="Reply, or leave a note for the team"
+        >
+          <mat-button-toggle value="reply">Reply</mat-button-toggle>
+          <mat-button-toggle value="note">Internal note</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        <button matButton type="button" class="ml-auto" [matMenuTriggerFor]="savedMenu">
+          Insert saved reply
+          <mat-icon iconPositionEnd>expand_more</mat-icon>
+        </button>
+        <mat-menu #savedMenu="matMenu">
+          @for (saved of savedReplies; track saved.label) {
+            <button mat-menu-item type="button" (click)="insertSavedReply(saved.body)">
+              {{ saved.label }}
+            </button>
+          }
+        </mat-menu>
+      </div>
+
+      <mat-form-field subscriptSizing="dynamic" class="composer-field">
+        <mat-label>{{ mode() === 'note' ? 'Internal note' : 'Reply' }}</mat-label>
+        <textarea
+          matInput
+          rows="3"
+          [placeholder]="placeholder()"
+          [value]="draft()"
+          (input)="onDraft($event)"
+        ></textarea>
+      </mat-form-field>
+
+      <div class="composer-foot">
+        <span class="text-label-large text-on-surface-variant">{{ sendHint() }}</span>
+        <button matButton="filled" type="button" [disabled]="!canSend()" (click)="send()">
+          {{ mode() === 'note' ? 'Add note' : 'Send reply' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

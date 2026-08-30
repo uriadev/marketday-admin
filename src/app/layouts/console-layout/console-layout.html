@@ -13,42 +13,66 @@
         <mat-nav-list>
           <h3 matSubheader>Platform</h3>
 
-          <a mat-list-item routerLink="/" routerLinkActive="active-link" [routerLinkActiveOptions]="{ exact: true }"
-            ariaCurrentWhenActive="page">
+          <a
+            mat-list-item
+            routerLink="/"
+            routerLinkActive="active-link"
+            [routerLinkActiveOptions]="{ exact: true }"
+            ariaCurrentWhenActive="page"
+          >
             <mat-icon matListItemIcon>dashboard</mat-icon>
             <span matListItemTitle>Overview</span>
           </a>
 
           @for (link of platformLinks; track link.label) {
-          <a mat-list-item disabled>
-            <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
-            <span matListItemTitle>{{ link.label }}</span>
-            @if (link.meta) {
-            <span matListItemMeta class="meta" [class.meta-badge]="link.badge" [class.meta-count]="!link.badge">{{
-              link.meta }}</span>
-            }
-          </a>
+            <a
+              mat-list-item
+              [routerLink]="link.route ?? null"
+              routerLinkActive="active-link"
+              ariaCurrentWhenActive="page"
+              [disabled]="!link.route"
+            >
+              <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
+              <span matListItemTitle>{{ link.label }}</span>
+              @if (link.meta) {
+                <span
+                  matListItemMeta
+                  class="meta"
+                  [class.meta-badge]="link.badge"
+                  [class.meta-count]="!link.badge"
+                  >{{ link.meta }}</span
+                >
+              }
+            </a>
           }
         </mat-nav-list>
 
         <mat-nav-list>
           <h3 matSubheader>Account</h3>
           @for (link of accountLinks; track link.label) {
-          <a mat-list-item disabled>
-            <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
-            <span matListItemTitle>{{ link.label }}</span>
-          </a>
+            <a
+              mat-list-item
+              [routerLink]="link.route ?? null"
+              routerLinkActive="active-link"
+              ariaCurrentWhenActive="page"
+              [disabled]="!link.route"
+            >
+              <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
+              <span matListItemTitle>{{ link.label }}</span>
+            </a>
           }
         </mat-nav-list>
       </div>
       <div class="drawer-spacer"></div>
 
       <div class="user flex-none">
-        <div class="avatar" aria-hidden="true">{{ initials() }}</div>
-        <div class="user-text">
-          <span class="user-name">{{ user()?.name ?? 'Áine Ryan' }}</span>
-          <span class="user-role">{{ user()?.role ?? 'Super admin' }}</span>
-        </div>
+        <a class="user-link" routerLink="/account" aria-label="Your settings">
+          <md-avatar [name]="user()?.name ?? 'MarketDay'" />
+          <div class="user-text">
+            <span class="user-name">{{ user()?.name ?? 'Áine Ryan' }}</span>
+            <span class="user-role">{{ user()?.role ?? 'Super admin' }}</span>
+          </div>
+        </a>
         <button matIconButton type="button" aria-label="Sign out" (click)="signOut()">
           <mat-icon>logout</mat-icon>
         </button>
@@ -56,7 +80,7 @@
     </div>
   </mat-sidenav>
 
-  <mat-sidenav-content class="content flex flex-col">
+  <mat-sidenav-content class="content">
     <router-outlet />
   </mat-sidenav-content>
 </mat-sidenav-container>

@@ -1,0 +1,174 @@
+<div class="layout">
+  <div class="main">
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        [matButton]="filters().kind === null ? 'tonal' : 'outlined'"
+        type="button"
+        (click)="setKind(null)"
+      >
+        Everything
+      </button>
+      @for (option of kinds; track option) {
+        <button
+          [matButton]="filters().kind === option ? 'tonal' : 'outlined'"
+          type="button"
+          (click)="setKind(option)"
+        >
+          {{ kindLabels[option] }}
+        </button>
+      }
+
+      <span class="divider" aria-hidden="true"></span>
+
+      <button matButton="outlined" type="button" [matMenuTriggerFor]="actorMenu">
+        {{ actorLabel() }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #actorMenu="matMenu">
+        <button mat-menu-item type="button" (click)="setActor(null)">Anyone</button>
+        @for (name of store.summary().actors; track name) {
+          <button mat-menu-item type="button" (click)="setActor(name)">{{ name }}</button>
+        }
+      </mat-menu>
+
+      <span class="flex-1"></span>
+
+      <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+        Export log
+      </button>
+    </div>
+
+    @if (store.isLoading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Loading the activity log" />
+    }
+
+    @if (store.hasError()) {
+      <div
+        class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+        role="alert"
+      >
+        <mat-icon class="text-error">error</mat-icon>
+        <span class="flex-1">{{ store.error() }}</span>
+        <button matButton type="button" (click)="store.load()">Retry</button>
+      </div>
+    } @else if (store.isFilteredEmpty()) {
+      <md-empty-state
+        icon="filter_list_off"
+        headline="Nothing matches those filters"
+        body="Try another kind of change, or someone else who works on this vendor."
+      >
+        <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+      </md-empty-state>
+    } @else if (store.isEmpty()) {
+      <md-empty-state
+        icon="history"
+        headline="Nothing has changed yet"
+        body="Every write to this vendor's record shows up here, from either app."
+      />
+    } @else {
+      @for (day of store.days(); track day.label) {
+        <section class="day">
+          <h3 class="day-title">{{ day.label }}</h3>
+          @for (event of day.events; track event.id) {
+            <div class="entry">
+              <md-avatar
+                class="shrink-0"
+                [name]="event.who"
+                [size]="36"
+                [tone]="isAutomatic(event) ? 'muted' : 'accent'"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="m-0 text-body-medium text-on-surface">
+                  <span class="font-bold">{{ event.who }}</span> {{ event.what }}
+                </p>
+                @if (event.detail) {
+                  <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+                    {{ event.detail }}
+                  </p>
+                }
+                <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <md-status-pill [tone]="kindTone(event)">{{ kindName(event) }}</md-status-pill>
+                  @if (event.market) {
+                    @if (event.marketSlug) {
+                      <a class="market" [routerLink]="['/markets', event.marketSlug]">
+                        <md-status-pill tone="muted">{{ event.market }}</md-status-pill>
+                      </a>
+                    } @else {
+                      <md-status-pill tone="muted">{{ event.market }}</md-status-pill>
+                    }
+                  }
+                  <span class="text-label-large text-on-surface-variant">{{ event.source }}</span>
+                </div>
+              </div>
+              <span class="time text-label-large text-on-surface-variant">{{ event.time }}</span>
+            </div>
+          }
+        </section>
+      }
+
+      @if (store.hasMore()) {
+        <button
+          matButton="outlined"
+          type="button"
+          class="self-center"
+          [disabled]="store.loadingMore()"
+          (click)="store.loadOlder()"
+        >
+          {{ store.loadingMore() ? 'Loading…' : 'Load older activity' }}
+        </button>
+      } @else {
+        <p class="self-center text-label-large text-on-surface-variant">That is the whole log.</p>
+      }
+    }
+  </div>
+
+  <aside class="rail" aria-label="About this activity log">
+    <section class="section">
+      <h3 class="section-title">Last 30 days</h3>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="tile">
+          <span class="text-label-large text-on-surface-variant">Changes</span>
+          <span class="text-title-large font-bold text-on-surface">
+            {{ store.summary().changes }}
+          </span>
+        </div>
+        <div class="tile">
+          <span class="text-label-large text-on-surface-variant">By admins</span>
+          <span class="text-title-large font-bold text-on-surface">
+            {{ store.summary().byAdmins }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    @if (store.summary().mostActive.length > 0) {
+      <section class="section">
+        <h3 class="section-title">Most active</h3>
+        @for (person of store.summary().mostActive; track person.name) {
+          <button class="person" type="button" (click)="setActor(person.name)">
+            <md-avatar [name]="person.name" [size]="36" />
+            <span class="min-w-0 flex-1 text-start">
+              <span class="block text-body-medium text-on-surface">{{ person.name }}</span>
+              <span class="block text-label-large text-on-surface-variant">{{ person.role }}</span>
+            </span>
+            <span class="text-body-medium font-bold text-on-surface-variant">
+              {{ person.count }}
+            </span>
+          </button>
+        }
+      </section>
+    }
+
+    <div class="note">
+      <span class="text-body-large font-bold text-on-surface">What lands here</span>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+        Every write to the vendor record, from either app: memberships, staff and their market
+        scopes, fees, profile fields and documents. Sign-ins and page views do not.
+      </p>
+    </div>
+
+    <p class="m-0 text-label-large text-on-surface-variant">
+      Kept for 24 months, then only the membership and payment entries are retained.
+    </p>
+  </aside>
+</div>

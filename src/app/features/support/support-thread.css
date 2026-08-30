@@ -1,0 +1,87 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.thread-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.messages {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  display: flex;
+  gap: 12px;
+}
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-inline-size: 580px;
+  padding: 14px 16px;
+  border-radius: var(--mat-sys-corner-large);
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+}
+/* A note is the team talking to itself; tinting it is what stops it being
+   mistaken for something the person who wrote in can read. */
+.bubble--note {
+  background: var(--mat-sys-secondary-container);
+  border-color: transparent;
+}
+
+.bubble-meta {
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* ── Composer ────────────────────────────────────────────────────────────── */
+
+.composer {
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.composer-field {
+  inline-size: 100%;
+  padding: 12px 16px 0;
+}
+
+.composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}

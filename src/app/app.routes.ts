@@ -17,6 +17,30 @@ export const routes: Routes = [
         title: 'Overview · MarketDay Admin',
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
       },
+      {
+        path: 'markets',
+        loadChildren: () =>
+          import('./features/markets/markets.routes').then((m) => m.MARKETS_ROUTES),
+      },
+      {
+        path: 'vendors',
+        loadChildren: () =>
+          import('./features/vendors/vendors.routes').then((m) => m.VENDORS_ROUTES),
+      },
+      {
+        path: 'users',
+        loadChildren: () => import('./features/users/users.routes').then((m) => m.USERS_ROUTES),
+      },
+      {
+        path: 'account',
+        loadChildren: () =>
+          import('./features/account/account.routes').then((m) => m.ACCOUNT_ROUTES),
+      },
+      {
+        path: 'support',
+        loadChildren: () =>
+          import('./features/support/support.routes').then((m) => m.SUPPORT_ROUTES),
+      },
     ],
   },
   {

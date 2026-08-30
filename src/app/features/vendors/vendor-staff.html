@@ -1,0 +1,140 @@
+@if (vendor(); as data) {
+  <div class="body">
+    <div class="flex flex-wrap items-end justify-between gap-6">
+      <div class="max-w-[620px]">
+        <h2 class="m-0 text-title-large font-bold text-on-surface">{{ summary() }}</h2>
+        <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+          Staff sign in to the vendor app with their own account. Each person sees only the markets
+          they have been given access to — orders, inventory and the day’s schedule for those, and
+          nothing else.
+        </p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <button
+          [matButton]="scope() === null ? 'tonal' : 'outlined'"
+          type="button"
+          (click)="setScope(null)"
+        >
+          All markets
+        </button>
+        @for (label of marketScopes(); track label) {
+          <button
+            [matButton]="scope() === label ? 'tonal' : 'outlined'"
+            type="button"
+            (click)="setScope(label)"
+          >
+            {{ label }}
+          </button>
+        }
+        <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+          <mat-icon>add</mat-icon>
+          Invite staff member
+        </button>
+      </div>
+    </div>
+
+    @if (visible().length === 0) {
+      <md-empty-state
+        icon="group"
+        headline="Nobody is scoped to that market"
+        body="Owners can work at every market; stallholders only at the ones they have been given."
+      >
+        <button matButton="filled" type="button" (click)="setScope(null)">Show all staff</button>
+      </md-empty-state>
+    } @else {
+      <div class="table-card">
+        <table mat-table [dataSource]="visible()" class="staff">
+          <ng-container matColumnDef="person">
+            <th mat-header-cell *matHeaderCellDef scope="col">Person</th>
+            <td mat-cell *matCellDef="let person">
+              <div class="flex items-center gap-3.5">
+                <md-avatar [name]="person.name" [size]="44" [outlined]="person.pending" />
+                <div class="min-w-0">
+                  <span class="block text-body-large font-semibold text-on-surface">{{
+                    person.name
+                  }}</span>
+                  <span class="block text-label-large text-on-surface-variant">{{
+                    person.role
+                  }}</span>
+                </div>
+              </div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="contact">
+            <th mat-header-cell *matHeaderCellDef scope="col">Contact</th>
+            <td mat-cell *matCellDef="let person">
+              <a class="email" [href]="'mailto:' + person.email">{{ person.email }}</a>
+              <span class="block text-label-large text-on-surface-variant">{{ person.phone }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="access">
+            <th mat-header-cell *matHeaderCellDef scope="col">Can work at</th>
+            <td mat-cell *matCellDef="let person">
+              <div class="flex flex-wrap items-center gap-1.5">
+                @if (person.pending) {
+                  <md-status-pill tone="warn">Invitation pending</md-status-pill>
+                }
+                @if (person.allMarkets) {
+                  <md-status-pill tone="positive">All markets</md-status-pill>
+                }
+                @for (label of person.markets; track label) {
+                  <md-status-pill tone="muted">{{ label }}</md-status-pill>
+                }
+                @if (person.managesStaff) {
+                  <md-status-pill tone="muted">Manages staff</md-status-pill>
+                }
+                @if (canAddMarket(person)) {
+                  <button matButton type="button" disabled matTooltip="Coming soon">
+                    <mat-icon>add</mat-icon>
+                    Add market
+                  </button>
+                }
+                @if (person.pending) {
+                  <button matButton type="button" disabled matTooltip="Coming soon">Resend</button>
+                  <button matButton type="button" disabled matTooltip="Coming soon">
+                    Cancel invite
+                  </button>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef scope="col">
+              <span class="sr-only">Actions</span>
+            </th>
+            <td mat-cell *matCellDef="let person">
+              <button
+                matIconButton
+                type="button"
+                [attr.aria-label]="'Actions for ' + person.name"
+                [matMenuTriggerFor]="rowMenu"
+              >
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #rowMenu="matMenu">
+                <button mat-menu-item type="button" disabled>Change markets</button>
+                <button mat-menu-item type="button" disabled>Make an owner</button>
+                <button mat-menu-item type="button" disabled>Remove from vendor</button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        </table>
+      </div>
+    }
+
+    <div class="notes">
+      @for (note of data.staffNotes; track note.id) {
+        <div class="note">
+          <span class="text-body-large font-bold text-on-surface">{{ note.title }}</span>
+          <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ note.body }}</p>
+        </div>
+      }
+    </div>
+  </div>
+}

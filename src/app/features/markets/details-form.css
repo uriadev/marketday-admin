@@ -1,0 +1,16 @@
+:host {
+  display: block;
+}
+
+.details-form__toggle-label {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+}
+
+.details-form__hint {
+  margin: 0;
+  font: var(--mat-sys-body-small);
+  color: color-mix(in srgb, var(--mat-sys-on-surface-variant) 72%, transparent);
+}

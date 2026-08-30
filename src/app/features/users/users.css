@@ -1,0 +1,110 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.search {
+  inline-size: 300px;
+  max-inline-size: 40vw;
+}
+
+/* Heading, actions and filters stay put; only the table scrolls. */
+.intro {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 0;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 16px 24px 24px;
+}
+
+/* A filter that is on says so without needing its menu opened. */
+.filter--on {
+  --mat-outlined-button-label-text-color: var(--mat-sys-primary);
+  --mat-outlined-button-outline-color: var(--mat-sys-primary);
+}
+
+.menu-count {
+  margin-inline-start: 12px;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* Appears only while rows are picked, so the table is quiet by default. */
+.selection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block-end: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.table-card {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.accounts {
+  inline-size: 100%;
+  background: transparent;
+}
+
+/* Who they are, what they are to us, where they belong, how they stand. */
+.accounts .mat-column-select {
+  inline-size: 48px;
+}
+.accounts .mat-column-name {
+  inline-size: 300px;
+}
+.accounts .mat-column-role {
+  inline-size: 140px;
+}
+.accounts .mat-column-lastActive {
+  inline-size: 120px;
+}
+.accounts .mat-column-status {
+  inline-size: 130px;
+}
+.accounts .mat-column-actions {
+  inline-size: 56px;
+  text-align: end;
+}
+
+.accounts td.mat-mdc-cell {
+  padding-block: 10px;
+}
+
+/* A closed account is still listed, but it is not live traffic. */
+.row--suspended td.mat-mdc-cell {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.attached {
+  color: var(--mat-sys-on-surface);
+  text-decoration: none;
+}
+.attached:hover {
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

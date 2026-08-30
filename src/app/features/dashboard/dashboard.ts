@@ -19,6 +19,7 @@ import { ConsoleChrome } from '../../layouts/console-layout/console-chrome';
 import { PageHeader } from '../../shared/components/page-header/page-header';
 import { StatTile } from '../../shared/components/stat-tile/stat-tile';
 import { StatusPill } from '../../shared/components/status-pill/status-pill';
+import { Avatar } from '../../shared/components/avatar/avatar';
 import { DashboardFacade } from './dashboard-facade';
 
 const RANGES = ['Last 7 days', 'Last 30 days', 'Last 90 days'] as const;
@@ -32,6 +33,7 @@ type Range = (typeof RANGES)[number];
     PageHeader,
     StatTile,
     StatusPill,
+    Avatar,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -58,14 +60,5 @@ export class Dashboard implements OnInit {
 
   ngOnInit(): void {
     this.facade.load();
-  }
-
-  protected initials(name: string): string {
-    return name
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0] ?? '')
-      .join('')
-      .toUpperCase();
   }
 }

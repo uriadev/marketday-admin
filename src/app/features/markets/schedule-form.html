@@ -1,0 +1,158 @@
+<form [formGroup]="form()" class="schedule-form">
+  <div>
+    <mat-form-field class="w-full">
+      <mat-label>Repeats</mat-label>
+      <mat-select formControlName="frequency">
+        @for (frequency of frequencies; track frequency.value) {
+          <mat-option [value]="frequency.value">{{ frequency.label }}</mat-option>
+        }
+      </mat-select>
+      @if (form().controls.frequency.value === 'MONTHLY') {
+        <mat-hint>Which week of the month comes from the start date.</mat-hint>
+      }
+    </mat-form-field>
+  </div>
+
+  <div>
+    <mat-form-field class="w-full">
+      <mat-label>Starts on</mat-label>
+      <input matInput [matDatepicker]="startsOn" formControlName="startsOn" />
+      <mat-datepicker-toggle matIconSuffix [for]="startsOn" />
+      <mat-datepicker #startsOn />
+      @if (form().controls.startsOn.hasError('required')) {
+        <mat-error>Pick the date the pattern starts from</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  <div class="schedule-form__wide">
+    <span class="text-label-medium block mb-2" id="schedule-form-days-label">Trading days</span>
+    <mat-button-toggle-group multiple aria-labelledby="schedule-form-days-label">
+      @for (day of tradingDays; track day.value) {
+        <mat-button-toggle
+          [checked]="isDaySelected(day.value)"
+          (change)="toggleDay(day.value)"
+          [attr.aria-label]="day.label"
+        >
+          {{ day.short }}
+        </mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+    @if (form().controls.tradingDays.touched && form().controls.tradingDays.hasError('required')) {
+      <p class="text-body-small text-error mt-2">Pick at least one trading day</p>
+    }
+  </div>
+
+  <div>
+    <mat-form-field class="w-full">
+      <mat-label>Ends</mat-label>
+      <mat-select formControlName="ends">
+        <mat-option value="NEVER">Never</mat-option>
+        <mat-option value="ON">On a date</mat-option>
+        <mat-option value="AFTER">After a number of markets</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div>
+    @switch (form().controls.ends.value) {
+      @case ('ON') {
+        <mat-form-field class="w-full">
+          <mat-label>Last market day</mat-label>
+          <input matInput [matDatepicker]="endsOn" formControlName="endsOn" />
+          <mat-datepicker-toggle matIconSuffix [for]="endsOn" />
+          <mat-datepicker #endsOn />
+          @if (form().controls.endsOn.hasError('required')) {
+            <mat-error>Pick the last trading date</mat-error>
+          }
+        </mat-form-field>
+      }
+      @case ('AFTER') {
+        <mat-form-field class="w-full">
+          <mat-label>Number of markets</mat-label>
+          <input matInput type="number" min="1" formControlName="endsAfter" />
+          @if (form().controls.endsAfter.invalid) {
+            <mat-error>Run at least one market</mat-error>
+          }
+        </mat-form-field>
+      }
+    }
+  </div>
+
+  <div>
+    <mat-form-field class="w-full">
+      <mat-label>Opens</mat-label>
+      <input matInput [matTimepicker]="opensAt" formControlName="opensAt" />
+      <mat-timepicker-toggle matIconSuffix [for]="opensAt" />
+      <mat-timepicker #opensAt interval="15min" />
+      @if (form().controls.opensAt.hasError('matTimepickerParse')) {
+        <mat-error>Enter a time like 09:00</mat-error>
+      } @else if (form().controls.opensAt.hasError('required')) {
+        <mat-error>Set an opening time</mat-error>
+      } @else {
+        <mat-hint>Also the start time of the repeat rule.</mat-hint>
+      }
+    </mat-form-field>
+  </div>
+  <div>
+    <mat-form-field class="w-full">
+      <mat-label>Closes</mat-label>
+      <input
+        matInput
+        [matTimepicker]="closesAt"
+        [matTimepickerMin]="earliestClosing()"
+        formControlName="closesAt"
+      />
+      <mat-timepicker-toggle matIconSuffix [for]="closesAt" />
+      <mat-timepicker #closesAt interval="15min" />
+      @if (form().controls.closesAt.hasError('matTimepickerParse')) {
+        <mat-error>Enter a time like 14:30</mat-error>
+      } @else if (
+        form().controls.closesAt.hasError('matTimepickerMin') || form().hasError('tradingWindow')
+      ) {
+        <mat-error>Closing must be after opening</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  @if (showRepeatRule()) {
+    <!--
+    The rule the four controls just wrote, in words and in RFC 5545.
+    Development only: it exists to check what the form composes, not as part
+    of the organiser's flow.
+  -->
+    <div
+      class="schedule-form__rule schedule-form__wide rounded-xl border border-outline-variant bg-surface-container p-4"
+      aria-live="polite"
+    >
+      <p class="md-eyebrow uppercase mb-2">Repeat rule</p>
+      @if (scheduleDescription(); as description) {
+        <p class="text-body-medium m-0">{{ description }}</p>
+        @if (firstMarketDay(); as first) {
+          <p class="text-body-small text-on-surface-variant mt-1 mb-0">
+            First market day {{ first | date: 'EEEE d MMMM y' : 'UTC' }}
+          </p>
+        }
+        <pre
+          class="text-body-small text-on-surface-variant mt-3 mb-0 overflow-x-auto whitespace-pre"
+          >{{ schedule() }}</pre>
+      } @else {
+        <p class="text-body-small text-on-surface-variant m-0">
+          Pick the trading days and a start date to see the rule.
+        </p>
+      }
+    </div>
+  }
+
+  <div class="schedule-form__wide">
+    <mat-form-field class="w-full md:w-1/2">
+      <mat-label>Vendor booking deadline</mat-label>
+      <mat-select formControlName="bookingDeadlineHours">
+        <mat-option [value]="24">24 hours before opening</mat-option>
+        <mat-option [value]="48">48 hours before opening</mat-option>
+        <mat-option [value]="72">72 hours before opening</mat-option>
+      </mat-select>
+      <mat-hint>After the deadline, unclaimed stalls are released to the waiting list.</mat-hint>
+    </mat-form-field>
+  </div>
+</form>

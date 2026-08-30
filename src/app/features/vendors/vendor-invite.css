@@ -1,0 +1,147 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-inline-size: 720px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 720px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-title-small);
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+}
+.section-title--divided {
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the preview drops under the form. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rail-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The email as the vendor will meet it — the first thing they see of MarketDay. */
+.email {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+  overflow: hidden;
+}
+.email-to {
+  padding: 12px 16px;
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+.email-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* A picture of the button in the email, not a control on this page. */
+.email-cta {
+  block-size: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font: var(--mat-sys-label-large);
+  font-weight: 600;
+}
+
+.bulk-note {
+  margin: auto 0 0;
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.footer {
+  flex: none;
+  block-size: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 24px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+}

@@ -1,0 +1,250 @@
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading the vendor record" />
+}
+
+@if (facade.hasError()) {
+  <div class="mx-auto w-full max-w-[720px] px-6 py-5">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <button matButton type="button" (click)="facade.load(slug())">Retry</button>
+    </div>
+  </div>
+}
+
+@if (facade.profile(); as profile) {
+  <div class="layout">
+    <form class="main" [formGroup]="form" (ngSubmit)="save()">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="m-0 text-body-medium text-on-surface-variant">
+          @if (form.dirty) {
+            Unsaved changes on this record.
+          } @else {
+            {{ profile.lastEdited }} {{ profile.lastEditedBy }}
+          }
+        </p>
+        <div class="flex shrink-0 items-center gap-2">
+          <button
+            matButton
+            type="button"
+            [disabled]="form.pristine || facade.isSaving()"
+            (click)="reset()"
+          >
+            Discard changes
+          </button>
+          <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+            View public page
+          </button>
+          <button matButton="filled" type="submit" [disabled]="form.pristine || !canSave()">
+            {{ facade.isSaving() ? 'Saving…' : 'Save changes' }}
+          </button>
+        </div>
+      </div>
+
+      @if (facade.saveError(); as message) {
+        <div
+          class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+          role="alert"
+        >
+          <mat-icon class="text-error">error</mat-icon>
+          <span class="flex-1">{{ message }}</span>
+        </div>
+      }
+
+      <section class="section">
+        <h3 class="section-title">Business</h3>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Trading name</mat-label>
+            <input matInput formControlName="tradingName" />
+            @if (form.controls.tradingName.hasError('required')) {
+              <mat-error>A vendor needs a trading name</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Registered name</mat-label>
+            <input matInput formControlName="registeredName" />
+            <mat-hint>The name on the company filings, if it differs</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="category">
+              @for (option of categories(); track option) {
+                <mat-option [value]="option">{{ option }}</mat-option>
+              }
+            </mat-select>
+            @if (form.controls.category.hasError('required')) {
+              <mat-error>Pick what they trade as</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>VAT number</mat-label>
+            <input matInput formControlName="vatNumber" />
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Stall description</mat-label>
+          <textarea
+            matInput
+            rows="4"
+            formControlName="description"
+            [maxlength]="descriptionLimit"
+          ></textarea>
+          <mat-hint>Shown to shoppers on every market page this vendor trades at</mat-hint>
+          <mat-hint align="end">{{ descriptionLength() }} / {{ descriptionLimit }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Produce tags</mat-label>
+          <mat-chip-grid #tagGrid aria-label="Produce tags">
+            @for (tag of produceTags(); track tag) {
+              <mat-chip-row (removed)="removeTag(tag)">
+                {{ tag }}
+                <button matChipRemove type="button" [attr.aria-label]="'Remove ' + tag">
+                  <mat-icon>cancel</mat-icon>
+                </button>
+              </mat-chip-row>
+            }
+            <input
+              placeholder="Add produce tag"
+              [matChipInputFor]="tagGrid"
+              [matChipInputSeparatorKeyCodes]="tagSeparators"
+              (matChipInputTokenEnd)="addTag($event)"
+            />
+          </mat-chip-grid>
+          <mat-hint>What shoppers filter a market page by. Enter or a comma adds one</mat-hint>
+        </mat-form-field>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Contact and address</h3>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Main contact</mat-label>
+            <input matInput formControlName="contactName" />
+            <mat-hint>The person a market organiser rings first</mat-hint>
+            @if (form.controls.contactName.hasError('required')) {
+              <mat-error>Name someone an organiser can reach</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Phone</mat-label>
+            <input matInput type="tel" formControlName="phone" />
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Email</mat-label>
+            <input matInput type="email" formControlName="email" />
+            @if (form.controls.email.hasError('email')) {
+              <mat-error>That doesn’t look like an email address</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Website</mat-label>
+            <input matInput formControlName="website" placeholder="mcnallyfarm.ie" />
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Farm address</mat-label>
+          <input matInput formControlName="address" />
+          <mat-hint>Held for the organiser. Never shown publicly</mat-hint>
+        </mat-form-field>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Photos · used on every market page</h3>
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+          @for (photo of photos(); track $index) {
+            <md-image-upload
+              [label]="photoLabel($index)"
+              aspect="4 / 3"
+              [src]="photo"
+              [busy]="uploading() === $index"
+              [disabled]="uploading() !== null && uploading() !== $index"
+              (selected)="onPhotoPicked($index, $event)"
+              (cleared)="onPhotoCleared($index)"
+              (rejected)="onPhotoRejected($event)"
+            />
+          }
+          @if (canAddPhoto()) {
+            <md-image-upload
+              [label]="photos().length === 0 ? 'Cover' : 'Add photo'"
+              aspect="4 / 3"
+              [busy]="uploading() === photos().length"
+              [disabled]="uploading() !== null && uploading() !== photos().length"
+              (selected)="onPhotoPicked(photos().length, $event)"
+              (rejected)="onPhotoRejected($event)"
+            />
+          }
+        </div>
+        <p class="m-0 text-label-large text-on-surface-variant">
+          The first photo is the cover shoppers see in a market’s vendor list. Up to
+          {{ photoLimit }} in all.
+        </p>
+      </section>
+    </form>
+
+    <aside class="rail" aria-label="About this vendor record">
+      <section class="section-tight">
+        <h3 class="section-title">Record</h3>
+        <p class="m-0 text-body-medium text-on-surface">
+          Vendor ID <span class="reference">{{ profile.reference }}</span>
+          <span class="block text-on-surface-variant">{{ profile.created }}</span>
+        </p>
+        <p class="m-0 text-body-medium text-on-surface">
+          {{ profile.lastEdited }}
+          @if (profile.lastEditedBy) {
+            <span class="block text-on-surface-variant">{{ profile.lastEditedBy }}</span>
+          }
+        </p>
+      </section>
+
+      <div class="reach">
+        <span class="text-body-large font-bold">{{ reachHeadline() }}</span>
+        <p class="mt-1 mb-0 text-body-medium">{{ reachBody() }}</p>
+      </div>
+
+      @if (vendorFacade.vendor(); as vendor) {
+        <section class="section-tight">
+          <h3 class="section-title">Documents</h3>
+          @for (document of vendor.documents; track document.id) {
+            <p class="m-0 flex items-center gap-2.5 text-body-medium text-on-surface">
+              <span class="dot" [class.dot--expiring]="document.state === 'expiring'"></span>
+              {{ document.label }}
+            </p>
+          }
+        </section>
+
+        <section class="section-tight">
+          <h3 class="section-title">Ownership</h3>
+          @if (accountHolder(); as holder) {
+            <div class="flex items-center gap-3">
+              <md-avatar [name]="holder.name" [size]="40" />
+              <div class="min-w-0">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ holder.name }}
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  Account holder · can transfer
+                </span>
+              </div>
+            </div>
+          }
+          <a class="text-body-medium font-semibold text-primary" routerLink="../staff">
+            {{ staffLink() }}
+          </a>
+        </section>
+      }
+    </aside>
+  </div>
+}

@@ -1,0 +1,182 @@
+<md-page-header heading="Markets" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search markets"
+      aria-label="Search markets"
+      [value]="filters().q"
+      (input)="onSearch($event)"
+    />
+  </mat-form-field>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading markets" />
+}
+
+<div class="scroller overscroll-contain scrollbar-thin">
+  <div class="mx-auto flex max-w-300 flex-col gap-4 px-6 py-5">
+    @if (store.hasError()) {
+      <div
+        class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+        role="alert"
+      >
+        <mat-icon class="text-error">error</mat-icon>
+        <span class="flex-1">{{ store.error() }}</span>
+        <button matButton type="button" (click)="store.load()">Retry</button>
+      </div>
+    }
+
+    <div>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ heading() }}</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        matButton="tonal"
+        type="button"
+        [disabled]="!store.hasActiveFilters()"
+        (click)="clearFilters()"
+      >
+        <mat-icon>check</mat-icon>
+        {{ store.hasActiveFilters() ? 'Clear filters' : 'All markets' }}
+      </button>
+
+      <button matButton="outlined" type="button" [matMenuTriggerFor]="countyMenu">
+        {{ filters().county ?? 'County' }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #countyMenu="matMenu">
+        <button mat-menu-item type="button" (click)="setParam({ county: null })">Any county</button>
+        @for (option of store.counties(); track option) {
+          <button mat-menu-item type="button" (click)="setParam({ county: option })">
+            {{ option }}
+          </button>
+        }
+      </mat-menu>
+
+      <button matButton="outlined" type="button" [matMenuTriggerFor]="dayMenu">
+        {{ filters().day ?? 'Day' }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #dayMenu="matMenu">
+        <button mat-menu-item type="button" (click)="setParam({ day: null })">Any day</button>
+        @for (option of store.days(); track option) {
+          <button mat-menu-item type="button" (click)="setParam({ day: option })">
+            {{ option }}
+          </button>
+        }
+      </mat-menu>
+
+      <button matButton="outlined" type="button" [matMenuTriggerFor]="statusMenu">
+        {{
+          filters().status === MarketStatus.Draft
+            ? 'Draft'
+            : filters().status
+              ? 'Published'
+              : 'Status'
+        }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #statusMenu="matMenu">
+        <button mat-menu-item type="button" (click)="setParam({ status: null })">Any status</button>
+        <button mat-menu-item type="button" (click)="setParam({ status: MarketStatus.Published })">
+          Published
+        </button>
+        <button mat-menu-item type="button" (click)="setParam({ status: MarketStatus.Draft })">
+          Draft
+        </button>
+      </mat-menu>
+
+      <button matButton type="button" class="ml-auto" [matMenuTriggerFor]="sortMenu">
+        Sort: {{ sortLabel() }}
+        <mat-icon iconPositionEnd>expand_more</mat-icon>
+      </button>
+      <mat-menu #sortMenu="matMenu">
+        @for (option of sorts; track option.value) {
+          <button mat-menu-item type="button" (click)="setParam({ sort: option.value })">
+            {{ option.label }}
+          </button>
+        }
+      </mat-menu>
+    </div>
+
+    @if (store.isFilteredEmpty()) {
+      <md-empty-state
+        headline="No markets match those filters"
+        body="Try a different county or day, or clear the filters to see all {{
+          store.items().length
+        }} markets."
+      >
+        <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+      </md-empty-state>
+    } @else {
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (market of store.visible(); track market.id) {
+          <mat-card appearance="outlined">
+            <div class="flex flex-col gap-3.5 p-4.5">
+              <div class="flex items-start gap-3.5">
+                <md-avatar
+                  [name]="market.name"
+                  [size]="48"
+                  shape="rounded"
+                  [tone]="market.status === MarketStatus.Draft ? 'muted' : 'accent'"
+                />
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="text-title-medium font-bold text-on-surface">{{ market.name }}</span>
+                  <span class="mt-0.5 text-label-large text-on-surface-variant">{{
+                    market.when
+                  }}</span>
+                </span>
+                <md-status-pill [tone]="badgeTone(market)">{{ market.badgeLabel }}</md-status-pill>
+              </div>
+
+              @if (market.metrics; as metrics) {
+                <div class="footer">
+                  <span class="metric">
+                    <span class="metric-value"
+                      >{{ metrics.stallsFilled }}/{{ metrics.stallsTotal }}</span
+                    >
+                    <span class="metric-label">Stalls</span>
+                  </span>
+                  <span class="metric">
+                    <span class="metric-value">{{ metrics.preorders }}</span>
+                    <span class="metric-label">Pre-orders</span>
+                  </span>
+                  <span class="metric">
+                    <span class="metric-value" [class.text-error]="metrics.enquiries > 0">{{
+                      metrics.enquiries
+                    }}</span>
+                    <span class="metric-label">Enquiries</span>
+                  </span>
+                  <a matButton="outlined" class="ml-auto" [routerLink]="['/markets', market.slug]"
+                    >Manage</a
+                  >
+                </div>
+              } @else {
+                <div class="footer">
+                  <span class="text-body-medium text-on-surface-variant"
+                    >Awaiting organiser details and stall map</span
+                  >
+                  <a matButton="filled" class="ml-auto" routerLink="/markets/new"> Finish setup </a>
+                </div>
+              }
+            </div>
+          </mat-card>
+        }
+      </div>
+
+      <p class="m-0 text-label-large text-on-surface-variant">
+        Showing {{ store.visible().length }} of {{ store.items().length }}
+      </p>
+    }
+  </div>
+</div>
+
+<a matFab extended class="fab" routerLink="/markets/new">
+  <mat-icon>add</mat-icon>
+  Add market
+</a>

@@ -1,0 +1,49 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.rail {
+  inline-size: 244px;
+  flex: none;
+  overflow: auto;
+  padding: 12px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.rail .active-link {
+  --mat-list-list-item-label-text-weight: 700;
+  background: var(--mat-sys-secondary-container);
+  border-radius: var(--mat-sys-corner-full);
+}
+
+.panel {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Below the console's two-column width the settings list sits above the page. */
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-end: none;
+    border-block-end: 1px solid var(--mat-sys-outline-variant);
+  }
+}

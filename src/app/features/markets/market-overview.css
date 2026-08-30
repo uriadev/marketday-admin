@@ -1,0 +1,157 @@
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the rail drops under the main column. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+/* ── Stall map ───────────────────────────────────────────────────────────── */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+.swatch {
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--mat-sys-corner-extra-small);
+}
+.swatch--confirmed {
+  background: var(--mat-sys-primary);
+}
+.swatch--unpaid {
+  background: var(--mat-sys-tertiary-container);
+}
+.swatch--free {
+  border: 1px dashed var(--mat-sys-outline-variant);
+}
+
+.stall-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.stall {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-block-size: 64px;
+  padding: 12px;
+  border-radius: var(--mat-sys-corner-medium);
+}
+.stall--confirmed {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
+.stall--unpaid {
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+.stall--free {
+  border: 1px dashed var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface-variant);
+}
+.stall-id {
+  font: var(--mat-sys-label-small);
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+.stall-vendor {
+  font: var(--mat-sys-label-large);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* ── Vendors this week ───────────────────────────────────────────────────── */
+
+.vendor-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* ── Rail ────────────────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.danger {
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}

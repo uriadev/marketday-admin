@@ -1,0 +1,143 @@
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the rail drops under the feed. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.divider {
+  inline-size: 1px;
+  block-size: 24px;
+  margin-inline: 4px;
+  background: var(--mat-sys-outline-variant);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+}
+.day-title {
+  margin: 0 0 6px;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* A rule between entries rather than around them: one continuous column. */
+.entry {
+  display: flex;
+  gap: 14px;
+  padding: 12px 12px 12px 0;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+.entry:hover {
+  background: var(--mat-sys-surface-container-low);
+}
+
+.time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.market {
+  text-decoration: none;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+/* Each name filters the feed to them, so the row is a real control. */
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+  margin-inline: -6px;
+  appearance: none;
+  border: 0;
+  background: none;
+  border-radius: var(--mat-sys-corner-medium);
+  cursor: pointer;
+  text-align: start;
+}
+.person:hover {
+  background: var(--mat-sys-surface-container-high);
+}
+.person:focus-visible {
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+}
+
+.note {
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container);
+}

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type PillTone = 'positive' | 'muted';
+export type PillTone = 'positive' | 'muted' | 'warn' | 'alert';
 
 /**
- * A small rounded status chip — "Trading", "Opens 09:00". Not a `mat-chip`
- * (those are interactive/removable); this is a read-only label that recurs
- * across the console's tables and cards.
+ * A small rounded status chip — "Trading", "Opens 09:00", "Draft". Not a
+ * `mat-chip` (those are interactive/removable); this is a read-only label that
+ * recurs across the console's tables and cards. `warn` is the attention tone —
+ * a draft market, an unpaid stall fee.
  */
 @Component({
   selector: 'md-status-pill',
@@ -14,6 +15,8 @@ export type PillTone = 'positive' | 'muted';
   host: {
     '[class.tone-positive]': 'tone() === "positive"',
     '[class.tone-muted]': 'tone() === "muted"',
+    '[class.tone-warn]': 'tone() === "warn"',
+    '[class.tone-alert]': 'tone() === "alert"',
   },
   styles: `
     :host {
@@ -33,6 +36,14 @@ export type PillTone = 'positive' | 'muted';
     :host.tone-muted {
       border: 1px solid var(--mat-sys-outline-variant);
       color: var(--mat-sys-on-surface-variant);
+    }
+    :host.tone-warn {
+      background: var(--mat-sys-tertiary-container);
+      color: var(--mat-sys-on-tertiary-container);
+    }
+    :host.tone-alert {
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
     }
   `,
 })

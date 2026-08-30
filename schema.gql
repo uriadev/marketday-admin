@@ -1,0 +1,685 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AccountDeletionLinkInput {
+  token: String!
+}
+
+type AuthResponse {
+  accessToken: String!
+  refreshToken: String!
+  user: UserModel!
+}
+
+type AvatarUploadUrlModel {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+enum ContactRole {
+  shopper
+  vendor
+}
+
+input CreateMarketInput {
+  address: String!
+  bannerImageUrl: String
+  city: String!
+  description: String
+
+  """Duration of the market in minutes"""
+  duration: Int!
+  imageUrl: String
+  isActive: Boolean = true
+  latitude: Float!
+  longitude: Float!
+  marketType: MarketType
+  name: String!
+  organiserName: String
+  organiserPhone: String
+  reviewApplications: Boolean = false
+  schedule: String!
+  slug: String!
+  stallFeePerDay: Float
+  status: MarketStatus = DRAFT
+  tags: [String!]
+}
+
+input CreateOrderInput {
+  customerName: String
+  customerPhone: String
+  expoPushToken: String
+  items: [OrderItemInput!]!
+  marketId: ID!
+  notes: String
+  pickupTime: String
+  vendorId: ID!
+}
+
+type CreateOrderPayload {
+  order: OrderModel!
+  trackingToken: String!
+}
+
+input CreateProductInput {
+  category: ProductCategory
+  description: String
+  imageUrl: String
+  isAvailable: Boolean
+  name: String!
+  price: Float!
+  unit: ProductUnit
+}
+
+input CreateSupportMessageInput {
+  attachmentKeys: [String!]
+  category: SupportCategory!
+  message: String!
+  replyToEmail: String
+  subject: String!
+}
+
+input CreateVendorInput {
+  category: String!
+  description: String
+  imageUrl: String
+  marketIds: [ID!]
+  name: String!
+}
+
+input CriteriaInput {
+  filters: [FilterInput!]
+  limit: Int
+  offset: Int
+  orderBy: String
+  orderDir: OrderDirection
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input DeleteAccountInput {
+  code: String
+  password: String
+}
+
+input FilterInput {
+  field: String!
+  operator: FilterOperator!
+  value: JSON!
+}
+
+enum FilterOperator {
+  CONTAINS
+  EQUAL
+  GT
+  GTE
+  IN
+  LT
+  LTE
+  NOT_CONTAINS
+  NOT_EQUAL
+}
+
+"""
+A GeoJSON object as defined by RFC 7946: https://datatracker.ietf.org/doc/html/rfc7946
+"""
+scalar GeoJSON
+
+input GoogleAuthInput {
+  idToken: String!
+}
+
+input InviteVendorMemberInput {
+  email: String!
+  marketId: ID!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON @specifiedBy(url: "http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf")
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type MarketBannerUploadUrlModel {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+type MarketImageUploadUrlModel {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+type MarketModel {
+  address: String!
+  bannerImageUrl: String
+  city: String!
+  createdAt: DateTime!
+  description: String
+  distance: Float
+  duration: Float!
+  id: ID!
+  imageUrl: String
+  isActive: Boolean!
+  location: GeoJSON
+  marketType: MarketType
+  name: String!
+  occurrences: [MarketOccurrenceModel!]
+  organiserName: String
+  organiserPhone: String
+  reviewApplications: Boolean!
+  schedule: String!
+  slug: String!
+  stallFeePerDay: Float
+  status: MarketStatus!
+  tags: [String!]
+  updatedAt: DateTime!
+}
+
+type MarketOccurrenceModel {
+  endsOn: DateTime
+  id: ID!
+  occursOn: DateTime!
+}
+
+enum MarketStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum MarketType {
+  CRAFT_ARTISAN
+  FARMERS
+  FOOD_PRODUCE
+  MIXED
+  VINTAGE
+}
+
+type Mutation {
+  acceptVendorInvite(code: String!): VendorMemberModel!
+  cancelOrder(id: ID!, trackingToken: String): OrderModel!
+  changePassword(input: ChangePasswordInput!): UserModel!
+  confirmAccountDeletion(input: AccountDeletionLinkInput!): Boolean!
+  createAvatarUploadUrl(mimeType: String!): AvatarUploadUrlModel!
+  createMarket(input: CreateMarketInput!): MarketModel!
+  createMarketBannerUploadUrl(mimeType: String!): MarketBannerUploadUrlModel!
+  createMarketImageUploadUrl(mimeType: String!): MarketImageUploadUrlModel!
+  createOrder(input: CreateOrderInput!): CreateOrderPayload!
+  createProduct(input: CreateProductInput!): ProductModel!
+  createProductImageUploadUrl(mimeType: String!): ProductImageUploadUrlModel!
+  createSupportAttachmentUploadUrl(mimeType: String!): SupportAttachmentUploadUrlModel!
+  createVendor(input: CreateVendorInput!): VendorModel!
+  createVendorImageUploadUrl(mimeType: String!): VendorImageUploadUrlModel!
+  deleteAccount(input: DeleteAccountInput!): Boolean!
+  generateOccurrences(id: ID!): MarketModel!
+  googleAuth(input: GoogleAuthInput!): AuthResponse!
+  inviteVendorMember(input: InviteVendorMemberInput!): Boolean!
+  joinMarket(marketId: ID!): VendorModel!
+  leaveMarket(marketId: ID!): VendorModel!
+  login(input: LoginInput!): AuthResponse!
+  logout: Boolean!
+  markAllNotificationsRead: Boolean!
+  markNotificationRead(id: ID!): Boolean!
+  refreshToken(input: RefreshTokenInput!): AuthResponse!
+  register(input: RegisterInput!): AuthResponse!
+  registerPushToken(token: String!): Boolean!
+  removeProductListing(marketId: ID!, productId: ID!): Boolean!
+  removeVendorMember(userId: ID!): Boolean!
+  requestAccountDeletionCode: Boolean!
+  requestAccountDeletionLink(input: RequestAccountDeletionLinkInput!): Boolean!
+  requestPasswordReset(input: RequestPasswordResetInput!): Boolean!
+  resetPassword(input: ResetPasswordInput!): Boolean!
+  revokeVendorInvite(id: ID!): Boolean!
+  setProductListing(input: SetProductListingInput!): ProductListingModel!
+  setRole(input: SetRoleInput!): UserModel!
+  setVendorAcceptingOrders(accepting: Boolean!): VendorModel!
+  submitContactMessage(input: SubmitContactMessageInput!): Boolean!
+  submitSupportMessage(input: CreateSupportMessageInput!): SupportMessageModel!
+  toggleProduct(id: ID!): ProductModel!
+  updateMarket(id: ID!, input: UpdateMarketInput!): MarketModel!
+  updateMe(input: UpdateUserInput!): UserModel!
+  updateOrderStatus(id: ID!, input: UpdateOrderStatusInput!): OrderModel!
+  updateProduct(id: ID!, input: UpdateProductInput!): ProductModel!
+  updateVendor(id: ID!, input: UpdateVendorInput!): VendorModel!
+  updateVendorMember(input: UpdateVendorMemberInput!): VendorMemberModel!
+  verifyPasswordResetCode(input: VerifyPasswordResetCodeInput!): Boolean!
+}
+
+type Notification {
+  body: String!
+  createdAt: DateTime!
+  data: JSON!
+  id: ID!
+  readAt: DateTime
+  title: String!
+  type: NotificationType!
+}
+
+enum NotificationType {
+  NEW_ORDER
+  ORDER_CANCELLED
+  ORDER_STATUS_CHANGED
+}
+
+type NotificationsPage {
+  items: [Notification!]!
+  totalCount: Int!
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+enum OrderEventSource {
+  BUYER_APP
+  CHECKOUT
+  MIGRATED
+  VENDOR_APP
+}
+
+input OrderItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+type OrderItemModel {
+  id: ID!
+  orderId: ID!
+  product: ProductModel
+  productId: ID!
+  quantity: Int!
+  unitPrice: Float!
+}
+
+type OrderModel {
+  buyerId: ID
+  createdAt: DateTime!
+  customerName: String
+  customerPhone: String
+  id: ID!
+  items: [OrderItemModel!]!
+  market: MarketModel
+  marketId: ID!
+  notes: String
+  pickupTime: String
+  status: OrderStatus!
+  total: Float!
+  updatedAt: DateTime!
+  vendor: VendorModel
+  vendorId: ID!
+}
+
+enum OrderStatus {
+  ACCEPTED
+  CANCELLED
+  COMPLETED
+  PENDING
+  PREPARING
+  READY
+  REJECTED
+}
+
+type OrderStatusEventModel {
+  actorName: String
+  actorRole: VendorMemberRole
+  createdAt: DateTime!
+  fromStatus: OrderStatus
+  id: ID!
+  source: OrderEventSource!
+  toStatus: OrderStatus!
+}
+
+enum ProductCategory {
+  BAKED_GOODS
+  BEVERAGES
+  DAIRY_AND_EGGS
+  FLOWERS
+  FRUIT
+  HERBS
+  HONEY_AND_PRESERVES
+  MEAT
+  OTHER
+  PANTRY
+  SEAFOOD
+  VEGETABLE
+}
+
+type ProductImageUploadUrlModel {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+type ProductListingModel {
+  createdAt: DateTime!
+  id: ID!
+  isAvailable: Boolean!
+  marketId: ID!
+  priceOverride: Float
+  productId: ID!
+  updatedAt: DateTime!
+}
+
+type ProductModel {
+  category: ProductCategory
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  imageUrl: String
+  isAvailable: Boolean!
+  listings: [ProductListingModel!]!
+  name: String!
+  price: Float!
+  unit: ProductUnit!
+  updatedAt: DateTime!
+  vendor: VendorModel
+  vendorId: ID!
+}
+
+enum ProductUnit {
+  BAG
+  BOX
+  BUNCH
+  DOZEN
+  EACH
+  G
+  JAR
+  KG
+  LB
+  LITER
+  ML
+  OZ
+  PINT
+  QUART
+}
+
+type ProductsPage {
+  items: [ProductModel!]!
+  totalCount: Int!
+}
+
+type Query {
+  accountDeletionLinkValid(input: AccountDeletionLinkInput!): Boolean!
+  adminMarkets(criteria: CriteriaInput): [MarketModel!]!
+
+  """Find 5 nearby markets"""
+  findNearby(latitude: Float!, longitude: Float!): [MarketModel!]!
+
+  """Find upcoming 5 markets"""
+  findUpcomingMarkets: [MarketModel!]!
+  market(id: ID!): MarketModel
+  markets(city: String, criteria: CriteriaInput, isActive: Boolean): [MarketModel!]!
+  me: UserProfileModel!
+  myNotifications(limit: Int! = 20, offset: Int! = 0, unreadOnly: Boolean! = false): NotificationsPage!
+  myOrders: [OrderModel!]!
+  orderByToken(token: String!): OrderModel
+  orderStatusHistory(orderId: ID!): [OrderStatusEventModel!]!
+  ordersByTokens(tokens: [String!]!): [OrderModel!]!
+  pendingVendorInvites: [VendorInviteModel!]!
+  product(id: ID!): ProductModel
+  products(criteria: CriteriaInput, marketId: ID, onlyAvailable: Boolean, vendorId: ID!): ProductsPage!
+  scheduleMarkets(end: DateTime!, start: DateTime!): [MarketModel!]!
+  search(limit: Int, query: String!, types: [SearchType!]): SearchResults!
+  unreadNotificationCount: Int!
+  vendor(id: ID!): VendorModel
+  vendorMembers: [VendorMemberModel!]!
+  vendorOrders(marketId: ID): [OrderModel!]!
+  vendors(criteria: CriteriaInput, marketId: ID!): VendorsPage!
+}
+
+input RefreshTokenInput {
+  refreshToken: String!
+}
+
+input RegisterInput {
+  email: String!
+  fullName: String!
+  password: String!
+}
+
+input RequestAccountDeletionLinkInput {
+  email: String!
+}
+
+input RequestPasswordResetInput {
+  email: String!
+}
+
+input ResetPasswordInput {
+  code: String!
+  email: String!
+  newPassword: String!
+}
+
+type SearchResults {
+  markets: [MarketModel!]!
+  products: [ProductModel!]!
+  vendors: [VendorModel!]!
+}
+
+enum SearchType {
+  MARKET
+  PRODUCT
+  VENDOR
+}
+
+input SetProductListingInput {
+  isAvailable: Boolean
+  marketId: ID!
+  priceOverride: Float
+  productId: ID!
+}
+
+input SetRoleInput {
+  role: UserRole!
+  userId: ID!
+}
+
+input SubmitContactMessageInput {
+  email: String!
+  message: String!
+  name: String!
+  role: ContactRole!
+  subject: String!
+}
+
+type SupportAttachmentModel {
+  createdAt: DateTime!
+  id: ID!
+  mimeType: String!
+  sizeBytes: Int!
+}
+
+type SupportAttachmentUploadUrlModel {
+  key: String!
+  uploadUrl: String!
+}
+
+enum SupportCategory {
+  ACCOUNT
+  BUG
+  ORDERS
+  OTHER
+  PAYMENTS
+}
+
+type SupportMessageModel {
+  attachments: [SupportAttachmentModel!]!
+  category: SupportCategory!
+  createdAt: DateTime!
+  id: ID!
+  message: String!
+  subject: String!
+}
+
+input UpdateMarketInput {
+  address: String
+  bannerImageUrl: String
+  city: String
+  description: String
+
+  """Duration of the market in minutes"""
+  duration: Int
+  imageUrl: String
+  isActive: Boolean
+  latitude: Float
+  longitude: Float
+  marketType: MarketType
+  name: String
+  organiserName: String
+  organiserPhone: String
+  reviewApplications: Boolean
+  schedule: String
+  slug: String
+  stallFeePerDay: Float
+  status: MarketStatus
+  tags: [String!]
+}
+
+input UpdateOrderStatusInput {
+  status: OrderStatus!
+}
+
+input UpdateProductInput {
+  category: ProductCategory
+  description: String
+  imageUrl: String
+  isAvailable: Boolean
+  name: String
+  price: Float
+  unit: ProductUnit
+}
+
+input UpdateUserInput {
+  avatarUrl: String
+  email: String
+  expoPushToken: String
+  fullName: String
+  phone: String
+}
+
+input UpdateVendorInput {
+  category: String
+  description: String
+  imageUrl: String
+  isActive: Boolean
+  name: String
+}
+
+input UpdateVendorMemberInput {
+  marketId: ID!
+  userId: ID!
+}
+
+type UserModel {
+  avatarUrl: String
+  createdAt: DateTime!
+  email: String!
+  fullName: String!
+  hasPassword: Boolean!
+  id: ID!
+  phone: String
+  role: UserRole!
+  updatedAt: DateTime!
+  vendor: VendorModel
+  vendorId: ID
+  vendorMarketId: ID
+  vendorRole: VendorMemberRole
+}
+
+type UserProfileModel {
+  avatarUrl: String
+  createdAt: DateTime!
+  email: String!
+  fullName: String!
+  hasPassword: Boolean!
+  id: ID!
+  phone: String
+  role: UserRole!
+  totalOrders: Int!
+  totalSpend: Float!
+  updatedAt: DateTime!
+  vendor: VendorModel
+  vendorId: ID
+  vendorMarketId: ID
+  vendorRole: VendorMemberRole
+}
+
+enum UserRole {
+  ADMIN
+  BUYER
+  VENDOR
+}
+
+type VendorImageUploadUrlModel {
+  key: String!
+  publicUrl: String!
+  uploadUrl: String!
+}
+
+type VendorInviteModel {
+  createdAt: DateTime!
+  email: String!
+  expiresAt: DateTime!
+  id: ID!
+  market: MarketModel
+  marketId: ID!
+}
+
+type VendorMemberModel {
+  avatarUrl: String
+  createdAt: DateTime!
+  email: String!
+  fullName: String!
+  id: ID!
+  market: MarketModel
+  marketId: ID
+  role: VendorMemberRole!
+  userId: ID!
+  vendorId: ID!
+}
+
+enum VendorMemberRole {
+  OWNER
+  STAFF
+}
+
+type VendorModel {
+  category: String!
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  imageUrl: String
+  isAcceptingOrders: Boolean!
+  isActive: Boolean!
+  markets: [MarketModel!]!
+  name: String!
+  updatedAt: DateTime!
+}
+
+type VendorsPage {
+  items: [VendorModel!]!
+  totalCount: Int!
+}
+
+input VerifyPasswordResetCodeInput {
+  code: String!
+  email: String!
+}

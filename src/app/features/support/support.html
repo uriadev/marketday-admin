@@ -1,0 +1,125 @@
+<md-page-header heading="Support" (menu)="chrome.toggleDrawer()">
+  <button matButton="outlined" type="button" [matMenuTriggerFor]="statusMenu">
+    {{ statusLabel() }}
+    <mat-icon iconPositionEnd>expand_more</mat-icon>
+  </button>
+  <mat-menu #statusMenu="matMenu">
+    <button mat-menu-item type="button" (click)="setParam({ status: null })">Open</button>
+    <button mat-menu-item type="button" (click)="setParam({ status: 'resolved' })">Resolved</button>
+    <button mat-menu-item type="button" (click)="setParam({ status: 'all' })">All</button>
+  </mat-menu>
+
+  <button matButton="outlined" type="button" [matMenuTriggerFor]="assigneeMenu">
+    {{ assigneeLabel() }}
+    <mat-icon iconPositionEnd>expand_more</mat-icon>
+  </button>
+  <mat-menu #assigneeMenu="matMenu">
+    <button mat-menu-item type="button" (click)="setParam({ assignee: null })">Anyone</button>
+    <button mat-menu-item type="button" (click)="setParam({ assignee: unassigned })">
+      Unassigned
+    </button>
+    @for (agent of agents; track agent) {
+      <button mat-menu-item type="button" (click)="setParam({ assignee: agent })">
+        {{ agent }}
+      </button>
+    }
+  </mat-menu>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading the inbox" />
+}
+
+<div class="layout">
+  <div class="list-pane">
+    <div class="list-head">
+      <h2 class="m-0 text-title-large font-bold text-on-surface">{{ inboxLabel() }}</h2>
+
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-icon matPrefix>search</mat-icon>
+        <input
+          matInput
+          type="search"
+          placeholder="Search enquiries"
+          aria-label="Search enquiries"
+          [value]="filters().q"
+          (input)="onSearch($event)"
+        />
+      </mat-form-field>
+
+      <mat-chip-listbox
+        aria-label="Filter by where the enquiry came from"
+        [value]="filters().source"
+        (change)="setParam({ source: $event.value ?? null })"
+      >
+        <mat-chip-option [value]="null">All</mat-chip-option>
+        @for (option of sources; track option.value) {
+          <mat-chip-option [value]="option.value">{{ option.label }}</mat-chip-option>
+        }
+      </mat-chip-listbox>
+    </div>
+
+    <!-- Not a `mat-nav-list`: each row is four lines plus a chip set, which is
+         past what a list item lays out without reaching inside it. -->
+    <nav class="list" aria-label="Enquiries">
+      @if (store.hasError()) {
+        <div class="p-4 text-body-medium" role="alert">
+          <p class="m-0 mb-3">{{ store.error() }}</p>
+          <button matButton="outlined" type="button" (click)="store.load()">Retry</button>
+        </div>
+      } @else if (store.isFilteredEmpty()) {
+        <md-empty-state
+          icon="inbox"
+          headline="Nothing matches those filters"
+          body="Try another source, or clear the filters to see the whole queue."
+        >
+          <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+        </md-empty-state>
+      } @else {
+        @for (enquiry of store.visible(); track enquiry.id) {
+          <a
+            class="row"
+            routerLinkActive="row--selected"
+            [routerLink]="['/support', enquiry.id]"
+            queryParamsHandling="preserve"
+            ariaCurrentWhenActive="page"
+          >
+            <span class="row-top">
+              <span class="text-body-medium font-bold text-on-surface">{{ enquiry.who }}</span>
+              <span class="text-label-medium text-on-surface-variant">{{ enquiry.age }}</span>
+            </span>
+            <span class="text-body-medium font-semibold text-on-surface">{{
+              enquiry.subject
+            }}</span>
+            <span class="snippet">{{ enquiry.snippet }}</span>
+            <span class="row-tags">
+              <md-status-pill tone="warn">{{ sourceLabel(enquiry.source) }}</md-status-pill>
+              @if (enquiry.assignee; as owner) {
+                <md-status-pill tone="muted">{{ owner }}</md-status-pill>
+              } @else {
+                <md-status-pill tone="muted">Unassigned</md-status-pill>
+              }
+              @if (isOverdue(enquiry)) {
+                <md-status-pill tone="alert">Over 48h</md-status-pill>
+              }
+              @if (enquiry.status === 'resolved') {
+                <md-status-pill tone="positive">Resolved</md-status-pill>
+              }
+            </span>
+          </a>
+        }
+      }
+    </nav>
+  </div>
+
+  <div class="thread-pane">
+    @if (!store.isLoading() && store.visible().length === 0) {
+      <md-empty-state
+        icon="mark_email_read"
+        headline="Nothing to answer"
+        body="Enquiries from the vendor help form, the contact form and email all land here."
+      />
+    }
+    <router-outlet />
+  </div>
+</div>

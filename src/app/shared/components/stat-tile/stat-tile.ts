@@ -2,17 +2,24 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { StatTone } from '../../../core/models/overview.model';
 
 /**
- * One KPI in the Overview grid: a label, a big number, and a supporting line.
- * The `alert` tone swaps to the error container so an overdue count reads at a
- * glance (design 1e).
+ * One KPI in a console grid: a label, a big number, and an optional supporting
+ * line. The `alert` tone swaps to the error container so an overdue count reads
+ * at a glance (designs 1e, 1g).
  */
 @Component({
   selector: 'md-stat-tile',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span class="label">{{ label() }}</span>
-    <span class="value">{{ value() }}</span>
-    <span class="hint">{{ hint() }}</span>
+    <span class="value"
+      >{{ value() }}
+      @if (suffix(); as tail) {
+        <span class="suffix">{{ tail }}</span>
+      }
+    </span>
+    @if (hint(); as line) {
+      <span class="hint">{{ line }}</span>
+    }
   `,
   host: {
     '[class.tone-positive]': 'tone() === "positive"',
@@ -48,6 +55,12 @@ import { StatTone } from '../../../core/models/overview.model';
     :host.tone-alert .value {
       color: var(--mat-sys-on-error-container);
     }
+    /* "18/20" — the total stays subordinate to the number that changed. */
+    .suffix {
+      font: var(--mat-sys-title-medium);
+      font-weight: 500;
+      color: var(--mat-sys-on-surface-variant);
+    }
     .hint {
       font: var(--mat-sys-label-large);
       color: var(--mat-sys-on-surface-variant);
@@ -66,5 +79,7 @@ export class StatTile {
   readonly label = input.required<string>();
   readonly value = input.required<string>();
   readonly hint = input('');
+  /** Trailing qualifier rendered smaller inside the value — the "/20" in "18/20". */
+  readonly suffix = input('');
   readonly tone = input<StatTone>('neutral');
 }

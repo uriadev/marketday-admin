@@ -1,0 +1,84 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.search {
+  inline-size: 280px;
+  max-inline-size: 40vw;
+}
+
+/* Heading, actions and filters stay put; only the table scrolls. */
+.intro {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 0;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 16px 24px 24px;
+}
+
+.chip-count {
+  margin-inline-start: 6px;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.table-card {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.directory {
+  inline-size: 100%;
+  background: transparent;
+}
+
+/* The design's column rhythm: identity, then everything it trades under. */
+.directory .mat-column-vendor {
+  inline-size: 260px;
+}
+.directory .mat-column-staff {
+  inline-size: 160px;
+}
+.directory .mat-column-status {
+  inline-size: 130px;
+}
+.directory .mat-column-actions {
+  inline-size: 56px;
+  text-align: end;
+}
+
+.directory td.mat-mdc-cell {
+  padding-block: 12px;
+}
+
+.vendor-name {
+  display: block;
+  font: var(--mat-sys-body-large);
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+  text-decoration: none;
+}
+.vendor-name:hover {
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

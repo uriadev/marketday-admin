@@ -1,0 +1,49 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  position: relative;
+}
+
+.search {
+  inline-size: 280px;
+  max-inline-size: 40vw;
+}
+
+/* The card grid scrolls under the FAB, which is pinned to the screen. */
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  scrollbar-width: thin;
+  overflow: auto;
+  padding-block-end: 96px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+}
+.metric-value {
+  font: var(--mat-sys-title-medium);
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+}
+.metric-label {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.fab {
+  position: absolute;
+  inset-block-end: 24px;
+  inset-inline-end: 24px;
+}

@@ -1,0 +1,126 @@
+<md-page-header heading="New market" backLink="/markets" breadcrumb="Markets">
+  @if (savedAt(); as saved) {
+    <span class="saved" aria-live="polite">
+      <span class="saved-dot"></span>
+      Draft · saved {{ saved }}
+    </span>
+  }
+</md-page-header>
+
+<div class="layout">
+  <div class="main">
+    <div class="flex-none">
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">Add market</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+        Three steps. Vendors can apply as soon as it is published.
+      </p>
+    </div>
+
+    <mat-stepper
+      class="stepper"
+      linear
+      [selectedIndex]="stepIndex()"
+      (selectedIndexChange)="onStepChange($event)"
+    >
+      <mat-step [stepControl]="detailsForm" label="Details">
+        <md-market-details-form [form]="detailsForm" />
+      </mat-step>
+
+      <mat-step [stepControl]="scheduleForm" label="Schedule">
+        <section class="step">
+          <div>
+            <h3 class="m-0 text-title-medium font-bold text-on-surface">Schedule</h3>
+            <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+              Regular trading pattern. One-off closures and extra dates are set later, on the market
+              calendar.
+            </p>
+          </div>
+          <md-market-schedule-form [form]="scheduleForm" />
+        </section>
+      </mat-step>
+
+      <mat-step [stepControl]="locationForm" label="Location">
+        <section class="step">
+          <div>
+            <h3 class="m-0 text-title-medium font-bold text-on-surface">Location</h3>
+            <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+              Shown on the market page and used for directions and the vendor loading notes.
+            </p>
+          </div>
+          <md-market-location-form [form]="locationForm" />
+        </section>
+      </mat-step>
+    </mat-stepper>
+  </div>
+
+  <aside class="rail" aria-label="Listing preview and publishing checklist">
+    <section class="section">
+      <h3 class="section-title">Listing preview</h3>
+      <div class="preview">
+        <div class="flex items-start gap-3">
+          <md-avatar
+            [name]="preview().name"
+            [src]="preview().imageUrl"
+            [size]="44"
+            shape="rounded"
+          />
+          <div class="min-w-0">
+            <span class="block text-title-small font-bold text-on-surface">{{
+              preview().name
+            }}</span>
+            <span class="block text-label-large text-on-surface-variant">{{
+              preview().location || 'Location and hours pending'
+            }}</span>
+          </div>
+        </div>
+        <div class="preview-metrics">
+          <span class="metric">
+            <span class="metric-value">{{ preview().stalls }}</span>
+            <span class="metric-label">Stalls</span>
+          </span>
+          <span class="metric">
+            <span class="metric-value">{{ preview().fee }}</span>
+            <span class="metric-label">Per day</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3 class="section-title">Before publishing</h3>
+      <ul class="m-0 list-none p-0 flex flex-col gap-2.5">
+        @for (item of checklist(); track item.label) {
+          <li class="check" [class.check--done]="item.done">
+            <mat-icon>{{ item.done ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            {{ item.label }}
+          </li>
+        }
+      </ul>
+    </section>
+
+    <p class="publish-note">{{ publishNote() }}</p>
+  </aside>
+</div>
+
+<div class="footer">
+  <span class="text-label-large text-on-surface-variant">
+    Step {{ stepIndex() + 1 }} of 3 · {{ stepLabel() }}
+  </span>
+  <div class="flex items-center gap-2">
+    @if (stepIndex() === 0) {
+      <a matButton routerLink="/markets">Cancel</a>
+    } @else {
+      <button matButton="outlined" type="button" (click)="goBack()">Back</button>
+    }
+    <button matButton type="button" (click)="saveDraft()" [disabled]="saving()">
+      Save as draft
+    </button>
+    @if (stepIndex() < 2) {
+      <button matButton="filled" type="button" (click)="goNext()">Continue</button>
+    } @else {
+      <button matButton="filled" type="button" (click)="publish()" [disabled]="saving()">
+        Publish market
+      </button>
+    }
+  </div>
+</div>

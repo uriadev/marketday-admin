@@ -1,0 +1,292 @@
+<md-page-header heading="Users" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search name or email"
+      aria-label="Search name or email"
+      [value]="filters().q"
+      (input)="onSearch($event)"
+    />
+  </mat-form-field>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading accounts" />
+}
+
+<div class="intro">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ store.heading() }}</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
+    </div>
+    <div class="flex shrink-0 gap-2">
+      <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+        Export CSV
+      </button>
+      <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+        <mat-icon>add</mat-icon>
+        Invite team member
+      </button>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="roleMenu"
+      [class.filter--on]="filters().role !== null"
+    >
+      {{ roleLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #roleMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setRole(null)">Any role</button>
+      @for (option of roles; track option) {
+        <button mat-menu-item type="button" (click)="setRole(option)">
+          {{ roleLabels[option] }}
+          <span class="menu-count">{{ store.roleCount(option) }}</span>
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="statusMenu"
+      [class.filter--on]="filters().status !== null"
+    >
+      {{ statusLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #statusMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setStatus(null)">Any status</button>
+      @for (option of statuses; track option) {
+        <button mat-menu-item type="button" (click)="setStatus(option)">
+          {{ statusLabels[option] }}
+          <span class="menu-count">{{ store.statusCount(option) }}</span>
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="signedUpMenu"
+      [class.filter--on]="filters().signedUp !== 'any'"
+    >
+      {{ signedUpLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #signedUpMenu="matMenu">
+      @for (option of signUpFilters; track option.value) {
+        <button mat-menu-item type="button" (click)="setSignedUp(option.value)">
+          {{ option.label }}
+        </button>
+      }
+    </mat-menu>
+
+    @if (store.hasActiveFilters()) {
+      <button matButton type="button" (click)="clearFilters()">
+        <mat-icon>close</mat-icon>
+        Clear filters
+      </button>
+    }
+  </div>
+</div>
+
+<div class="scroller">
+  @if (store.commandError(); as message) {
+    <div
+      class="mb-4 flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ message }}</span>
+    </div>
+  }
+
+  @if (store.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ store.error() }}</span>
+      <button matButton type="button" (click)="store.load()">Retry</button>
+    </div>
+  } @else if (store.isFilteredEmpty()) {
+    <md-empty-state
+      icon="person_search"
+      headline="No accounts match those filters"
+      body="Try another role, or clear the filters to see everyone."
+    >
+      <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+    </md-empty-state>
+  } @else {
+    @if (selected().length > 0) {
+      <div class="selection" role="status">
+        <span class="text-body-medium font-semibold">
+          {{ selected().length }} selected on this page
+        </span>
+        <span class="flex-1"></span>
+        <button matButton type="button" (click)="clearSelection()">Clear selection</button>
+        <button
+          matButton="filled"
+          type="button"
+          [disabled]="store.busy() || suspendable().length === 0"
+          [matTooltip]="
+            suspendable().length === 0 ? 'Everything selected is already suspended' : ''
+          "
+          (click)="suspend(suspendable())"
+        >
+          Suspend {{ suspendable().length }}
+        </button>
+      </div>
+    }
+
+    <div class="table-card">
+      <table mat-table [dataSource]="page()" class="accounts">
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef scope="col">
+            <mat-checkbox
+              [checked]="allOnPageSelected()"
+              [indeterminate]="someOnPageSelected()"
+              (change)="togglePage()"
+              aria-label="Select every account on this page"
+            />
+          </th>
+          <td mat-cell *matCellDef="let account">
+            <mat-checkbox
+              [checked]="isSelected(account)"
+              (change)="toggle(account)"
+              [attr.aria-label]="'Select ' + account.name"
+            />
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef scope="col">Name</th>
+          <td mat-cell *matCellDef="let account">
+            <div class="flex items-center gap-3">
+              <md-avatar
+                [name]="account.name"
+                [size]="40"
+                [tone]="account.status === 'suspended' ? 'muted' : 'accent'"
+                [outlined]="account.status === 'invited'"
+              />
+              <div class="min-w-0">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ account.name }}
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  {{ account.email }}
+                </span>
+              </div>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="role">
+          <th mat-header-cell *matHeaderCellDef scope="col">Role</th>
+          <td mat-cell *matCellDef="let account">{{ roleName(account) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="attached">
+          <th mat-header-cell *matHeaderCellDef scope="col">Attached to</th>
+          <td mat-cell *matCellDef="let account">
+            @if (account.attachedLink) {
+              <a class="attached" [routerLink]="account.attachedLink">{{ account.attached }}</a>
+            } @else {
+              <span class="text-on-surface-variant">{{ account.attached }}</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="lastActive">
+          <th mat-header-cell *matHeaderCellDef scope="col">Last active</th>
+          <td mat-cell *matCellDef="let account">
+            <span class="text-on-surface-variant">{{ account.lastActive }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+          <td mat-cell *matCellDef="let account">
+            <md-status-pill [tone]="statusTone(account)" [matTooltip]="account.suspendedNote ?? ''">
+              {{ statusName(account) }}
+            </md-status-pill>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef scope="col">
+            <span class="sr-only">Actions</span>
+          </th>
+          <td mat-cell *matCellDef="let account">
+            <button
+              matIconButton
+              type="button"
+              [attr.aria-label]="'Actions for ' + account.name"
+              [matMenuTriggerFor]="rowMenu"
+            >
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #rowMenu="matMenu">
+              @if (account.attachedLink) {
+                <a mat-menu-item [routerLink]="account.attachedLink">
+                  Open {{ account.attached }}
+                </a>
+              }
+              <button mat-menu-item type="button" disabled>Change role</button>
+              <button mat-menu-item type="button" disabled>Send password reset</button>
+              @if (account.status === 'suspended') {
+                <button
+                  mat-menu-item
+                  type="button"
+                  [disabled]="store.busy()"
+                  (click)="restore(account)"
+                >
+                  Restore account
+                </button>
+              } @else {
+                <button
+                  mat-menu-item
+                  type="button"
+                  [disabled]="store.busy()"
+                  (click)="suspend([account])"
+                >
+                  Suspend account
+                </button>
+              }
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let row; columns: columns"
+          [class.row--suspended]="row.status === 'suspended'"
+        ></tr>
+      </table>
+
+      <mat-paginator
+        [length]="store.visible().length"
+        [pageSize]="pageSize()"
+        [pageIndex]="pageIndex()"
+        [pageSizeOptions]="[25, 50, 100]"
+        (page)="onPage($event)"
+        aria-label="Choose a page of accounts"
+      />
+    </div>
+
+    <p class="mt-4 mb-0 text-label-large text-on-surface-variant">
+      The row menu is the only place destructive actions live. Suspending always asks for a reason
+      and writes to the audit log.
+    </p>
+  }
+</div>

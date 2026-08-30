@@ -1,0 +1,88 @@
+<form [formGroup]="form()" class="location-form">
+  <mat-form-field class="w-full">
+    <mat-label>Address</mat-label>
+    <input
+      matInput
+      formControlName="address"
+      [matAutocomplete]="addressAuto"
+      autocomplete="off"
+      placeholder="Start typing an address…"
+    />
+    @if (resolvingPlace()) {
+      <mat-icon matSuffix class="animate-pulse">hourglass_top</mat-icon>
+    }
+    <mat-autocomplete #addressAuto requireSelection="false">
+      @for (suggestion of addressSuggestions(); track suggestion.id) {
+        <mat-option
+          [value]="suggestion.description"
+          (onSelectionChange)="$event.isUserInput && onPlacePicked(suggestion)"
+        >
+          <span class="font-medium">{{ suggestion.primaryText }}</span>
+          @if (suggestion.secondaryText) {
+            <span class="opacity-60"> · {{ suggestion.secondaryText }}</span>
+          }
+        </mat-option>
+      }
+    </mat-autocomplete>
+    @if (form().controls.address.hasError('required')) {
+      <mat-error>Where does the market trade?</mat-error>
+    } @else {
+      <mat-hint>Pick a suggestion to fill the town, eircode and map pin.</mat-hint>
+    }
+  </mat-form-field>
+
+  <div class="location-form__row">
+    <div>
+      <mat-form-field class="w-full">
+        <mat-label>Town or city</mat-label>
+        <input matInput formControlName="city" />
+        @if (form().controls.city.hasError('required')) {
+          <mat-error>Which town is it in?</mat-error>
+        }
+      </mat-form-field>
+    </div>
+    <div>
+      <mat-form-field class="w-full">
+        <mat-label>County</mat-label>
+        <mat-select formControlName="county">
+          @for (county of counties(); track county) {
+            <mat-option [value]="county">{{ county }}</mat-option>
+          }
+        </mat-select>
+        @if (form().controls.county.hasError('required')) {
+          <mat-error>Pick a county</mat-error>
+        }
+      </mat-form-field>
+    </div>
+    <div>
+      <mat-form-field class="w-full">
+        <mat-label>Eircode</mat-label>
+        <input matInput formControlName="eircode" />
+      </mat-form-field>
+    </div>
+  </div>
+
+  <md-location-picker
+    [latitude]="form().controls.latitude.value"
+    [longitude]="form().controls.longitude.value"
+    [error]="pinError()"
+    (pinMoved)="onPinMoved($event)"
+  />
+
+  <mat-form-field class="w-full">
+    <mat-label>Access and loading notes</mat-label>
+    <textarea matInput rows="3" formControlName="accessNotes"></textarea>
+    <mat-hint>Sent to vendors with their stall confirmation.</mat-hint>
+  </mat-form-field>
+
+  <div class="location-form__row location-form__row--2">
+    <mat-form-field class="w-full">
+      <mat-label>Organiser contact</mat-label>
+      <input matInput formControlName="organiserName" />
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label>Phone</mat-label>
+      <input matInput formControlName="organiserPhone" placeholder="+353 …" />
+    </mat-form-field>
+  </div>
+</form>

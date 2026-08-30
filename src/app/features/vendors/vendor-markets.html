@@ -1,0 +1,131 @@
+@if (vendor(); as data) {
+  <div class="layout">
+    <div class="main">
+      @if (data.pendingApplication; as application) {
+        <div class="application">
+          <mat-icon class="shrink-0">info</mat-icon>
+          <div class="min-w-0 flex-1">
+            <span class="block text-body-large font-bold">{{ application.title }}</span>
+            <p class="mt-1 mb-0 text-body-medium">{{ application.body }}</p>
+          </div>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+              View application
+            </button>
+            <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+              Approve
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="flex items-center justify-between gap-4">
+        <span class="text-title-medium font-bold text-on-surface">Market memberships</span>
+        <button matButton type="button" disabled matTooltip="Coming soon">
+          <mat-icon>add</mat-icon>
+          Add to a market
+        </button>
+      </div>
+
+      @for (membership of data.memberships; track membership.id) {
+        <mat-card appearance="outlined">
+          <div class="flex flex-col gap-3 p-4">
+            <div class="flex items-start gap-3.5">
+              <md-avatar
+                [name]="membership.market"
+                [size]="48"
+                shape="rounded"
+                [tone]="membership.paused ? 'muted' : 'accent'"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <a class="market-name" [routerLink]="['/markets', membership.marketSlug]">{{
+                    membership.market
+                  }}</a>
+                  @for (badge of membership.badges; track badge.label) {
+                    <md-status-pill [tone]="badge.tone">{{ badge.label }}</md-status-pill>
+                  }
+                </div>
+                <p class="mt-1 mb-0 text-label-large text-on-surface-variant">
+                  {{ membership.detail }}
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+                  Manage membership
+                </button>
+              </div>
+            </div>
+
+            <div class="facts">
+              @for (fact of membership.facts; track fact.label) {
+                <md-status-pill [tone]="fact.emphasis ? 'warn' : 'muted'">{{
+                  fact.label
+                }}</md-status-pill>
+              }
+            </div>
+          </div>
+        </mat-card>
+      } @empty {
+        <md-empty-state
+          icon="storefront"
+          headline="Not trading at any market yet"
+          body="Once an organiser approves an application, the membership shows up here."
+        />
+      }
+    </div>
+
+    <aside class="rail" aria-label="This vendor across all markets">
+      <section class="section">
+        <h3 class="section-title">Across all markets</h3>
+        <div class="grid grid-cols-2 gap-2">
+          @for (stat of data.stats; track stat.label) {
+            <div class="stat">
+              <span class="text-label-large text-on-surface-variant">{{ stat.label }}</span>
+              <span class="text-title-large font-bold text-on-surface">{{ stat.value }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      @if (data.nextDays.length > 0) {
+        <section class="section">
+          <h3 class="section-title">Next trading days</h3>
+          @for (day of data.nextDays; track day.id) {
+            <p class="m-0 text-body-medium text-on-surface">
+              {{ day.when }}
+              <span class="block text-on-surface-variant">{{ day.note }}</span>
+            </p>
+          }
+        </section>
+      }
+
+      <section class="section">
+        <h3 class="section-title">Documents</h3>
+        @for (document of data.documents; track document.id) {
+          <p class="m-0 flex items-center gap-2.5 text-body-medium text-on-surface">
+            <span class="dot" [class.dot--expiring]="document.state === 'expiring'"></span>
+            {{ document.label }}
+          </p>
+        }
+        <p class="m-0 text-label-large text-on-surface-variant">
+          Held once for the vendor and shared with every market they join.
+        </p>
+      </section>
+
+      <div class="danger">
+        <span class="text-body-large font-bold">Suspend vendor</span>
+        <p class="m-0 text-body-medium">{{ data.suspendNote }}</p>
+        <button
+          matButton="outlined"
+          type="button"
+          class="self-start"
+          disabled
+          matTooltip="Coming soon"
+        >
+          Suspend
+        </button>
+      </div>
+    </aside>
+  </div>
+}

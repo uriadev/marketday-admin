@@ -1,0 +1,70 @@
+<md-page-header [heading]="heading()" backLink="/markets" breadcrumb="Markets">
+  <button matButton="outlined" type="button" disabled matTooltip="Public pages are coming soon">
+    View public page
+  </button>
+  <button matButton="filled" type="button" disabled matTooltip="Stall assignment is coming soon">
+    Assign stalls
+  </button>
+  <button matIconButton type="button" aria-label="More market actions" [matMenuTriggerFor]="more">
+    <mat-icon>more_vert</mat-icon>
+  </button>
+  <mat-menu #more="matMenu">
+    <button mat-menu-item type="button" disabled>Duplicate market</button>
+    <button mat-menu-item type="button" disabled>Export vendor list</button>
+    <button mat-menu-item type="button" disabled>Archive market</button>
+  </mat-menu>
+</md-page-header>
+
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading market" />
+}
+
+@if (facade.hasError()) {
+  <div class="mx-auto w-full max-w-[1200px] px-6 py-5">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <a matButton routerLink="/markets">Back to markets</a>
+    </div>
+  </div>
+}
+
+@if (market(); as data) {
+  <div class="identity">
+    <div class="flex items-start gap-4">
+      <md-avatar [name]="data.name" [size]="64" shape="rounded" />
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ data.name }}</h2>
+          <md-status-pill [tone]="badgeTone()">{{ data.badgeLabel }}</md-status-pill>
+        </div>
+        <p class="mt-1 mb-0 text-label-large text-on-surface-variant">{{ data.meta }}</p>
+      </div>
+    </div>
+
+    <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="tabs">
+      <a
+        mat-tab-link
+        routerLink="."
+        routerLinkActive
+        #overview="routerLinkActive"
+        [routerLinkActiveOptions]="{ exact: true }"
+        [active]="overview.isActive"
+        >Overview</a
+      >
+      <a mat-tab-link disabled matTooltip="Coming soon">Stalls</a>
+      <a mat-tab-link disabled matTooltip="Coming soon">
+        Vendors <span class="tab-count">{{ data.vendorCount }}</span>
+      </a>
+      <a mat-tab-link disabled matTooltip="Coming soon">Schedule</a>
+      <a mat-tab-link disabled matTooltip="Coming soon">Settings</a>
+    </nav>
+  </div>
+
+  <mat-tab-nav-panel #tabPanel class="panel">
+    <router-outlet />
+  </mat-tab-nav-panel>
+}

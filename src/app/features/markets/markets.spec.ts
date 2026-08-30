@@ -1,0 +1,95 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { Observable, of } from 'rxjs';
+import { MarketRepository } from '../../core/api/ports/market-repository';
+import { IRISH_COUNTIES } from '../../core/models/location.model';
+import {
+  MARKETS_FIXTURE,
+  TEMPLE_BAR_DETAIL,
+} from '../../core/api/in-memory/in-memory-market-repository';
+import { MarketDetail, MarketDraft, MarketSummary } from '../../core/models/market.model';
+import { ConsoleChrome } from '../../layouts/console-layout/console-chrome';
+import { Markets } from './markets';
+import { MarketsStore } from './markets-store';
+
+class StubMarketRepository extends MarketRepository {
+  override list(): Observable<readonly MarketSummary[]> {
+    return of(MARKETS_FIXTURE);
+  }
+  override detail(): Observable<MarketDetail> {
+    return of(TEMPLE_BAR_DETAIL);
+  }
+  override counties(): Observable<readonly string[]> {
+    return of(IRISH_COUNTIES);
+  }
+  override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
+    return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });
+  }
+  override publish(draft: MarketDraft): Observable<MarketSummary> {
+    return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });
+  }
+}
+
+describe('Markets', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [Markets],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        ConsoleChrome,
+        MarketsStore,
+        { provide: MarketRepository, useClass: StubMarketRepository },
+      ],
+    }).compileComponents();
+  });
+
+  it('renders the directory as cards, with the design’s summary line', () => {
+    const fixture = TestBed.createComponent(Markets);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('7 markets');
+    expect(text).toContain('3 trading today · 1 draft waiting on organiser details');
+    expect(text).toContain('Temple Bar Food Market');
+    expect(text).toContain('Dublin 2 · Saturdays 09:00–14:30');
+    expect(text).toContain('Showing 7 of 7');
+  });
+
+  it('shows metrics and a Manage link for a live market, and setup copy for a draft', () => {
+    const fixture = TestBed.createComponent(Markets);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const manage = Array.from(host.querySelectorAll('a')).filter(
+      (a) => a.textContent?.trim() === 'Manage',
+    );
+    // Six live markets, one draft — the draft offers setup instead.
+    expect(manage.length).toBe(6);
+    expect(manage[0]?.getAttribute('href')).toMatch(/^\/markets\//);
+    expect(host.textContent).toContain('Awaiting organiser details and stall map');
+  });
+
+  it('narrows the grid when the URL carries a filter', () => {
+    const fixture = TestBed.createComponent(Markets);
+    fixture.componentRef.setInput('county', 'Cork');
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Showing 4 of 7');
+    expect(text).not.toContain('Temple Bar Food Market');
+    // The header still counts the whole directory.
+    expect(text).toContain('7 markets');
+  });
+
+  it('offers a way out when the filters match nothing', () => {
+    const fixture = TestBed.createComponent(Markets);
+    fixture.componentRef.setInput('q', 'no such market');
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('No markets match those filters');
+    expect(text).toContain('Clear filters');
+  });
+});

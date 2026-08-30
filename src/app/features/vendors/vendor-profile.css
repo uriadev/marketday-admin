@@ -1,0 +1,97 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the rail drops under the form. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* An id support reads out over the phone — figures that can't be confused. */
+.reference {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* The one thing on this screen an admin can get wrong by not knowing it. */
+.reach {
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.dot {
+  inline-size: 8px;
+  block-size: 8px;
+  flex-shrink: 0;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-primary);
+}
+.dot--expiring {
+  background: var(--mat-sys-tertiary);
+}

@@ -1,0 +1,289 @@
+<div class="layout">
+  <div class="main">
+    @if (store.isLoading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Loading the fee ledger" />
+    }
+
+    @if (store.hasError()) {
+      <div
+        class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+        role="alert"
+      >
+        <mat-icon class="text-error">error</mat-icon>
+        <span class="flex-1">{{ store.error() }}</span>
+        <button matButton type="button" (click)="store.load()">Retry</button>
+      </div>
+    } @else {
+      @if (store.commandError(); as message) {
+        <div
+          class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+          role="alert"
+        >
+          <mat-icon class="text-error">error</mat-icon>
+          <span class="flex-1">{{ message }}</span>
+        </div>
+      }
+
+      @if (store.alert(); as alert) {
+        <div class="alert" role="status">
+          <mat-icon class="shrink-0">error</mat-icon>
+          <div class="min-w-0 flex-1">
+            <span class="block text-body-large font-bold">{{ alert.headline }}</span>
+            <p class="mt-1 mb-0 text-body-medium">{{ alert.body }}</p>
+          </div>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <button
+              matButton="outlined"
+              type="button"
+              [disabled]="store.busy()"
+              (click)="sendReminder(alert.payment)"
+            >
+              Send reminder
+            </button>
+            <button
+              matButton="filled"
+              type="button"
+              [disabled]="store.busy()"
+              (click)="markPaid(alert.payment)"
+            >
+              Mark paid
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        @for (stat of store.stats(); track stat.label) {
+          <md-stat-tile
+            [label]="stat.label"
+            [value]="stat.value"
+            [suffix]="stat.suffix"
+            [hint]="stat.hint"
+            [tone]="stat.tone"
+          />
+        }
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          [matButton]="filters().market === null ? 'tonal' : 'outlined'"
+          type="button"
+          (click)="setMarket(null)"
+        >
+          All markets
+        </button>
+        @for (option of store.markets(); track option.slug) {
+          <button
+            [matButton]="filters().market === option.slug ? 'tonal' : 'outlined'"
+            type="button"
+            (click)="setMarket(option.slug)"
+          >
+            {{ option.label }}
+          </button>
+        }
+
+        <span class="divider" aria-hidden="true"></span>
+
+        <button matButton="outlined" type="button" [matMenuTriggerFor]="periodMenu">
+          {{ periodLabel() }}
+          <mat-icon iconPositionEnd>expand_more</mat-icon>
+        </button>
+        <mat-menu #periodMenu="matMenu">
+          @for (option of periods; track option.value) {
+            <button mat-menu-item type="button" (click)="setPeriod(option.value)">
+              {{ option.label }}
+            </button>
+          }
+        </mat-menu>
+
+        <span class="flex-1"></span>
+
+        <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
+          Export CSV
+        </button>
+        <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+          Record a payment
+        </button>
+      </div>
+
+      @if (store.isEmpty()) {
+        <md-empty-state
+          icon="receipt_long"
+          headline="No stall fees yet"
+          body="Fees appear here once this vendor has traded a market day."
+        />
+      } @else if (store.isFilteredEmpty()) {
+        <md-empty-state
+          icon="search_off"
+          headline="Nothing charged in that period"
+          body="Try a longer period, or another market."
+        >
+          <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+        </md-empty-state>
+      } @else {
+        <div class="table-card">
+          <table mat-table [dataSource]="page()" class="ledger">
+            <ng-container matColumnDef="date">
+              <th mat-header-cell *matHeaderCellDef scope="col">Date</th>
+              <td mat-cell *matCellDef="let payment">{{ payment.date }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="market">
+              <th mat-header-cell *matHeaderCellDef scope="col">Market · period</th>
+              <td mat-cell *matCellDef="let payment">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ payment.market }}
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  {{ payment.period }} · {{ payment.method }} ·
+                  <span class="reference">{{ payment.reference }}</span>
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef scope="col">Amount</th>
+              <td mat-cell *matCellDef="let payment">
+                <span
+                  class="amount"
+                  [class.amount--owed]="payment.status === 'due'"
+                  [class.amount--void]="payment.status !== 'due' && payment.amount <= 0"
+                >
+                  {{ amountOf(payment) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+              <td mat-cell *matCellDef="let payment">
+                <md-status-pill [tone]="statusTone(payment)">
+                  {{ statusLabel(payment) }}
+                </md-status-pill>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef scope="col">
+                <span class="sr-only">Actions</span>
+              </th>
+              <td mat-cell *matCellDef="let payment">
+                <button
+                  matIconButton
+                  type="button"
+                  [attr.aria-label]="
+                    'Actions for the ' + payment.market + ' fee on ' + payment.date
+                  "
+                  [matMenuTriggerFor]="rowMenu"
+                >
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #rowMenu="matMenu">
+                  @if (isOpen(payment)) {
+                    <button
+                      mat-menu-item
+                      type="button"
+                      [disabled]="store.busy()"
+                      (click)="markPaid(payment)"
+                    >
+                      Mark paid
+                    </button>
+                    <button
+                      mat-menu-item
+                      type="button"
+                      [disabled]="store.busy()"
+                      (click)="sendReminder(payment)"
+                    >
+                      Send reminder
+                    </button>
+                    <button
+                      mat-menu-item
+                      type="button"
+                      [disabled]="store.busy()"
+                      (click)="waive(payment)"
+                    >
+                      Waive this fee
+                    </button>
+                  } @else {
+                    <button mat-menu-item type="button" disabled>Already settled</button>
+                  }
+                  <button mat-menu-item type="button" disabled>Download receipt</button>
+                </mat-menu>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+          </table>
+
+          <mat-paginator
+            [length]="store.visible().length"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="[10, 25, 50]"
+            (page)="onPage($event)"
+            aria-label="Choose a page of the fee ledger"
+          />
+        </div>
+      }
+    }
+  </div>
+
+  <aside class="rail" aria-label="How this vendor is billed">
+    <section class="section">
+      <h3 class="section-title">Fee per market</h3>
+      @for (line of store.feeLines(); track line.marketSlug) {
+        <a class="fee-card" [routerLink]="['/markets', line.marketSlug]">
+          <span class="block text-body-medium font-semibold text-on-surface">{{
+            line.market
+          }}</span>
+          <span class="block text-label-large text-on-surface-variant">{{ line.terms }}</span>
+          <span
+            class="mt-1.5 block text-label-large font-semibold"
+            [class.text-primary]="line.tone === 'positive'"
+            [class.text-error]="line.tone === 'alert'"
+            [class.text-on-surface-variant]="line.tone === 'muted'"
+          >
+            {{ line.state }}
+          </span>
+        </a>
+      }
+    </section>
+
+    @if (store.method(); as method) {
+      <section class="section">
+        <h3 class="section-title">Payment method on file</h3>
+        <div class="card">
+          <span class="card-brand" aria-hidden="true"></span>
+          <div class="min-w-0">
+            <span class="block text-body-medium text-on-surface">{{ method.label }}</span>
+            <span class="block text-label-large text-on-surface-variant">{{ method.holder }}</span>
+          </div>
+        </div>
+        <p class="m-0 text-label-large text-on-surface-variant">{{ method.note }}</p>
+      </section>
+    }
+
+    <div class="waive">
+      <span class="text-body-large font-bold text-on-surface">Waive a fee</span>
+      <p class="mt-1 mb-2 text-body-medium text-on-surface-variant">
+        Cancels the invoice and records the reason against the membership. Organisers see the waiver
+        on their sheet.
+      </p>
+      @if (store.outstanding()[0]; as open) {
+        <button matButton="outlined" type="button" [disabled]="store.busy()" (click)="waive(open)">
+          Waive the {{ open.market }} fee
+        </button>
+      } @else {
+        <button
+          matButton="outlined"
+          type="button"
+          disabled
+          matTooltip="Nothing is outstanding to waive"
+        >
+          Waive
+        </button>
+      }
+    </div>
+  </aside>
+</div>

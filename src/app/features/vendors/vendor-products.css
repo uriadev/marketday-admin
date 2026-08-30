@@ -1,0 +1,172 @@
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the rail drops under the grid. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.search {
+  inline-size: 220px;
+  max-inline-size: 40vw;
+}
+
+.table-card {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.products {
+  inline-size: 100%;
+  background: transparent;
+}
+
+/* Identity is wide; every market column shares what is left, evenly. */
+.products .mat-column-product {
+  inline-size: 260px;
+}
+.products .mat-column-actions {
+  inline-size: 56px;
+  text-align: end;
+}
+
+.products td.mat-mdc-cell {
+  padding-block: 10px;
+}
+
+/* A market column's header carries its stall under its name. */
+.products th.mat-mdc-header-cell {
+  padding-block: 10px;
+  line-height: 1.25;
+}
+
+/*
+ * A cell's status is a real button — it is the one control on this screen an
+ * admin uses over and over — wrapping the same pill the rest of the console
+ * reads statuses from, so the two tones stay defined in one place.
+ */
+.cell {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--mat-sys-corner-small);
+  cursor: pointer;
+}
+.cell:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.cell:not(:disabled):hover md-status-pill {
+  filter: brightness(0.96);
+}
+.cell:focus-visible {
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+}
+
+.dot {
+  inline-size: 7px;
+  block-size: 7px;
+  margin-inline-end: 6px;
+  border-radius: var(--mat-sys-corner-full);
+  background: currentColor;
+}
+
+/* Not a status: a market this vendor does not bring the product to. */
+.not-carried {
+  display: inline-flex;
+  align-items: center;
+  block-size: 26px;
+  padding-inline: 10px;
+  border: 1px dashed var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-small);
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-outline);
+  white-space: nowrap;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.note {
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

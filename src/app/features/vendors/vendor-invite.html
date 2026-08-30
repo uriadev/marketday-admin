@@ -1,0 +1,199 @@
+<md-page-header heading="Invite vendor" backLink="/vendors" breadcrumb="Vendors">
+  @if (headerNote(); as note) {
+    <span class="text-label-large text-on-surface-variant">{{ note }}</span>
+  }
+</md-page-header>
+
+<div class="layout">
+  <form class="main" [formGroup]="form" (ngSubmit)="send()">
+    <div class="flex-none">
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">Invite a vendor</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+        They set their own password and fill in the rest of their profile.
+      </p>
+    </div>
+
+    <div class="fields">
+      <h3 class="section-title">Who are you inviting</h3>
+
+      <mat-form-field>
+        <mat-label>Business name</mat-label>
+        <input matInput formControlName="businessName" autocomplete="organization" />
+        @if (form.controls.businessName.hasError('required')) {
+          <mat-error>Who are you inviting?</mat-error>
+        }
+      </mat-form-field>
+
+      <div class="pair">
+        <mat-form-field>
+          <mat-label>Contact name</mat-label>
+          <input matInput formControlName="contactName" autocomplete="name" />
+          @if (form.controls.contactName.hasError('required')) {
+            <mat-error>Who will receive this?</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Email address</mat-label>
+          <input matInput type="email" formControlName="email" autocomplete="email" />
+          @if (form.controls.email.touched && form.controls.email.hasError('required')) {
+            <mat-error>An invitation needs an email address</mat-error>
+          } @else if (form.controls.email.touched && form.controls.email.hasError('email')) {
+            <mat-error>That doesn’t look like an email address</mat-error>
+          } @else {
+            <mat-hint>The invitation link is valid for {{ facade.linkValidDays() }} days.</mat-hint>
+          }
+        </mat-form-field>
+      </div>
+
+      <div class="pair">
+        <mat-form-field>
+          <mat-label>Phone (optional)</mat-label>
+          <input matInput formControlName="phone" placeholder="+353 …" autocomplete="tel" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Trades as</mat-label>
+          <mat-select formControlName="trade">
+            @for (trade of trades; track trade) {
+              <mat-option [value]="trade">{{ trade }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <h3 class="section-title section-title--divided">Access</h3>
+
+      <div class="flex flex-col gap-2.5">
+        <mat-form-field>
+          <mat-label>Markets they can apply to</mat-label>
+          <mat-chip-grid #marketGrid aria-label="Markets this vendor may apply to">
+            @for (market of selectedMarketRows(); track market.slug) {
+              <mat-chip-row (removed)="removeMarket(market.slug)">
+                {{ market.name }}
+                <button matChipRemove type="button" [attr.aria-label]="'Remove ' + market.name">
+                  <mat-icon>cancel</mat-icon>
+                </button>
+              </mat-chip-row>
+            }
+            <input
+              #marketInput
+              placeholder="Search markets…"
+              autocomplete="off"
+              [matChipInputFor]="marketGrid"
+              [matChipInputAddOnBlur]="false"
+              [matAutocomplete]="marketAuto"
+              (input)="marketQuery.set(marketInput.value)"
+            />
+          </mat-chip-grid>
+          <mat-autocomplete #marketAuto (optionSelected)="pickMarket($event, marketInput)">
+            @for (market of marketOptions(); track market.slug) {
+              <mat-option [value]="market.slug">
+                <span class="font-medium">{{ market.name }}</span>
+                <span class="opacity-60"> · {{ market.county }}</span>
+              </mat-option>
+            } @empty {
+              <mat-option disabled>No market left to add</mat-option>
+            }
+          </mat-autocomplete>
+          <mat-hint>{{ marketsHint() }}</mat-hint>
+        </mat-form-field>
+        <div>
+          <button
+            matButton
+            type="button"
+            [disabled]="selectedMarkets().length === 0"
+            (click)="selectAllMarkets()"
+          >
+            All {{ facade.marketCount() }} markets
+          </button>
+        </div>
+      </div>
+
+      <mat-form-field>
+        <mat-label>Role</mat-label>
+        <mat-select formControlName="role">
+          @for (role of roles; track role[0]) {
+            <mat-option [value]="role[0]">{{ role[1] }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <div class="flex flex-row items-center justify-between gap-4">
+            <div>
+              <p class="m-0 text-body-medium font-semibold text-on-surface">
+                Skip application review
+              </p>
+              <p class="m-0 text-body-small text-on-surface-variant">
+                On means they can book a stall the moment they sign up.
+              </p>
+            </div>
+            <mat-slide-toggle formControlName="skipApplicationReview" />
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <h3 class="section-title section-title--divided">Message</h3>
+
+      <mat-form-field>
+        <mat-label>Personal note (optional)</mat-label>
+        <textarea matInput rows="3" formControlName="note" maxlength="400"></textarea>
+        <mat-hint>Appears above the sign-up button in the invitation email.</mat-hint>
+      </mat-form-field>
+    </div>
+  </form>
+
+  <aside class="rail" aria-label="Email preview and what happens next">
+    <section class="section">
+      <h3 class="rail-title">Email preview</h3>
+      <div class="email">
+        <div class="email-to">To {{ preview().to }}</div>
+        <div class="email-body">
+          <div class="flex items-center gap-2.5">
+            <md-brand-mark [size]="26" />
+            <span class="text-body-medium font-bold text-on-surface">MarketDay</span>
+          </div>
+          <p class="m-0 text-title-small font-bold text-on-surface">{{ preview().subject }}</p>
+          @if (preview().note; as note) {
+            <p class="m-0 text-body-medium text-on-surface-variant">{{ note }}</p>
+          }
+          <div class="email-cta">Set up your account</div>
+          <span class="text-label-medium text-on-surface-variant">
+            Link expires {{ facade.linkExpiry() }}.
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3 class="rail-title">What happens next</h3>
+      <p class="m-0 text-body-medium text-on-surface-variant">
+        They appear in the directory as
+        <md-status-pill tone="alert">Invitation pending</md-status-pill>
+        until they sign up.
+      </p>
+      <p class="m-0 text-body-medium text-on-surface-variant">
+        A reminder goes out after {{ facade.reminderAfterDays() }} days if there is no reply.
+      </p>
+    </section>
+
+    <p class="bulk-note">
+      Inviting more than a few? Importing a CSV of business names and emails is coming soon.
+    </p>
+  </aside>
+</div>
+
+<div class="footer">
+  <span class="text-label-large text-on-surface-variant">{{ summary() }}</span>
+  <div class="flex items-center gap-2">
+    <a matButton routerLink="/vendors">Cancel</a>
+    <button matButton="outlined" type="button" [disabled]="facade.sending()" (click)="send(true)">
+      Save and add another
+    </button>
+    <button matButton="filled" type="button" [disabled]="facade.sending()" (click)="send()">
+      Send invitation
+    </button>
+  </div>
+</div>

@@ -1,0 +1,24 @@
+<md-page-header heading="Settings" (menu)="chrome.toggleDrawer()" />
+
+<div class="layout">
+  <nav class="rail" aria-label="Settings">
+    <mat-nav-list>
+      @for (link of links; track link.label) {
+        <a
+          mat-list-item
+          [routerLink]="link.route ?? null"
+          routerLinkActive="active-link"
+          ariaCurrentWhenActive="page"
+          [disabled]="!link.route"
+        >
+          <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
+          <span matListItemTitle>{{ link.label }}</span>
+        </a>
+      }
+    </mat-nav-list>
+  </nav>
+
+  <div class="panel">
+    <router-outlet />
+  </div>
+</div>
