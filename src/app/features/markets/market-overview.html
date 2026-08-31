@@ -47,9 +47,7 @@
         <div class="flex items-center justify-between px-4.5 py-2">
           <!-- px-4.5 py-4 -->
           <span class="text-title-medium font-bold text-on-surface">Vendors this week</span>
-          <button matButton type="button" disabled matTooltip="The vendors tab is coming soon">
-            See all {{ data.vendorCount }}
-          </button>
+          <a matButton routerLink="vendors"> See all {{ data.vendorCount }} </a>
         </div>
         <ul class="m-0 list-none p-0">
           @for (vendor of data.weekVendors; track vendor.id) {

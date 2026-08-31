@@ -173,12 +173,93 @@ export interface MarketDetail {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+   Vendors tab (design 1g). The design names this tab and its count but draws
+   no body for it, so the roster follows the vendor directory (design 1a): the
+   same row anatomy, narrowed to one market and answering the organiser's
+   question — who is trading here, who owes a fee, who is waiting on a decision.
+──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * How a vendor stands at *this* market. Deliberately not `VendorStanding`: a
+ * vendor paused at one market can be trading at another, so the platform-wide
+ * standing is the wrong answer to a per-market question.
+ */
+export type MarketVendorStanding = 'trading' | 'fee-unpaid' | 'paused';
+
+/** One row of a market's vendor roster. */
+export interface MarketVendor {
+  id: string;
+  /** The vendor's own slug — every row opens `/vendors/:slug`. */
+  slug: string;
+  name: string;
+  /** "Cheese · since 2018" — the directory's own line, unchanged. */
+  meta: string;
+  /** Pitch on the next market day. `null` while a member holds none. */
+  stall: string | null;
+  standing: MarketVendorStanding;
+  /** "Trading", "Fee unpaid", "Paused". */
+  standingLabel: string;
+  fee: StallFeeStatus;
+  /** "€35 paid", "€35 due", "No fee while paused". */
+  feeLabel: string;
+  /** Staff who can work this market, for the face pile. */
+  staff: readonly string[];
+}
+
+/** A vendor waiting on this market's decision — design 1a's "applied" chip. */
+export interface MarketApplication {
+  id: string;
+  /** They already have a directory record, so the name links to it. */
+  vendorSlug: string;
+  name: string;
+  /** "Bakery · applied 2 days ago". */
+  meta: string;
+  staff: readonly string[];
+}
+
+/**
+ * Everything the Vendors tab renders. It counts nothing the stall map counts —
+ * pitches are the market day's business, membership is this screen's — so the
+ * two never contradict each other.
+ */
+export interface MarketRoster {
+  vendors: readonly MarketVendor[];
+  applications: readonly MarketApplication[];
+  /** Stall fees still to collect for the next market day, in euro. */
+  feesOutstanding: number;
+}
+
+/** The toggle chips above the roster, in the order they read. */
+export type MarketVendorToggle = 'feeUnpaid' | 'paused' | 'noStall';
+
+export const MARKET_VENDOR_TOGGLES: readonly { value: MarketVendorToggle; label: string }[] = [
+  { value: 'feeUnpaid', label: 'Fee unpaid' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'noStall', label: 'No pitch yet' },
+];
+
+/** Roster filters. Each one is a query param (§7). */
+export interface MarketVendorFilters {
+  q: string;
+  feeUnpaid: boolean;
+  paused: boolean;
+  noStall: boolean;
+}
+
+export const EMPTY_MARKET_VENDOR_FILTERS: MarketVendorFilters = {
+  q: '',
+  feeUnpaid: false,
+  paused: false,
+  noStall: false,
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
    Add market (design 1h). The wizard's three steps each own one patch; the
    draft is the three of them together, shaped for the backend's
    `CreateMarketInput`.
 ──────────────────────────────────────────────────────────────────────────── */
 
-/** What the Details step writes — also the settings tab's save, later. */
+/** What the Details step writes — and half of what the Settings tab saves. */
 export interface MarketDetailsPatch {
   readonly name: string;
   readonly slug: string;
@@ -192,7 +273,12 @@ export interface MarketDetailsPatch {
   readonly acceptsPreOrders: boolean;
 }
 
-/** What the Schedule step writes. */
+/**
+ * What the Schedule step writes — and what the manage screen's Schedule tab
+ * reads and writes back, which is why it carries the whole pattern rather than
+ * only the fields that changed: the rule and the four controls behind it
+ * always travel together.
+ */
 export interface MarketSchedulePatch {
   /**
    * The trading pattern as RFC 5545 text — `DTSTART:…\nRRULE:…` — composed by
@@ -208,7 +294,7 @@ export interface MarketSchedulePatch {
   readonly bookingDeadlineHours: number;
 }
 
-/** What the Location step writes. */
+/** What the Location step writes — and the other half of the Settings tab's save. */
 export interface MarketLocationPatch {
   readonly address: string;
   readonly city: string;
@@ -226,6 +312,14 @@ export interface MarketLocationPatch {
   readonly organiserName: string;
   readonly organiserPhone: string;
 }
+
+/**
+ * What the manage screen's Settings tab reads and writes: everything about a
+ * market except its trading pattern, which the Schedule tab owns. The two tabs
+ * split the wizard's payload between them rather than overlapping, so neither
+ * can overwrite the other's fields with a stale copy.
+ */
+export type MarketSettingsPatch = MarketDetailsPatch & MarketLocationPatch;
 
 /** The whole payload for the three-step create wizard. */
 export type MarketDraft = MarketDetailsPatch & MarketSchedulePatch & MarketLocationPatch;

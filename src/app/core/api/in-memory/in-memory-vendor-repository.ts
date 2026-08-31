@@ -16,37 +16,17 @@ import {
   VendorSummary,
 } from '../../models/vendor.model';
 import { VendorRepository } from '../ports/vendor-repository';
-import { MARKETS_FIXTURE } from './in-memory-market-repository';
-
-/**
- * Short market labels, keyed by the slug in {@link MARKETS_FIXTURE}. The
- * directory's chips are too narrow for "Temple Bar Food Market", and a chip
- * that names a market the console can't open would be a lie — so the label and
- * the link come from the same place.
- */
-export const MARKET_LABELS: Record<string, string> = {
-  'temple-bar': 'Temple Bar',
-  'marlay-park': 'Marlay Park',
-  'howth-harbour': 'Howth',
-  'douglas-village': 'Douglas',
-  'kinsale-harbour': 'Kinsale',
-  'midleton-farmers': 'Midleton',
-  'bantry-friday': 'Bantry',
-};
-
-const SLUG_BY_LABEL = new Map(
-  Object.entries(MARKET_LABELS).map(([slug, label]) => [label, slug] as const),
-);
+import { MARKETS_FIXTURE, MARKET_LABELS, slugForLabel } from './market-fixture';
 
 /** Full market name for a short label — "Temple Bar" → "Temple Bar Food Market". */
 function marketName(label: string): string {
-  const slug = SLUG_BY_LABEL.get(label);
+  const slug = slugForLabel(label);
   return MARKETS_FIXTURE.find((market) => market.slug === slug)?.name ?? label;
 }
 
 /** The schedule half of a market's `when` line — "Saturdays 09:00–14:30". */
 function marketSchedule(label: string): string {
-  const slug = SLUG_BY_LABEL.get(label);
+  const slug = slugForLabel(label);
   const market = MARKETS_FIXTURE.find((candidate) => candidate.slug === slug);
   return market?.when.split(' · ')[1] ?? 'Market day';
 }
@@ -671,9 +651,9 @@ function buildDetail(vendor: VendorSummary): VendorDetail {
   const memberships = vendor.markets.map<VendorMembership>((label, i) => {
     const feeDue = owed > 0 && i === 0;
     return {
-      id: `mem-${SLUG_BY_LABEL.get(label) ?? slugify(label)}`,
+      id: `mem-${slugForLabel(label) ?? slugify(label)}`,
       market: marketName(label),
-      marketSlug: SLUG_BY_LABEL.get(label) ?? slugify(label),
+      marketSlug: slugForLabel(label) ?? slugify(label),
       badges: paused
         ? [{ label: 'Paused', tone: 'muted' as const }]
         : [

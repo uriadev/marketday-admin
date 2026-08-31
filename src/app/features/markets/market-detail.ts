@@ -11,12 +11,12 @@ import { StatusPill } from '../../shared/components/status-pill/status-pill';
 import { Avatar } from '../../shared/components/avatar/avatar';
 import { MarketStatus } from '../../core/models/market.model';
 import { MarketDetailFacade } from './market-detail-facade';
+import { MatBadgeModule } from '@angular/material/badge';
 
 /**
  * The shell around one market (design 1g): breadcrumb header, the market's
  * identity strip, and the routed tab bar. The tab bodies are child routes —
- * only Overview exists today, so the rest are disabled links rather than dead
- * routes.
+ * only Stalls is still a disabled link rather than a dead route.
  */
 @Component({
   selector: 'md-market-detail',
@@ -34,6 +34,7 @@ import { MarketDetailFacade } from './market-detail-facade';
     MatTabsModule,
     MatTooltipModule,
     MatProgressBarModule,
+    MatBadgeModule,
   ],
   templateUrl: './market-detail.html',
   styleUrl: './market-detail.css',

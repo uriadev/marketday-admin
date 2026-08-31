@@ -10,7 +10,8 @@ import {
 } from '../../models/product.model';
 import { VendorMembership, VendorSummary } from '../../models/vendor.model';
 import { ProductRepository } from '../ports/product-repository';
-import { MARKET_LABELS, MCNALLY_DETAIL, VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { MCNALLY_DETAIL, VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { MARKET_LABELS } from './market-fixture';
 
 /** "Saturdays 09:00–14:30 · Stall A7 · member since March 2021" → "Stall A7". */
 function stallOf(membership: VendorMembership): string {

@@ -2,13 +2,18 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { MarketRepository } from '../../core/api/ports/market-repository';
 import { IRISH_COUNTIES } from '../../core/models/location.model';
+import { TEMPLE_BAR_DETAIL } from '../../core/api/in-memory/in-memory-market-repository';
 import {
   MARKETS_FIXTURE,
-  TEMPLE_BAR_DETAIL,
-} from '../../core/api/in-memory/in-memory-market-repository';
+  MARKET_SCHEDULES,
+  MARKET_SETTINGS,
+} from '../../core/api/in-memory/market-fixture';
 import {
   MarketDetail,
   MarketDraft,
+  MarketRoster,
+  MarketSchedulePatch,
+  MarketSettingsPatch,
   MarketStatus,
   MarketSummary,
 } from '../../core/models/market.model';
@@ -21,6 +26,27 @@ class StubMarketRepository extends MarketRepository {
   }
   override detail(): Observable<MarketDetail> {
     return of(TEMPLE_BAR_DETAIL);
+  }
+  override roster(): Observable<MarketRoster> {
+    return of({ vendors: [], applications: [], feesOutstanding: 0 });
+  }
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    return of(MARKET_SCHEDULES[slug]);
+  }
+  override saveSchedule(
+    _slug: string,
+    patch: MarketSchedulePatch,
+  ): Observable<MarketSchedulePatch> {
+    return of(patch);
+  }
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    return of(MARKET_SETTINGS[slug]);
+  }
+  override saveSettings(
+    _slug: string,
+    patch: MarketSettingsPatch,
+  ): Observable<MarketSettingsPatch> {
+    return of(patch);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
@@ -39,6 +65,27 @@ class FailingMarketRepository extends MarketRepository {
   }
   override detail(): Observable<MarketDetail> {
     return throwError(() => new Error('nope'));
+  }
+  override roster(): Observable<MarketRoster> {
+    return of({ vendors: [], applications: [], feesOutstanding: 0 });
+  }
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    return of(MARKET_SCHEDULES[slug]);
+  }
+  override saveSchedule(
+    _slug: string,
+    patch: MarketSchedulePatch,
+  ): Observable<MarketSchedulePatch> {
+    return of(patch);
+  }
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    return of(MARKET_SETTINGS[slug]);
+  }
+  override saveSettings(
+    _slug: string,
+    patch: MarketSettingsPatch,
+  ): Observable<MarketSettingsPatch> {
+    return of(patch);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);

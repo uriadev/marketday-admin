@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -18,6 +19,7 @@ import { MarketDetailFacade } from './market-detail-facade';
   selector: 'md-market-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     StatTile,
     StatusPill,
     Avatar,

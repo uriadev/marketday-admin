@@ -16,6 +16,9 @@
           <mat-label>Public URL</mat-label>
           <span matTextPrefix>marketday.ie/&nbsp;</span>
           <input matInput formControlName="slug" />
+          @if (lockSlug()) {
+            <mat-hint>A market keeps the address it was published at.</mat-hint>
+          }
         </mat-form-field>
       </div>
 

@@ -4,7 +4,8 @@ import { delay } from 'rxjs/operators';
 import { FeeLine, StallPayment, VendorLedger } from '../../models/payment.model';
 import { VendorMembership, VendorSummary } from '../../models/vendor.model';
 import { PaymentRepository } from '../ports/payment-repository';
-import { MARKET_LABELS, MCNALLY_DETAIL, VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { MCNALLY_DETAIL, VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { MARKET_LABELS } from './market-fixture';
 
 /** Stall fee per market day, in euro — the figure the market screens use. */
 const STALL_FEE = 35;

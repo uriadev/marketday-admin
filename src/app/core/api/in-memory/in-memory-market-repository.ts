@@ -2,19 +2,32 @@ import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import {
+  MarketApplication,
   MarketDetail,
   MarketDraft,
+  MarketRoster,
+  MarketSchedulePatch,
+  MarketSettingsPatch,
   MarketStatus,
   MarketSummary,
+  MarketVendor,
+  MarketVendorStanding,
   Stall,
+  StallFeeStatus,
   TradingDay,
   WeekVendor,
 } from '../../models/market.model';
 import { IRISH_COUNTIES } from '../../models/location.model';
+import { VendorSummary } from '../../models/vendor.model';
 import { MarketRepository } from '../ports/market-repository';
-
-/** Stall fee per vendor per market day, in euro. */
-const STALL_FEE = 35;
+import {
+  MARKETS_FIXTURE,
+  MARKET_LABELS,
+  MARKET_SCHEDULES,
+  MARKET_SETTINGS,
+  STALL_FEE,
+} from './market-fixture';
+import { VENDORS_FIXTURE } from './in-memory-vendor-repository';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = [
@@ -37,105 +50,6 @@ function marketDayLabel(iso: string): string {
   const date = new Date(`${iso}T00:00:00Z`);
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${MONTH_NAMES[date.getUTCMonth()]}`;
 }
-
-/**
- * The market directory (design 1f). Seven markets, of which three trade today
- * and one is still a draft — which is exactly what the screen's summary line
- * claims. Exported so tests assert against the same rows the screen renders.
- */
-export const MARKETS_FIXTURE: readonly MarketSummary[] = [
-  {
-    id: 'mkt-temple-bar',
-    slug: 'temple-bar',
-    name: 'Temple Bar Food Market',
-    county: 'Dublin',
-    when: 'Dublin 2 · Saturdays 09:00–14:30',
-    days: ['Saturday'],
-    status: MarketStatus.Published,
-    tradingToday: true,
-    badgeLabel: 'Trading',
-    nextMarketDay: '2026-08-22',
-    metrics: { stallsFilled: 18, stallsTotal: 20, preorders: 147, enquiries: 3 },
-  },
-  {
-    id: 'mkt-marlay-park',
-    slug: 'marlay-park',
-    name: 'Marlay Park Market',
-    county: 'Dublin',
-    when: 'Rathfarnham · Saturdays 10:00–16:00',
-    days: ['Saturday'],
-    status: MarketStatus.Published,
-    tradingToday: true,
-    badgeLabel: 'Trading',
-    nextMarketDay: '2026-08-22',
-    metrics: { stallsFilled: 11, stallsTotal: 16, preorders: 62, enquiries: 1 },
-  },
-  {
-    id: 'mkt-howth',
-    slug: 'howth-harbour',
-    name: 'Howth Harbour Market',
-    county: 'Dublin',
-    when: 'Howth · Sat–Sun 09:00–17:00',
-    days: ['Saturday', 'Sunday'],
-    status: MarketStatus.Published,
-    tradingToday: true,
-    badgeLabel: 'Opens 09:00',
-    nextMarketDay: '2026-08-22',
-    metrics: { stallsFilled: 6, stallsTotal: 12, preorders: 24, enquiries: 0 },
-  },
-  {
-    id: 'mkt-douglas',
-    slug: 'douglas-village',
-    name: 'Douglas Village Market',
-    county: 'Cork',
-    when: 'Douglas · Sundays 11:00–16:00',
-    days: ['Sunday'],
-    status: MarketStatus.Published,
-    tradingToday: false,
-    badgeLabel: 'Opens Sunday',
-    nextMarketDay: '2026-08-23',
-    metrics: { stallsFilled: 9, stallsTotal: 14, preorders: 38, enquiries: 2 },
-  },
-  {
-    id: 'mkt-kinsale',
-    slug: 'kinsale-harbour',
-    name: 'Kinsale Harbour Market',
-    county: 'Cork',
-    when: 'Kinsale · Wednesdays 10:00–15:00',
-    days: ['Wednesday'],
-    status: MarketStatus.Published,
-    tradingToday: false,
-    badgeLabel: 'Opens Wednesday',
-    nextMarketDay: '2026-08-26',
-    metrics: { stallsFilled: 12, stallsTotal: 12, preorders: 44, enquiries: 1 },
-  },
-  {
-    id: 'mkt-midleton',
-    slug: 'midleton-farmers',
-    name: 'Midleton Farmers Market',
-    county: 'Cork',
-    when: 'Midleton · Thursdays 09:00–14:00',
-    days: ['Thursday'],
-    status: MarketStatus.Published,
-    tradingToday: false,
-    badgeLabel: 'Opens Thursday',
-    nextMarketDay: '2026-08-27',
-    metrics: { stallsFilled: 14, stallsTotal: 18, preorders: 51, enquiries: 0 },
-  },
-  {
-    id: 'mkt-bantry',
-    slug: 'bantry-friday',
-    name: 'Bantry Friday Market',
-    county: 'Cork',
-    when: 'Bantry · Fridays 09:00–15:00',
-    days: ['Friday'],
-    status: MarketStatus.Draft,
-    tradingToday: false,
-    badgeLabel: 'Draft',
-    nextMarketDay: '2026-08-28',
-    metrics: null,
-  },
-];
 
 /** Pitch references, five to a row: A1–A5, B1–B5, C1–C5… */
 function stallRefs(total: number): string[] {
@@ -197,6 +111,109 @@ const TEMPLE_BAR_WEEK_VENDORS: readonly WeekVendor[] = [
   { id: 'sheridans-cheese', name: 'Sheridans Cheese', meta: 'Stall A1 · cheese', fee: 'paid' },
 ];
 
+/* ────────────────────────────────────────────────────────────────────────────
+   The Vendors tab's roster. Built from the vendor directory rather than from
+   the stall map: memberships are what the console actually knows, and the
+   design's hand-written map for Temple Bar names vendors the directory puts at
+   other markets. Where the two *do* overlap the map wins on pitch and fee, so
+   a vendor never reads one way on the Overview and another way here.
+──────────────────────────────────────────────────────────────────────────── */
+
+/** Directory vendors who list this market among their memberships. */
+function membersOf(market: MarketSummary): readonly VendorSummary[] {
+  const label = MARKET_LABELS[market.slug];
+  return label ? VENDORS_FIXTURE.filter((vendor) => vendor.markets.includes(label)) : [];
+}
+
+/** Directory vendors whose pending application names this market. */
+function applicantsOf(market: MarketSummary): readonly VendorSummary[] {
+  const label = MARKET_LABELS[market.slug];
+  return label
+    ? VENDORS_FIXTURE.filter((vendor) => vendor.appliedLabel === `${label} · applied`)
+    : [];
+}
+
+/** Pitch first, then members still waiting on one, then paused members. */
+function rosterOrder(a: MarketVendor, b: MarketVendor): number {
+  const rank = (vendor: MarketVendor) =>
+    vendor.standing === 'paused' ? 2 : vendor.stall === null ? 1 : 0;
+  const byRank = rank(a) - rank(b);
+  if (byRank !== 0) return byRank;
+  if (a.stall && b.stall) return a.stall.localeCompare(b.stall);
+  return a.name.localeCompare(b.name);
+}
+
+/**
+ * The roster for one market, or `undefined` when no fixture market matches.
+ * Exported so a spec asserts against the shipped fixture without waiting on
+ * the adapter's `delay` — there is no zone.js here to fake.
+ */
+export function buildMarketRoster(slug: string): MarketRoster | undefined {
+  const market = MARKETS_FIXTURE.find((candidate) => candidate.slug === slug);
+  if (!market) return undefined;
+  const stalls =
+    slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL.stalls : buildDetail(market).stalls;
+  return buildRoster(market, stalls);
+}
+
+function buildRoster(market: MarketSummary, stalls: readonly Stall[]): MarketRoster {
+  const label = MARKET_LABELS[market.slug] ?? market.name;
+  const total = market.metrics?.stallsTotal ?? 0;
+
+  const assigned = stalls.filter((stall) => stall.state !== 'free');
+  const byVendor = new Map(assigned.map((stall) => [stall.vendor, stall] as const));
+  const takenIds = new Set(assigned.map((stall) => stall.id));
+  const spare = stallRefs(total).filter((id) => !takenIds.has(id));
+  let nextSpare = 0;
+
+  const vendors = membersOf(market)
+    .map<MarketVendor>((vendor) => {
+      const paused = vendor.standing === 'paused';
+      const pitch = byVendor.get(vendor.name);
+      let stall: string | null = null;
+      if (!paused) {
+        stall = pitch?.id ?? spare[nextSpare++] ?? null;
+      }
+      // "Fee unpaid ×1" is one market's fee, not every market's: the first
+      // market they joined is the one the fixture charges it to.
+      const owes =
+        !paused &&
+        (pitch?.state === 'unpaid' ||
+          (vendor.standing === 'fee-unpaid' && vendor.markets[0] === label));
+      const standing: MarketVendorStanding = paused ? 'paused' : owes ? 'fee-unpaid' : 'trading';
+      const fee: StallFeeStatus = owes ? 'unpaid' : 'paid';
+      return {
+        id: `${market.slug}-${vendor.slug}`,
+        slug: vendor.slug,
+        name: vendor.name,
+        meta: vendor.meta,
+        stall,
+        standing,
+        standingLabel: paused ? 'Paused' : owes ? 'Fee unpaid' : 'Trading',
+        fee,
+        feeLabel: paused
+          ? 'No fee while paused'
+          : owes
+            ? `€${STALL_FEE} due`
+            : `€${STALL_FEE} paid`,
+        staff: vendor.staff,
+      };
+    })
+    .sort(rosterOrder);
+
+  return {
+    vendors,
+    applications: applicantsOf(market).map<MarketApplication>((vendor) => ({
+      id: `app-${market.slug}-${vendor.slug}`,
+      vendorSlug: vendor.slug,
+      name: vendor.name,
+      meta: vendor.meta,
+      staff: vendor.staff,
+    })),
+    feesOutstanding: vendors.filter((vendor) => vendor.fee === 'unpaid').length * STALL_FEE,
+  };
+}
+
 /** Anything the builder can't derive from a {@link MarketSummary}. */
 interface DetailOverrides {
   meta?: string;
@@ -254,7 +271,7 @@ function buildDetail(market: MarketSummary, overrides: DetailOverrides = {}): Ma
     badgeLabel: market.badgeLabel,
     meta: overrides.meta ?? `${market.when} · next market day ${dayLabel}`,
     marketDayLabel: dayLabel,
-    vendorCount: metrics.stallsFilled,
+    vendorCount: membersOf(market).length,
     stats: [
       {
         label: 'Stalls filled',
@@ -342,22 +359,92 @@ const DAY_BY_ISO: readonly TradingDay[] = [
   'Sunday',
 ];
 
-/** The trading days of a draft, as directory labels. */
-function draftDays(draft: MarketDraft): TradingDay[] {
-  return [...draft.tradingDays]
+/** The trading days of a pattern, as directory labels. */
+function patternDays(tradingDays: readonly number[]): TradingDay[] {
+  return [...tradingDays]
     .sort((a, b) => a - b)
     .map((iso) => DAY_BY_ISO[iso - 1])
     .filter((day): day is TradingDay => !!day);
 }
 
-/** "Bantry · Fridays 09:00–15:00" — the directory card's second line. */
-function summariseWhen(draft: MarketDraft): string {
-  const days = draftDays(draft);
-  const pattern = days.length
-    ? `${days.map((day) => `${day}s`).join(', ')} ${draft.opensAt}–${draft.closesAt}`
+/**
+ * "Bantry · Fridays 09:00–15:00" — the directory card's second line. Takes the
+ * place separately from the pattern because the two have different owners: the
+ * wizard writes both, the Schedule tab only ever rewrites the pattern half.
+ */
+function summariseWhen(place: string, pattern: MarketSchedulePatch): string {
+  const days = patternDays(pattern.tradingDays);
+  const when = days.length
+    ? `${days.map((day) => `${day}s`).join(', ')} ${pattern.opensAt}–${pattern.closesAt}`
     : 'Schedule to be confirmed';
-  return [draft.city || draft.county, pattern].filter(Boolean).join(' · ');
+  return [place, when].filter(Boolean).join(' · ');
 }
+
+/** "Dublin 2 · Saturdays 09:00–14:30" → "Dublin 2" — the half a schedule edit keeps. */
+function placeOf(when: string): string {
+  return when.split(' · ')[0] ?? '';
+}
+
+/** The settings half of the wizard's payload, on its own. */
+function draftSettings(draft: MarketDraft): MarketSettingsPatch {
+  const {
+    schedule: _schedule,
+    duration: _duration,
+    tradingDays: _tradingDays,
+    opensAt: _opensAt,
+    closesAt: _closesAt,
+    bookingDeadlineHours: _bookingDeadlineHours,
+    ...settings
+  } = draft;
+  return settings;
+}
+
+/** The pattern half of the wizard's payload, on its own. */
+function draftSchedule(draft: MarketDraft): MarketSchedulePatch {
+  return {
+    schedule: draft.schedule,
+    duration: draft.duration,
+    tradingDays: [...draft.tradingDays],
+    opensAt: draft.opensAt,
+    closesAt: draft.closesAt,
+    bookingDeadlineHours: draft.bookingDeadlineHours,
+  };
+}
+
+/** A market with no settings recorded — only its row is known. */
+function blankSettings(market: MarketSummary): MarketSettingsPatch {
+  return {
+    name: market.name,
+    slug: market.slug,
+    marketType: null,
+    description: '',
+    imageUrl: null,
+    bannerUrl: null,
+    stallCount: market.metrics?.stallsTotal ?? null,
+    stallFeePerDay: STALL_FEE,
+    reviewApplications: true,
+    acceptsPreOrders: true,
+    address: '',
+    city: '',
+    county: market.county || null,
+    eircode: '',
+    latitude: null,
+    longitude: null,
+    accessNotes: '',
+    organiserName: '',
+    organiserPhone: '',
+  };
+}
+
+/** A market with no pattern recorded — the tab opens on the form's own defaults. */
+const NO_SCHEDULE: MarketSchedulePatch = {
+  schedule: '',
+  duration: 0,
+  tradingDays: [],
+  opensAt: '09:00',
+  closesAt: '15:00',
+  bookingDeadlineHours: 48,
+};
 
 /** Turns the wizard's payload into the row the directory renders. */
 function draftToSummary(draft: MarketDraft, status: MarketStatus): MarketSummary {
@@ -367,8 +454,8 @@ function draftToSummary(draft: MarketDraft, status: MarketStatus): MarketSummary
     slug: draft.slug,
     name: draft.name,
     county: draft.county ?? '',
-    when: summariseWhen(draft),
-    days: draftDays(draft),
+    when: summariseWhen(draft.city || draft.county || '', draft),
+    days: patternDays(draft.tradingDays),
     status,
     tradingToday: false,
     badgeLabel: published ? 'Not trading yet' : 'Draft',
@@ -390,18 +477,97 @@ export class InMemoryMarketRepository extends MarketRepository {
    */
   private readonly created = new Map<string, MarketSummary>();
 
+  /** Patterns edited this session, layered over {@link MARKET_SCHEDULES}. */
+  private readonly schedules = new Map<string, MarketSchedulePatch>();
+
+  /** Settings edited this session, layered over {@link MARKET_SETTINGS}. */
+  private readonly editedSettings = new Map<string, MarketSettingsPatch>();
+
+  /**
+   * Rows whose `when` line a schedule edit has rewritten. The fixture markets
+   * are module constants, so a saved pattern needs somewhere else to live —
+   * without this the Schedule tab would say one thing and the card next to it
+   * another, which is exactly the bug a fixture is supposed to rule out.
+   */
+  private readonly summaryOverrides = new Map<string, MarketSummary>();
+
   override list(): Observable<readonly MarketSummary[]> {
-    return of([...MARKETS_FIXTURE, ...this.created.values()]).pipe(delay(300));
+    const rows = [...MARKETS_FIXTURE, ...this.created.values()].map((market) =>
+      this.rowFor(market),
+    );
+    return of(rows).pipe(delay(300));
   }
 
   override detail(slug: string): Observable<MarketDetail> {
-    const market =
-      MARKETS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.created.get(slug);
+    const market = this.find(slug);
     if (!market) {
       return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
     }
-    const detail = market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL : buildDetail(market);
-    return of(detail).pipe(delay(300));
+    return of(this.detailFor(market)).pipe(delay(300));
+  }
+
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    if (!this.find(slug)) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    return of(this.scheduleFor(slug)).pipe(delay(300));
+  }
+
+  override saveSchedule(slug: string, patch: MarketSchedulePatch): Observable<MarketSchedulePatch> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    const stored: MarketSchedulePatch = { ...patch, tradingDays: [...patch.tradingDays] };
+    this.schedules.set(slug, stored);
+    // The pattern is half of what the card says; the place is the other half
+    // and this save has no business touching it.
+    this.summaryOverrides.set(slug, {
+      ...market,
+      when: summariseWhen(this.placeFor(market), stored),
+      days: patternDays(stored.tradingDays),
+    });
+    return of(stored).pipe(delay(300));
+  }
+
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    return of(this.settingsFor(market)).pipe(delay(300));
+  }
+
+  override saveSettings(slug: string, patch: MarketSettingsPatch): Observable<MarketSettingsPatch> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    const stored: MarketSettingsPatch = { ...patch };
+    this.editedSettings.set(slug, stored);
+    // Name, county, town and stall count are all on the card too. The pattern
+    // is the Schedule tab's to write, so it is read here and put back unchanged.
+    this.summaryOverrides.set(slug, {
+      ...market,
+      name: stored.name,
+      county: stored.county ?? market.county,
+      when: summariseWhen(stored.city || stored.county || '', this.scheduleFor(slug)),
+      metrics: market.metrics
+        ? { ...market.metrics, stallsTotal: stored.stallCount ?? market.metrics.stallsTotal }
+        : market.metrics,
+    });
+    return of(stored).pipe(delay(300));
+  }
+
+  override roster(slug: string): Observable<MarketRoster> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    // A market the wizard published this session has no vendors yet.
+    return of(
+      buildMarketRoster(market.slug) ?? { vendors: [], applications: [], feesOutstanding: 0 },
+    ).pipe(delay(300));
   }
 
   override counties(): Observable<readonly string[]> {
@@ -424,6 +590,57 @@ export class InMemoryMarketRepository extends MarketRepository {
     }
     const summary = draftToSummary(draft, status);
     this.created.set(summary.slug, summary);
+    // The draft carries its own pattern, so its Schedule tab opens filled in
+    // and the row it just wrote is the current one.
+    this.schedules.set(summary.slug, draftSchedule(draft));
+    this.editedSettings.set(summary.slug, draftSettings(draft));
+    this.summaryOverrides.delete(summary.slug);
     return of(summary).pipe(delay(300));
+  }
+
+  /** A fixture market, or one the wizard published this session — as it stands now. */
+  private find(slug: string): MarketSummary | undefined {
+    const market =
+      MARKETS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.created.get(slug);
+    return market && this.rowFor(market);
+  }
+
+  /** The market's pattern as it stands now. */
+  private scheduleFor(slug: string): MarketSchedulePatch {
+    return this.schedules.get(slug) ?? MARKET_SCHEDULES[slug] ?? NO_SCHEDULE;
+  }
+
+  /**
+   * The market's settings as they stand now. A market the wizard created has an
+   * entry from the moment it was saved, so only a slug with neither is blank.
+   */
+  private settingsFor(market: MarketSummary): MarketSettingsPatch {
+    return (
+      this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug] ?? blankSettings(market)
+    );
+  }
+
+  /** The town a `when` line leads with — from the settings, which own it. */
+  private placeFor(market: MarketSummary): string {
+    const settings = this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug];
+    return settings ? settings.city || settings.county || '' : placeOf(market.when);
+  }
+
+  /** The row with any schedule edit from this session applied. */
+  private rowFor(market: MarketSummary): MarketSummary {
+    return this.summaryOverrides.get(market.slug) ?? market;
+  }
+
+  /**
+   * The management screen for a market. Once a pattern has been saved the
+   * design's hand-written meta line is out of date, so the row's refreshed
+   * `when` writes it instead — everything else about the screen is unchanged.
+   */
+  private detailFor(market: MarketSummary): MarketDetail {
+    if (!this.summaryOverrides.has(market.slug)) {
+      return market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL : buildDetail(market);
+    }
+    const design = market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_OVERRIDES : {};
+    return buildDetail(market, { ...design, meta: undefined });
   }
 }

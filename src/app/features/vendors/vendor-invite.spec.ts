@@ -7,14 +7,25 @@ import { InMemoryAuthRepository } from '../../core/api/in-memory/in-memory-auth-
 import { SESSION_STORAGE } from '../../core/auth/session-storage';
 import { MarketRepository } from '../../core/api/ports/market-repository';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
-import { MARKETS_FIXTURE } from '../../core/api/in-memory/in-memory-market-repository';
+import {
+  MARKETS_FIXTURE,
+  MARKET_SCHEDULES,
+  MARKET_SETTINGS,
+} from '../../core/api/in-memory/market-fixture';
 import {
   MCNALLY_DETAIL,
   MCNALLY_PROFILE,
   VENDORS_FIXTURE,
 } from '../../core/api/in-memory/in-memory-vendor-repository';
 import { IRISH_COUNTIES } from '../../core/models/location.model';
-import { MarketDetail, MarketDraft, MarketSummary } from '../../core/models/market.model';
+import {
+  MarketDetail,
+  MarketDraft,
+  MarketRoster,
+  MarketSchedulePatch,
+  MarketSettingsPatch,
+  MarketSummary,
+} from '../../core/models/market.model';
 import {
   VendorDetail,
   VendorInvite as VendorInviteModel,
@@ -33,6 +44,27 @@ class StubMarketRepository extends MarketRepository {
   }
   override detail(): Observable<MarketDetail> {
     return of({} as MarketDetail);
+  }
+  override roster(): Observable<MarketRoster> {
+    return of({ vendors: [], applications: [], feesOutstanding: 0 });
+  }
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    return of(MARKET_SCHEDULES[slug]);
+  }
+  override saveSchedule(
+    _slug: string,
+    patch: MarketSchedulePatch,
+  ): Observable<MarketSchedulePatch> {
+    return of(patch);
+  }
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    return of(MARKET_SETTINGS[slug]);
+  }
+  override saveSettings(
+    _slug: string,
+    patch: MarketSettingsPatch,
+  ): Observable<MarketSettingsPatch> {
+    return of(patch);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);

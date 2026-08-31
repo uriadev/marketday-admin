@@ -20,7 +20,7 @@
 }
 
 @if (facade.hasError()) {
-  <div class="mx-auto w-full max-w-[1200px] px-6 py-5">
+  <div class="mx-auto w-full max-w-300 px-6 py-5">
     <div
       class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
       role="alert"
@@ -56,11 +56,31 @@
         >Overview</a
       >
       <a mat-tab-link disabled matTooltip="Coming soon">Stalls</a>
-      <a mat-tab-link disabled matTooltip="Coming soon">
-        Vendors <span class="tab-count">{{ data.vendorCount }}</span>
+      <a
+        mat-tab-link
+        routerLink="vendors"
+        routerLinkActive
+        #vendors="routerLinkActive"
+        [active]="vendors.isActive"
+      >
+        <span matBadge="{{ data.vendorCount }}" matBadgeOverlap="false">Vendors</span>
       </a>
-      <a mat-tab-link disabled matTooltip="Coming soon">Schedule</a>
-      <a mat-tab-link disabled matTooltip="Coming soon">Settings</a>
+      <a
+        mat-tab-link
+        routerLink="schedule"
+        routerLinkActive
+        #schedule="routerLinkActive"
+        [active]="schedule.isActive"
+        >Schedule</a
+      >
+      <a
+        mat-tab-link
+        routerLink="settings"
+        routerLinkActive
+        #settings="routerLinkActive"
+        [active]="settings.isActive"
+        >Settings</a
+      >
     </nav>
   </div>
 

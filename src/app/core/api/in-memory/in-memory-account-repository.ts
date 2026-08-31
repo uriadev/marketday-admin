@@ -3,9 +3,9 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { Account, AccountRole, SignUpBucket, UserRole } from '../../models/account.model';
 import { AccountRepository } from '../ports/account-repository';
-import { MARKETS_FIXTURE } from './in-memory-market-repository';
 import { SUPPORT_AGENTS } from './in-memory-support-repository';
-import { MARKET_LABELS, VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { VENDORS_FIXTURE } from './in-memory-vendor-repository';
+import { MARKETS_FIXTURE, MARKET_LABELS } from './market-fixture';
 
 /** What the design's header counts. The list is padded out to reach it. */
 const TOTAL_ACCOUNTS = 318;

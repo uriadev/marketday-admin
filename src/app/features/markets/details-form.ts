@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -66,6 +66,14 @@ export function detailsFields(value: DetailsFormValue): MarketDetailsPatch {
 }
 
 /**
+ * The inverse of {@link detailsFields}: seeds the group from a stored record.
+ * Left pristine — a loaded market is the form's baseline, not an edit of it.
+ */
+export function seedDetailsForm(form: DetailsFormGroup, stored: MarketDetailsPatch): void {
+  form.reset({ ...stored });
+}
+
+/**
  * The wizard's Details step and the settings tab's own details editor,
  * extracted so both bind the same `FormGroup` and the same image-upload
  * plumbing. It owns the upload round trip through `MediaRepository`, the way
@@ -94,14 +102,33 @@ export class MarketDetailsForm {
 
   readonly form = input.required<DetailsFormGroup>();
 
+  /**
+   * Whether the public URL is fixed. It is on the Settings tab: the slug is the
+   * address the market already lives at, so renaming one must not quietly move
+   * it and break every link that exists. The wizard leaves this off, because
+   * there the slug is still being chosen.
+   */
+  readonly lockSlug = input(false);
+
   protected readonly marketTypes = Object.entries(MARKET_TYPE_LABELS) as [MarketType, string][];
   /** Which of the two images is mid-upload, so only that zone shows a bar. */
   protected readonly uploading = signal<MarketImage | null>(null);
 
+  constructor() {
+    // Set up once the input is bound, and re-run if a host ever toggles it.
+    effect(() => {
+      const slug = this.form().controls.slug;
+      const options = { emitEvent: false };
+      this.lockSlug() ? slug.disable(options) : slug.enable(options);
+    });
+  }
+
   /** Slugify as the organiser types, until they edit the slug themselves. */
   protected syncSlug(): void {
     const { name, slug } = this.form().controls;
-    if (slug.dirty) return;
+    // A locked slug is pristine but not up for grabs: without this, renaming a
+    // market on the Settings tab would rewrite its public address.
+    if (this.lockSlug() || slug.dirty) return;
     slug.setValue(
       name.value
         .toLowerCase()

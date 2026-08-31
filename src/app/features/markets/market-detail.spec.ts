@@ -4,13 +4,18 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of, throwError } from 'rxjs';
 import { MarketRepository } from '../../core/api/ports/market-repository';
 import { IRISH_COUNTIES } from '../../core/models/location.model';
+import { TEMPLE_BAR_DETAIL } from '../../core/api/in-memory/in-memory-market-repository';
 import {
   MARKETS_FIXTURE,
-  TEMPLE_BAR_DETAIL,
-} from '../../core/api/in-memory/in-memory-market-repository';
+  MARKET_SCHEDULES,
+  MARKET_SETTINGS,
+} from '../../core/api/in-memory/market-fixture';
 import {
   MarketDetail as MarketDetailModel,
   MarketDraft,
+  MarketRoster,
+  MarketSchedulePatch,
+  MarketSettingsPatch,
   MarketSummary,
 } from '../../core/models/market.model';
 import { MarketDetail } from './market-detail';
@@ -25,6 +30,27 @@ class StubMarketRepository extends MarketRepository {
       return throwError(() => new Error(`No market matches “${slug}”.`));
     }
     return of(TEMPLE_BAR_DETAIL);
+  }
+  override roster(): Observable<MarketRoster> {
+    return of({ vendors: [], applications: [], feesOutstanding: 0 });
+  }
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    return of(MARKET_SCHEDULES[slug]);
+  }
+  override saveSchedule(
+    _slug: string,
+    patch: MarketSchedulePatch,
+  ): Observable<MarketSchedulePatch> {
+    return of(patch);
+  }
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    return of(MARKET_SETTINGS[slug]);
+  }
+  override saveSettings(
+    _slug: string,
+    patch: MarketSettingsPatch,
+  ): Observable<MarketSettingsPatch> {
+    return of(patch);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
@@ -75,7 +101,7 @@ describe('MarketDetail', () => {
     expect(toMarkets.some((a) => a.textContent?.trim() === 'Markets')).toBe(true);
   });
 
-  it('shows the tab bar with only Overview enabled', () => {
+  it('shows the tab bar with only Stalls still to come', () => {
     const fixture = TestBed.createComponent(MarketDetail);
     fixture.componentRef.setInput('slug', 'temple-bar');
     fixture.detectChanges();
@@ -85,11 +111,11 @@ describe('MarketDetail', () => {
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
       'Overview',
       'Stalls',
-      'Vendors 18',
+      'Vendors9',
       'Schedule',
       'Settings',
     ]);
-    expect(tabs.filter((tab) => tab.getAttribute('aria-disabled') === 'true').length).toBe(4);
+    expect(tabs.filter((tab) => tab.getAttribute('aria-disabled') === 'true').length).toBe(1);
   });
 
   it('explains a market that does not exist instead of rendering an empty shell', () => {

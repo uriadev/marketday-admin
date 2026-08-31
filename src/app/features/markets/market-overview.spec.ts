@@ -4,11 +4,20 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of } from 'rxjs';
 import { MarketRepository } from '../../core/api/ports/market-repository';
 import { IRISH_COUNTIES } from '../../core/models/location.model';
+import { TEMPLE_BAR_DETAIL } from '../../core/api/in-memory/in-memory-market-repository';
 import {
   MARKETS_FIXTURE,
-  TEMPLE_BAR_DETAIL,
-} from '../../core/api/in-memory/in-memory-market-repository';
-import { MarketDetail, MarketDraft, MarketSummary } from '../../core/models/market.model';
+  MARKET_SCHEDULES,
+  MARKET_SETTINGS,
+} from '../../core/api/in-memory/market-fixture';
+import {
+  MarketDetail,
+  MarketDraft,
+  MarketRoster,
+  MarketSchedulePatch,
+  MarketSettingsPatch,
+  MarketSummary,
+} from '../../core/models/market.model';
 import { MarketDetailFacade } from './market-detail-facade';
 import { MarketOverview } from './market-overview';
 
@@ -20,6 +29,27 @@ class StubMarketRepository extends MarketRepository {
     const market = MARKETS_FIXTURE.find((candidate) => candidate.slug === slug);
     if (!market) throw new Error(`No fixture for ${slug}`);
     return of(TEMPLE_BAR_DETAIL);
+  }
+  override roster(): Observable<MarketRoster> {
+    return of({ vendors: [], applications: [], feesOutstanding: 0 });
+  }
+  override schedule(slug: string): Observable<MarketSchedulePatch> {
+    return of(MARKET_SCHEDULES[slug]);
+  }
+  override saveSchedule(
+    _slug: string,
+    patch: MarketSchedulePatch,
+  ): Observable<MarketSchedulePatch> {
+    return of(patch);
+  }
+  override settings(slug: string): Observable<MarketSettingsPatch> {
+    return of(MARKET_SETTINGS[slug]);
+  }
+  override saveSettings(
+    _slug: string,
+    patch: MarketSettingsPatch,
+  ): Observable<MarketSettingsPatch> {
+    return of(patch);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
@@ -60,7 +90,23 @@ describe('MarketOverview', () => {
     expect(text).toContain('Two pitches free on the north row.');
     expect(text).toContain('Sheridans Cheese');
     expect(text).toContain('Fee unpaid');
-    expect(text).toContain('See all 18');
+    expect(text).toContain('See all 9');
+  });
+
+  it('sends “See all” to the Vendors tab rather than nowhere', () => {
+    TestBed.inject(MarketDetailFacade).load('temple-bar');
+
+    const fixture = TestBed.createComponent(MarketOverview);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const seeAll = Array.from(host.querySelectorAll('a')).find((link) =>
+      link.textContent?.includes('See all'),
+    );
+    // The link is relative — under the real `:slug` route it resolves to
+    // /markets/temple-bar/vendors, and here to /vendors. Either way an href
+    // only appears at all if RouterLink is in the component's imports.
+    expect(seeAll?.getAttribute('href')).toMatch(/vendors$/);
   });
 
   it('renders the rail: decisions, checklist, activity and the cancel card', () => {

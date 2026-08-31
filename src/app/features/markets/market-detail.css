@@ -19,10 +19,6 @@
   border-block-end: none;
 }
 
-.tab-count {
-  color: var(--mat-sys-on-surface-variant);
-}
-
 .panel {
   flex: 1 1 auto;
   min-block-size: 0;

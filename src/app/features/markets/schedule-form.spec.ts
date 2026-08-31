@@ -1,6 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { parseTimeOfDay } from '../../core/scheduling/recurrence';
-import { MarketScheduleForm, ScheduleFormGroup, createScheduleForm } from './schedule-form';
+import { MarketSchedulePatch } from '../../core/models/market.model';
+import {
+  MarketScheduleForm,
+  ScheduleFormGroup,
+  createScheduleForm,
+  scheduleFields,
+  seedScheduleForm,
+} from './schedule-form';
 
 /**
  * The schedule form's job is to write a valid RRULE without ever showing an
@@ -133,5 +140,59 @@ describe('MarketScheduleForm', () => {
     fillSchedule({ tradingDays: [] });
     expect(group.controls.tradingDays.hasError('required')).toBe(true);
     expect(schedule()).toBe('');
+  });
+
+  it('seeds itself back from a stored pattern, unchanged', () => {
+    const stored: MarketSchedulePatch = {
+      schedule: 'DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=SA,SU',
+      duration: 330,
+      tradingDays: [6, 7],
+      opensAt: '09:00',
+      closesAt: '14:30',
+      bookingDeadlineHours: 24,
+    };
+
+    seedScheduleForm(group, stored);
+
+    // What the form composes from a seeded pattern is that pattern.
+    expect(scheduleFields(group.getRawValue())).toEqual(stored);
+    // A loaded pattern is a baseline, not an edit.
+    expect(group.pristine).toBe(true);
+  });
+
+  it('re-enables the companion control a stored end date needs', () => {
+    seedScheduleForm(group, {
+      schedule: 'DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;UNTIL=20261231T235959Z;BYDAY=SA',
+      duration: 330,
+      tradingDays: [6],
+      opensAt: '09:00',
+      closesAt: '14:30',
+      bookingDeadlineHours: 48,
+    });
+
+    // `reset()` writes values but not control state; seeding has to do both, or
+    // the group is valid with an end date the form will not let anyone see.
+    expect(group.controls.ends.value).toBe('ON');
+    expect(group.controls.endsOn.enabled).toBe(true);
+    expect(group.controls.endsAfter.enabled).toBe(false);
+    expect(group.valid).toBe(true);
+  });
+
+  it('names each trading day, so the toggles are not seven single letters', () => {
+    // `[attr.aria-label]` would be silently dropped here: MatButtonToggle nulls
+    // the host attribute and renders its own `aria-label` input on the button.
+    const labels = [...fixture.nativeElement.querySelectorAll('mat-button-toggle button')].map(
+      (toggle: Element) => toggle.getAttribute('aria-label'),
+    );
+
+    expect(labels).toEqual([
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ]);
   });
 });

@@ -1,0 +1,27 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+/* The tab body is one column: the shell above it already holds the chrome. */
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The form is a sheet on the page ground, the way the roster table is. */
+.form-card {
+  /* Without this the column stretches the card and its fields with it. */
+  flex: none;
+  padding: 20px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+}

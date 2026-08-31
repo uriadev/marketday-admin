@@ -168,10 +168,45 @@ export function scheduleFields(value: ScheduleFormValue): MarketSchedulePatch {
 }
 
 /**
+ * The inverse of {@link scheduleFields}: seeds the group from a stored pattern.
+ *
+ * `reset()` writes values but not control state, so the "Ends" enable/disable —
+ * the thing that keeps the unused companion control's `required` from blocking
+ * the group — is re-applied here rather than left to the subscription.
+ *
+ * The group is left pristine: a loaded pattern is the form's new baseline, not
+ * an edit of it. A rule the four controls cannot express (`parseSchedule`
+ * returns `null`) falls back to the stored days, so the form shows what it can
+ * rather than nothing at all.
+ */
+export function seedScheduleForm(form: ScheduleFormGroup, stored: MarketSchedulePatch): void {
+  const recurrence = parseSchedule(stored.schedule);
+  const ends: RecurrenceEnd = recurrence?.ends ?? { kind: 'NEVER' };
+
+  form.reset({
+    frequency: recurrence?.frequency ?? 'WEEKLY',
+    tradingDays: [...(recurrence?.tradingDays ?? stored.tradingDays)],
+    startsOn: recurrence?.startsOn ?? null,
+    ends: ends.kind,
+    endsOn: ends.kind === 'ON' ? ends.date : null,
+    endsAfter: ends.kind === 'AFTER' ? ends.count : 12,
+    opensAt: parseTimeOfDay(stored.opensAt),
+    closesAt: parseTimeOfDay(stored.closesAt),
+    bookingDeadlineHours: stored.bookingDeadlineHours,
+  });
+  applyEndKind(form, ends.kind);
+}
+
+/**
  * The wizard's schedule step and the detail tab's trading-pattern editor,
  * extracted so both bind the same `FormGroup` and compose the same RRULE.
  * Presentation only in the CVA sense that it never talks to a repository —
  * whoever owns the form decides what happens on save.
+ *
+ * `showErrors()` is public for the same reason `MarketLocationForm`'s
+ * `flagMissingPin()` is: `markAllAsTouched()` emits no value change, so this
+ * component has no reactive way to notice that its host has decided to raise
+ * the errors. The host reaches in via `viewChild` and says so.
  */
 @Component({
   selector: 'md-market-schedule-form',
@@ -237,6 +272,15 @@ export class MarketScheduleForm {
     const opensAt = this.value().opensAt;
     return opensAt ? new Date(opensAt.getTime() + 60_000) : null;
   });
+
+  /**
+   * Repaint the errors after the host has called `markAllAsTouched()`. Touching
+   * a control changes no value, so without this the editor would report a
+   * refused save with every field still looking fine.
+   */
+  showErrors(): void {
+    this.revision.update((n) => n + 1);
+  }
 
   protected toggleDay(day: number): void {
     const control = this.form().controls.tradingDays;

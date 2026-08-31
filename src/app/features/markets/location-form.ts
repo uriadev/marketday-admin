@@ -68,6 +68,18 @@ export function locationFields(value: LocationFormValue): MarketLocationPatch {
 }
 
 /**
+ * The inverse of {@link locationFields}: seeds the group from a stored record.
+ *
+ * `emitEvent: false` matters here. The address control drives a Places
+ * autocomplete, and seeding is not somebody typing — without it every load of a
+ * saved market would bill a lookup for the address the console just read, and
+ * drop an autocomplete panel over the form while doing it.
+ */
+export function seedLocationForm(form: LocationFormGroup, stored: MarketLocationPatch): void {
+  form.reset({ ...stored }, { emitEvent: false });
+}
+
+/**
  * The wizard's Location step and the settings tab's own location editor,
  * extracted so both bind the same `FormGroup` and the same address/pin
  * plumbing. It owns the `Places` autocomplete-and-geocode round trip and the
