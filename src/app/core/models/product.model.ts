@@ -53,6 +53,29 @@ export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
 };
 
 /**
+ * How each unit reads in the product form's "Unit or size" menu and on the
+ * line under a product. The backend stores the enum, so the console offers the
+ * enum — the design's free-text "e.g. bunch, 500g" is not a value
+ * `CreateProductInput.unit` would accept.
+ */
+export const PRODUCT_UNIT_LABELS: Record<ProductUnit, string> = {
+  [ProductUnit.Bag]: 'Bag',
+  [ProductUnit.Box]: 'Box or punnet',
+  [ProductUnit.Bunch]: 'Bunch',
+  [ProductUnit.Dozen]: 'Dozen',
+  [ProductUnit.Each]: 'Each',
+  [ProductUnit.Gram]: 'Grams',
+  [ProductUnit.Jar]: 'Jar',
+  [ProductUnit.Kilogram]: 'Kilograms',
+  [ProductUnit.Pound]: 'Pounds',
+  [ProductUnit.Liter]: 'Litres',
+  [ProductUnit.Milliliter]: 'Millilitres',
+  [ProductUnit.Ounce]: 'Ounces',
+  [ProductUnit.Pint]: 'Pint',
+  [ProductUnit.Quart]: 'Quart',
+};
+
+/**
  * The only two states a listing has (design 3a). There is deliberately no
  * third: a product the vendor does not bring to a market has no listing there
  * at all, and nothing anywhere records *how many* are left — vendors keep this
@@ -92,6 +115,10 @@ export interface VendorProduct {
   meta: string;
   unit: ProductUnit;
   category: ProductCategory;
+  /** What one unit costs, in euro — the number the shopper view prices from. */
+  price: number;
+  /** The line under the product on the shopper view. `''` when there is none. */
+  description: string;
   /** The product photo, or `null` for a tinted placeholder. */
   imageUrl: string | null;
   /** Off the shopper's view everywhere, whatever the per-market statuses say. */
@@ -160,4 +187,60 @@ export interface SoldOutEntry {
   marketSlugs: readonly string[];
   /** "Temple Bar and Marlay Park". */
   where: string;
+}
+
+/** "Temple Bar and Marlay Park", "Temple Bar, Marlay Park and Howth". */
+export function sentenceList(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? '';
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * The line under a product's name, composed from the two structured values
+ * behind it. The fixture's hand-written metas ("Half dozen · eggs") came from
+ * the vendor app; anything the console writes reads from the enums, so a
+ * product's line can never disagree with its unit or its category.
+ */
+export function productMeta(unit: ProductUnit, category: ProductCategory): string {
+  return `${PRODUCT_UNIT_LABELS[unit]} · ${PRODUCT_CATEGORY_LABELS[category].toLowerCase()}`;
+}
+
+/**
+ * What the product form writes back (design 4a) — the backend's
+ * `CreateProductInput`/`UpdateProductInput` fields, plus where it is sold.
+ *
+ * The listings map is the whole "Where it is sold" section in one value: a
+ * market missing from it is one the product is not carried at, which on the
+ * backend is a `removeProductListing` rather than a status.
+ */
+export interface ProductDraft {
+  name: string;
+  category: ProductCategory;
+  unit: ProductUnit;
+  price: number;
+  description: string;
+  imageUrl: string | null;
+  listings: Readonly<Record<string, ListingStatus>>;
+}
+
+/**
+ * Everything the product form loads in one call (design 4a). `/products/new`
+ * and `/products/:id` are the same screen, so they are the same payload —
+ * `product` is `null` for the one and filled for the other, and the fields that
+ * only make sense for a saved product come back `null` beside it.
+ */
+export interface ProductForm {
+  vendorSlug: string;
+  /** "McNally Family Farm" — the breadcrumb above the form. */
+  vendorName: string;
+  /** The vendor's markets, in the order the Products grid columns are in. */
+  markets: readonly ProductMarket[];
+  /** The product being changed, or `null` while one is being added. */
+  product: VendorProduct | null;
+  /** "Recent changes", newest first. Empty while adding. */
+  changes: readonly ProductChange[];
+  /** "4 minutes ago", or `null` for a product that has never been saved. */
+  savedAt: string | null;
+  /** "Tom McNally · today 11:20" — the footer's line while editing. */
+  lastEditedBy: string | null;
 }

@@ -108,6 +108,28 @@ export interface Stall {
 
 export type StallFeeStatus = 'paid' | 'unpaid';
 
+/**
+ * One pitch as the Stalls tab edits it — the layout and the placement, without
+ * the derived bits {@link Stall} carries for display. The vendor is held by
+ * slug rather than by name so that renaming a market's vendor on their profile
+ * cannot quietly empty a pitch.
+ */
+export interface StallPitch {
+  /** Pitch reference — "A1", "B4". Unique within a market, and painted on the ground. */
+  readonly id: string;
+  /** The row it stands in — "A", "B". Rows are how the map is laid out. */
+  readonly row: string;
+  /** Whoever stands here, or `null` for a free pitch. */
+  readonly vendorSlug: string | null;
+}
+
+/**
+ * A market's pitch layout and who is on it. The Stalls tab owns this outright:
+ * the stall map on the Overview is drawn from it, and so is the stall count the
+ * Settings tab shows, which is why neither of those can edit it.
+ */
+export type MarketStallPlan = readonly StallPitch[];
+
 /** A row of "Vendors this week" (design 1g). */
 export interface WeekVendor {
   id: string;

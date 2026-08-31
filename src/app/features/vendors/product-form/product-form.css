@@ -1,0 +1,248 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+/* The design's header dot: grey until the product exists, green once it does. */
+.save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+.save-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-outline);
+}
+.save-dot--saved {
+  background: var(--mat-sys-primary);
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-inline-size: 760px;
+}
+.fields--divided {
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+.triple {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 720px) {
+  .triple {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.photo {
+  max-inline-size: 200px;
+}
+
+.section-title {
+  margin: 0;
+  font: var(--mat-sys-title-small);
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+}
+
+/* One market, tapped to cycle available → sold out → not carried. */
+.market {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
+}
+.market:hover {
+  background: var(--mat-sys-surface-container);
+}
+.market:focus-visible {
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+}
+/* Dashed and recessed — a market this product is simply not brought to. */
+.market--off {
+  border-style: dashed;
+  background: var(--mat-sys-surface-container-low);
+}
+.not-carried {
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+.chevron {
+  --mat-icon-color: var(--mat-sys-outline);
+  font-size: 20px;
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+.change {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.change-when {
+  flex: none;
+  inline-size: 92px;
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The one destructive action on the screen, in the error container tone. */
+.danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-inline-size: 760px;
+  padding: 14px 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.rail {
+  inline-size: 320px;
+  flex: none;
+  overflow: auto;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--mat-sys-surface-container-low);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Below the console's two-column width the rail drops under the form. */
+@media (max-width: 1100px) {
+  .layout {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .main,
+  .rail {
+    overflow: visible;
+  }
+  .rail {
+    inline-size: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rail-title {
+  margin: 0;
+  font: var(--mat-sys-label-large);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The product as a shopper meets it, priced and per market. */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+}
+.preview-rows {
+  margin: 0;
+  padding: 12px 0 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+.preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+.check mat-icon {
+  --mat-icon-color: var(--mat-sys-outline);
+  font-size: 18px;
+  inline-size: 18px;
+  block-size: 18px;
+}
+.check--done {
+  color: var(--mat-sys-on-surface);
+}
+.check--done mat-icon {
+  --mat-icon-color: var(--mat-sys-primary);
+}
+
+/* What is true of every market day, kept last and amber like the design. */
+.tip {
+  margin: auto 0 0;
+  padding: 16px;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--mat-sys-body-medium);
+}
+
+.footer {
+  flex: none;
+  block-size: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 24px;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+}

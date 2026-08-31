@@ -1,0 +1,258 @@
+<md-page-header [heading]="heading()" [backLink]="backLink()" breadcrumb="Products">
+  <span class="save-state" aria-live="polite">
+    <span class="save-dot" [class.save-dot--saved]="facade.form()?.savedAt"></span>
+    {{ saveState() }}
+  </span>
+</md-page-header>
+
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading product" />
+}
+
+@if (facade.hasError()) {
+  <div class="p-6">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <a matButton [routerLink]="backLink()">Back to products</a>
+    </div>
+  </div>
+} @else {
+  <div class="layout">
+    <form class="main" [formGroup]="form" (ngSubmit)="save()">
+      <div>
+        <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ title() }}</h2>
+        <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ subtitle() }}</p>
+      </div>
+
+      <section class="fields" aria-labelledby="what-it-is">
+        <h3 class="section-title" id="what-it-is">What it is</h3>
+
+        <mat-form-field>
+          <mat-label>Product name</mat-label>
+          <input matInput formControlName="name" autocomplete="off" placeholder="Rhubarb" />
+          <mat-error>Give the product a name</mat-error>
+        </mat-form-field>
+
+        <div class="triple">
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="category">
+              @for (option of categories; track option[0]) {
+                <mat-option [value]="option[0]">{{ option[1] }}</mat-option>
+              }
+            </mat-select>
+            <mat-error>Choose a category</mat-error>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Unit or size</mat-label>
+            <mat-select formControlName="unit">
+              @for (option of units; track option[0]) {
+                <mat-option [value]="option[0]">{{ option[1] }}</mat-option>
+              }
+            </mat-select>
+            <mat-error>Say what one of these is</mat-error>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Price</mat-label>
+            <span matTextPrefix>€&nbsp;</span>
+            <input matInput type="number" min="0" step="0.10" formControlName="price" />
+            <mat-error>Give a price of €0 or more</mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Description</mat-label>
+          <textarea
+            matInput
+            rows="3"
+            formControlName="description"
+            placeholder="Add a line about this product"
+          ></textarea>
+          <mat-hint>Shown under the product on the shopper view. Optional.</mat-hint>
+          <mat-error>Keep the description under 400 characters</mat-error>
+        </mat-form-field>
+
+        <md-image-upload
+          class="photo"
+          label="Photo"
+          hint="Square, at least 600×600px. Falls back to a colour block if left empty."
+          aspect="1 / 1"
+          [src]="form.controls.imageUrl.value"
+          [busy]="uploading()"
+          (selected)="onImagePicked($event)"
+          (cleared)="onImageCleared()"
+          (rejected)="onImageRejected($event)"
+        />
+      </section>
+
+      <section class="fields fields--divided" aria-labelledby="where-it-is-sold">
+        <div>
+          <h3 class="section-title" id="where-it-is-sold">Where it is sold</h3>
+          <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+            Carry it at a market, then say whether it is available there today. Choose a market to
+            change it.
+          </p>
+        </div>
+
+        @for (row of marketRows(); track row.market.slug) {
+          <button
+            type="button"
+            class="market"
+            [class.market--off]="row.status === null"
+            [attr.aria-label]="rowAction(row.market, row.status)"
+            [matTooltip]="rowAction(row.market, row.status)"
+            (click)="cycle(row.market)"
+          >
+            <span class="flex min-w-0 items-center gap-3">
+              <md-avatar
+                [name]="row.market.label"
+                [size]="34"
+                shape="rounded"
+                [tone]="row.status === null ? 'muted' : 'accent'"
+              />
+              <span class="min-w-0 text-left">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ row.market.label }}
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  {{ row.market.note }}
+                </span>
+              </span>
+            </span>
+            <span class="flex shrink-0 items-center gap-2.5">
+              @if (row.status === null) {
+                <span class="not-carried">Not carried</span>
+              } @else {
+                <md-status-pill [tone]="row.status === 'sold-out' ? 'warn' : 'positive'">
+                  {{ statusLabel(row.status) }}
+                </md-status-pill>
+              }
+              <mat-icon class="chevron">chevron_right</mat-icon>
+            </span>
+          </button>
+        } @empty {
+          <p class="m-0 text-body-medium text-on-surface-variant">
+            This vendor is not a member of any market yet, so there is nowhere to sell this. It can
+            still be added and switched on later.
+          </p>
+        }
+      </section>
+
+      @if (facade.form(); as loaded) {
+        @if (loaded.product) {
+          @if (loaded.changes.length) {
+            <section class="fields fields--divided" aria-labelledby="recent-changes">
+              <h3 class="section-title" id="recent-changes">Recent changes</h3>
+              <ul class="m-0 list-none p-0 flex flex-col gap-2.5">
+                @for (change of loaded.changes; track $index) {
+                  <li class="change">
+                    <span class="change-when">{{ change.when }}</span>
+                    <span class="text-body-medium text-on-surface">{{ change.what }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          <div class="danger">
+            <div class="min-w-0">
+              <span class="block text-body-medium font-semibold">Delete this product</span>
+              <span class="block text-label-large">
+                Removes it from every market it is carried at. Past orders keep their record.
+              </span>
+            </div>
+            <button
+              matButton="outlined"
+              type="button"
+              class="shrink-0"
+              [disabled]="facade.isDeleting()"
+              (click)="confirmDelete()"
+            >
+              Delete
+            </button>
+          </div>
+        }
+      }
+    </form>
+
+    <aside class="rail" aria-label="Shopper view and what is still missing">
+      <section class="section">
+        <h3 class="rail-title">Shopper view</h3>
+        <div class="preview">
+          <div class="flex items-start gap-3">
+            <md-avatar
+              [name]="preview().name"
+              [src]="preview().imageUrl"
+              [size]="52"
+              shape="rounded"
+              [tone]="preview().unnamed ? 'muted' : 'accent'"
+            />
+            <div class="min-w-0">
+              <span
+                class="block text-title-small font-bold"
+                [class.text-on-surface]="!preview().unnamed"
+                [class.text-on-surface-variant]="preview().unnamed"
+              >
+                {{ preview().name }}
+              </span>
+              <span class="block text-label-large text-on-surface-variant">
+                {{ preview().meta }}
+              </span>
+            </div>
+          </div>
+          <ul class="preview-rows">
+            @for (row of previewRows(); track row.market.slug) {
+              <li class="preview-row">
+                <span class="min-w-0 truncate text-body-medium text-on-surface-variant">
+                  {{ row.market.label }}
+                </span>
+                <md-status-pill [tone]="row.tone">{{ row.label }}</md-status-pill>
+              </li>
+            }
+          </ul>
+        </div>
+        <p class="m-0 text-label-large text-on-surface-variant">{{ previewNote() }}</p>
+      </section>
+
+      <section class="section">
+        <h3 class="rail-title">Before it goes live</h3>
+        <ul class="m-0 list-none p-0 flex flex-col gap-2.5">
+          @for (item of checklist(); track item.label) {
+            <li class="check" [class.check--done]="item.done">
+              <mat-icon>{{ item.done ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              {{ item.label }}
+            </li>
+          }
+        </ul>
+      </section>
+
+      <p class="tip">{{ tip() }}</p>
+    </aside>
+  </div>
+
+  <div class="footer">
+    <span class="text-label-large text-on-surface-variant">{{ footerNote() }}</span>
+    <div class="flex items-center gap-2">
+      <a matButton [routerLink]="backLink()">Cancel</a>
+      @if (!isEdit()) {
+        <button
+          matButton="outlined"
+          type="button"
+          [disabled]="facade.isSaving()"
+          (click)="save(true)"
+        >
+          Save and add another
+        </button>
+      }
+      <button matButton="filled" type="button" [disabled]="facade.isSaving()" (click)="save()">
+        {{ saveLabel() }}
+      </button>
+    </div>
+  </div>
+}

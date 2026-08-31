@@ -15,7 +15,8 @@ export const routes: Routes = [
       {
         path: '',
         title: 'Overview · MarketDay Admin',
-        loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+        loadComponent: () =>
+          import('./features/dashboard/dashboard/dashboard').then((m) => m.Dashboard),
       },
       {
         path: 'markets',
@@ -51,19 +52,19 @@ export const routes: Routes = [
       {
         path: 'login',
         title: 'Sign in · MarketDay Admin',
-        loadComponent: () => import('./features/auth/login').then((m) => m.Login),
+        loadComponent: () => import('./features/auth/login/login').then((m) => m.Login),
       },
       {
         path: 'login/verify',
         title: 'Verify · MarketDay Admin',
         canActivate: [codeChallengeGuard],
-        loadComponent: () => import('./features/auth/verify').then((m) => m.Verify),
+        loadComponent: () => import('./features/auth/verify/verify').then((m) => m.Verify),
       },
       {
         path: 'forgot-password',
         title: 'Reset password · MarketDay Admin',
         loadComponent: () =>
-          import('./features/auth/forgot-password').then((m) => m.ForgotPassword),
+          import('./features/auth/forgot-password/forgot-password').then((m) => m.ForgotPassword),
       },
     ],
   },

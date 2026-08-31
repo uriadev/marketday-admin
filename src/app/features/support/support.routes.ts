@@ -13,11 +13,11 @@ export const SUPPORT_ROUTES: Routes = [
     path: '',
     title: 'Support · MarketDay Admin',
     providers: [SupportStore, SupportThreadFacade],
-    loadComponent: () => import('./support').then((m) => m.Support),
+    loadComponent: () => import('./support/support').then((m) => m.Support),
     children: [
       {
         path: ':enquiryId',
-        loadComponent: () => import('./support-thread').then((m) => m.SupportThread),
+        loadComponent: () => import('./support-thread/support-thread').then((m) => m.SupportThread),
       },
     ],
   },

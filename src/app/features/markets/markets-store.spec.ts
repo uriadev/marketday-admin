@@ -2,7 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { MarketRepository } from '../../core/api/ports/market-repository';
 import { IRISH_COUNTIES } from '../../core/models/location.model';
-import { TEMPLE_BAR_DETAIL } from '../../core/api/in-memory/in-memory-market-repository';
+import {
+  TEMPLE_BAR_DETAIL,
+  buildMarketStallPlan,
+} from '../../core/api/in-memory/in-memory-market-repository';
 import {
   MARKETS_FIXTURE,
   MARKET_SCHEDULES,
@@ -14,6 +17,7 @@ import {
   MarketRoster,
   MarketSchedulePatch,
   MarketSettingsPatch,
+  MarketStallPlan,
   MarketStatus,
   MarketSummary,
 } from '../../core/models/market.model';
@@ -47,6 +51,12 @@ class StubMarketRepository extends MarketRepository {
     patch: MarketSettingsPatch,
   ): Observable<MarketSettingsPatch> {
     return of(patch);
+  }
+  override stallPlan(slug: string): Observable<MarketStallPlan> {
+    return of(buildMarketStallPlan(slug) ?? []);
+  }
+  override saveStallPlan(_slug: string, plan: MarketStallPlan): Observable<MarketStallPlan> {
+    return of(plan);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
@@ -86,6 +96,12 @@ class FailingMarketRepository extends MarketRepository {
     patch: MarketSettingsPatch,
   ): Observable<MarketSettingsPatch> {
     return of(patch);
+  }
+  override stallPlan(slug: string): Observable<MarketStallPlan> {
+    return of(buildMarketStallPlan(slug) ?? []);
+  }
+  override saveStallPlan(_slug: string, plan: MarketStallPlan): Observable<MarketStallPlan> {
+    return of(plan);
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);

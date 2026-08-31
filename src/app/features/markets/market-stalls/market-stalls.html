@@ -1,0 +1,225 @@
+<div class="scroller">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="max-w-[560px]">
+      <h2 class="m-0 text-title-large font-bold text-on-surface">
+        Stall map
+        @if (marketDay()) {
+          <span class="font-normal">· {{ marketDay() }}</span>
+        }
+      </h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ summary() }}</p>
+    </div>
+
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <button
+        matButton
+        type="button"
+        [disabled]="busy() || !store.isDirty()"
+        (click)="store.reset()"
+      >
+        Discard changes
+      </button>
+      <button
+        matButton="filled"
+        type="button"
+        [disabled]="busy() || !store.isDirty()"
+        (click)="save()"
+      >
+        Save stall map
+      </button>
+    </div>
+  </div>
+
+  @if (busy()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Loading the stall map" />
+  }
+
+  @if (store.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ store.error() }}</span>
+      <button matButton type="button" (click)="store.loadFor()">Retry</button>
+    </div>
+  } @else if (store.isEmpty()) {
+    <md-empty-state
+      icon="grid_view"
+      headline="This market has no pitches yet"
+      body="Add a row to start laying it out. Every pitch you add here is counted on the market’s settings."
+    >
+      <button matButton="filled" type="button" (click)="store.addRow()">Add a row</button>
+    </md-empty-state>
+  } @else {
+    <div cdkDropListGroup class="layout">
+      <!--
+        The queue is a drop list in its own right, so dragging somebody off the
+        map is the same gesture as dragging them onto it.
+      -->
+      <section
+        class="queue"
+        cdkDropList
+        cdkDropListSortingDisabled
+        [cdkDropListData]="queue"
+        (cdkDropListDropped)="drop($event)"
+        aria-labelledby="stalls-queue-heading"
+      >
+        <h3 id="stalls-queue-heading" class="section-heading">
+          Waiting for a pitch
+          <span class="count">{{ store.unassigned().length }}</span>
+        </h3>
+
+        @for (vendor of store.unassigned(); track vendor.slug) {
+          <div class="waiting" cdkDrag [cdkDragData]="vendor.slug">
+            <md-avatar [name]="vendor.name" [size]="32" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-body-medium font-semibold">{{ vendor.name }}</span>
+              <span class="block text-label-large text-on-surface-variant">{{ vendor.meta }}</span>
+            </span>
+            <button
+              matIconButton
+              type="button"
+              [attr.aria-label]="'Give ' + vendor.name + ' a pitch'"
+              [matMenuTriggerFor]="assignMenu"
+            >
+              <mat-icon>add_location_alt</mat-icon>
+            </button>
+            <mat-menu #assignMenu="matMenu">
+              @for (pitch of store.pitches(); track pitch.id) {
+                <button mat-menu-item type="button" (click)="store.assign(vendor.slug, pitch.id)">
+                  {{ pitchOption(pitch) }}
+                </button>
+              }
+            </mat-menu>
+          </div>
+        } @empty {
+          <p class="m-0 text-body-medium text-on-surface-variant">
+            Everyone trading this week has a pitch.
+          </p>
+        }
+      </section>
+
+      <div class="map">
+        @for (row of store.rows(); track row.row) {
+          <section class="row" [attr.aria-label]="'Row ' + row.row">
+            <div class="row-head">
+              <span class="row-letter">{{ row.row }}</span>
+              <button
+                matIconButton
+                type="button"
+                [attr.aria-label]="'Add a pitch to row ' + row.row"
+                matTooltip="Add a pitch to this row"
+                (click)="store.addPitch(row.row)"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+
+            <ul class="stall-grid">
+              @for (pitch of row.pitches; track pitch.id) {
+                <li
+                  class="stall"
+                  [class.stall--taken]="pitch.vendorSlug"
+                  cdkDropList
+                  cdkDropListSortingDisabled
+                  [cdkDropListData]="target(pitch)"
+                  (cdkDropListDropped)="drop($event)"
+                >
+                  <div class="stall-head">
+                    <span class="stall-id">{{ pitch.id }}</span>
+                    <button
+                      matIconButton
+                      type="button"
+                      class="stall-menu"
+                      [attr.aria-label]="pitchLabel(pitch) + ' — actions'"
+                      [matMenuTriggerFor]="pitchMenu"
+                    >
+                      <mat-icon>more_vert</mat-icon>
+                    </button>
+                  </div>
+
+                  @if (store.vendorAt(pitch); as vendor) {
+                    <div class="occupant" cdkDrag [cdkDragData]="vendor.slug">
+                      <md-avatar [name]="vendor.name" [size]="28" />
+                      <span class="occupant-name">{{ vendor.name }}</span>
+                    </div>
+                  } @else {
+                    <span class="stall-free">Free</span>
+                  }
+
+                  <mat-menu #pitchMenu="matMenu">
+                    @if (pitch.vendorSlug) {
+                      <button
+                        mat-menu-item
+                        type="button"
+                        [matMenuTriggerFor]="moveMenu"
+                        [disabled]="otherPitches(pitch).length === 0"
+                      >
+                        Move to…
+                      </button>
+                      <button mat-menu-item type="button" (click)="store.clear(pitch.id)">
+                        Clear pitch
+                      </button>
+                    } @else {
+                      <button
+                        mat-menu-item
+                        type="button"
+                        [matMenuTriggerFor]="fillMenu"
+                        [disabled]="store.unassigned().length === 0"
+                      >
+                        Assign vendor…
+                      </button>
+                    }
+                    <button mat-menu-item type="button" (click)="store.removePitch(pitch.id)">
+                      Remove pitch
+                    </button>
+                  </mat-menu>
+
+                  <mat-menu #moveMenu="matMenu">
+                    @for (target of otherPitches(pitch); track target.id) {
+                      <button
+                        mat-menu-item
+                        type="button"
+                        (click)="store.assign(pitch.vendorSlug!, target.id)"
+                      >
+                        {{ pitchOption(target) }}
+                      </button>
+                    }
+                  </mat-menu>
+
+                  <mat-menu #fillMenu="matMenu">
+                    @for (vendor of store.unassigned(); track vendor.slug) {
+                      <button
+                        mat-menu-item
+                        type="button"
+                        (click)="store.assign(vendor.slug, pitch.id)"
+                      >
+                        {{ vendor.name }}
+                      </button>
+                    }
+                  </mat-menu>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        <button
+          matButton="tonal"
+          type="button"
+          class="self-start"
+          [disabled]="!store.canAddRow()"
+          (click)="store.addRow()"
+        >
+          <mat-icon>add</mat-icon>
+          Add a row
+        </button>
+      </div>
+    </div>
+
+    @if (store.saveError(); as saveError) {
+      <p class="m-0 text-body-medium text-error" role="alert">{{ saveError }}</p>
+    }
+  }
+</div>

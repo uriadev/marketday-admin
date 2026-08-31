@@ -5,6 +5,7 @@ import {
   MarketRoster,
   MarketSchedulePatch,
   MarketSettingsPatch,
+  MarketStallPlan,
   MarketSummary,
 } from '../../models/market.model';
 
@@ -59,6 +60,18 @@ export abstract class MarketRepository {
 
   /** Replaces those settings, answering with what was stored. */
   abstract saveSettings(slug: string, patch: MarketSettingsPatch): Observable<MarketSettingsPatch>;
+
+  /**
+   * The market's pitch layout and who stands on it — the Stalls tab. The plan
+   * is the source of truth for the stall map and the stall count, so it is read
+   * on its own rather than folded into `detail()`, which only renders it.
+   *
+   * Rejects with an error when no market matches `slug`.
+   */
+  abstract stallPlan(slug: string): Observable<MarketStallPlan>;
+
+  /** Replaces the layout and its placements, answering with what was stored. */
+  abstract saveStallPlan(slug: string, plan: MarketStallPlan): Observable<MarketStallPlan>;
 
   /** The counties a market may be in — reference data for the wizard's select. */
   abstract counties(): Observable<readonly string[]>;

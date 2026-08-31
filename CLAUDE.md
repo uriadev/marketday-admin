@@ -93,6 +93,11 @@ selector is `md-*`.
 - **Angular naming** follows the modern v20+ style — no `.component` / `.service` suffix
   (`app.ts` exports class `App`). See
   `.claude/skills/angular-developer/references/naming-conventions.md`.
+- **One folder per component.** Every component lives in its own directory named after it,
+  holding its `.ts` plus whatever of `.html` / `.css` / `.spec.ts` it has (inline
+  `template` / `styles` stay inline — the folder just holds the `.ts` then). Non-component
+  siblings — `*-facade.ts`, `*-store.ts`, `*.routes.ts`, shared stylesheets — stay at the
+  feature-folder root. `shared/components/*` and `layouts/*` already follow this.
 
 ## Bundled Angular reference skills
 

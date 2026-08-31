@@ -10,14 +10,14 @@ export const ACCOUNT_ROUTES: Routes = [
   {
     path: '',
     title: 'Settings · MarketDay Admin',
-    loadComponent: () => import('./account').then((m) => m.Account),
+    loadComponent: () => import('./account/account').then((m) => m.Account),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'profile' },
       {
         path: 'profile',
         title: 'Profile · MarketDay Admin',
         providers: [ProfileFacade],
-        loadComponent: () => import('./profile').then((m) => m.Profile),
+        loadComponent: () => import('./profile/profile').then((m) => m.Profile),
       },
     ],
   },

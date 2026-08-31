@@ -11,13 +11,8 @@ import {
   ProductMarket,
   SoldOutEntry,
   VendorProduct,
+  sentenceList,
 } from '../../core/models/product.model';
-
-/** "Temple Bar and Marlay Park", "Temple Bar, Marlay Park and Howth". */
-function sentenceList(parts: readonly string[]): string {
-  if (parts.length <= 1) return parts[0] ?? '';
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-}
 
 /**
  * A vendor's products and where each one is sold (design 3a). Provided at the

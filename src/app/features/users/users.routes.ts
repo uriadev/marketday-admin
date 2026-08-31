@@ -11,6 +11,6 @@ export const USERS_ROUTES: Routes = [
     path: '',
     title: 'Users · MarketDay Admin',
     providers: [AccountsStore],
-    loadComponent: () => import('./users').then((m) => m.Users),
+    loadComponent: () => import('./users/users').then((m) => m.Users),
   },
 ];

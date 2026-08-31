@@ -17,48 +17,63 @@ export const VENDORS_ROUTES: Routes = [
     path: '',
     title: 'Vendors · MarketDay Admin',
     providers: [VendorsStore],
-    loadComponent: () => import('./vendors').then((m) => m.Vendors),
+    loadComponent: () => import('./vendors/vendors').then((m) => m.Vendors),
   },
   {
     // Before `:slug`, or "invite" is read as a vendor's slug.
     path: 'invite',
     title: 'Invite vendor · MarketDay Admin',
-    loadComponent: () => import('./vendor-invite').then((m) => m.VendorInvite),
+    loadComponent: () => import('./vendor-invite/vendor-invite').then((m) => m.VendorInvite),
+  },
+  {
+    // Before `:slug`'s children: the product form is a screen of its own, not a
+    // tab inside the vendor record — it has its own header and footer bar.
+    path: ':slug/products/new',
+    title: 'Add a product · MarketDay Admin',
+    loadComponent: () => import('./product-form/product-form').then((m) => m.ProductForm),
+  },
+  {
+    path: ':slug/products/:productId',
+    title: 'Product · MarketDay Admin',
+    loadComponent: () => import('./product-form/product-form').then((m) => m.ProductForm),
   },
   {
     path: ':slug',
     title: 'Vendor · MarketDay Admin',
     providers: [VendorDetailFacade],
-    loadComponent: () => import('./vendor-detail').then((m) => m.VendorDetail),
+    loadComponent: () => import('./vendor-detail/vendor-detail').then((m) => m.VendorDetail),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'markets' },
       {
         path: 'profile',
         providers: [VendorProfileFacade],
-        loadComponent: () => import('./vendor-profile').then((m) => m.VendorProfile),
+        loadComponent: () => import('./vendor-profile/vendor-profile').then((m) => m.VendorProfile),
       },
       {
         path: 'markets',
-        loadComponent: () => import('./vendor-markets').then((m) => m.VendorMarkets),
+        loadComponent: () => import('./vendor-markets/vendor-markets').then((m) => m.VendorMarkets),
       },
       {
         path: 'staff',
-        loadComponent: () => import('./vendor-staff').then((m) => m.VendorStaff),
+        loadComponent: () => import('./vendor-staff/vendor-staff').then((m) => m.VendorStaff),
       },
       {
         path: 'products',
         providers: [VendorProductsStore],
-        loadComponent: () => import('./vendor-products').then((m) => m.VendorProducts),
+        loadComponent: () =>
+          import('./vendor-products/vendor-products').then((m) => m.VendorProducts),
       },
       {
         path: 'payments',
         providers: [VendorPaymentsStore],
-        loadComponent: () => import('./vendor-payments').then((m) => m.VendorPayments),
+        loadComponent: () =>
+          import('./vendor-payments/vendor-payments').then((m) => m.VendorPayments),
       },
       {
         path: 'activity',
         providers: [VendorActivityStore],
-        loadComponent: () => import('./vendor-activity').then((m) => m.VendorActivity),
+        loadComponent: () =>
+          import('./vendor-activity/vendor-activity').then((m) => m.VendorActivity),
       },
     ],
   },

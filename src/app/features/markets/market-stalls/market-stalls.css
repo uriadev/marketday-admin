@@ -1,0 +1,197 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+/* The tab body is one column: the shell above it already holds the chrome. */
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The queue sits beside the map, so a vendor is dragged across rather than
+   scrolled to. Under 1100px it goes above it and the map takes the width. */
+.layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font: var(--mat-sys-title-medium);
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  block-size: 24px;
+  padding-inline: 7px;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  font: var(--mat-sys-label-medium);
+  font-weight: 700;
+}
+
+/* ── The queue ───────────────────────────────────────────────────────────── */
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--mat-sys-corner-medium);
+  background: var(--mat-sys-surface-container);
+  cursor: grab;
+}
+
+/* ── The map ─────────────────────────────────────────────────────────────── */
+
+.map {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.row {
+  padding: 12px 16px 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 8px;
+}
+
+.row-letter {
+  font: var(--mat-sys-title-medium);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.stall-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+/* A free pitch reads as an outline waiting to be filled; a taken one as a
+   solid block, the way the Overview's map already draws them. */
+.stall {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-block-size: 96px;
+  padding: 8px 8px 10px;
+  border: 1px dashed var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+.stall--taken {
+  border-style: solid;
+  border-color: transparent;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface);
+}
+
+.stall-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.stall-id {
+  font: var(--mat-sys-label-small);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.stall-free {
+  padding-inline-start: 2px;
+  font: var(--mat-sys-label-large);
+}
+
+.occupant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: var(--mat-sys-corner-small);
+  cursor: grab;
+}
+
+.occupant-name {
+  font: var(--mat-sys-label-large);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* ── Dragging ────────────────────────────────────────────────────────────── */
+
+.cdk-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--mat-sys-corner-medium);
+  background: var(--mat-sys-surface-container-highest);
+  color: var(--mat-sys-on-surface);
+  box-shadow: var(--mat-sys-level3);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+/* The pitch a vendor is about to land on, while the pointer is over it. */
+.stall.cdk-drop-list-dragging,
+.stall.cdk-drop-list-receiving {
+  border-color: var(--mat-sys-primary);
+  border-style: solid;
+}
+
+.cdk-drag-animating,
+.stall-grid.cdk-drop-list-dragging .stall:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}

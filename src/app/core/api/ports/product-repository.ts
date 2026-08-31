@@ -1,5 +1,11 @@
 import { Observable } from 'rxjs';
-import { ListingStatus, VendorProduct, VendorProductBoard } from '../../models/product.model';
+import {
+  ListingStatus,
+  ProductDraft,
+  ProductForm,
+  VendorProduct,
+  VendorProductBoard,
+} from '../../models/product.model';
 
 /**
  * Port for a vendor's products and where each one is sold (design 3a).
@@ -40,4 +46,36 @@ export abstract class ProductRepository {
     productId: string,
     hidden: boolean,
   ): Observable<VendorProduct>;
+
+  /**
+   * What the product form opens with (design 4a). `productId` is `null` for
+   * `/products/new`, which still needs the vendor's markets — adding a product
+   * and saying where it is sold are one decision, not two screens.
+   *
+   * Rejects when no vendor matches `vendorSlug`, or when `productId` names a
+   * product that vendor does not sell.
+   */
+  abstract form(vendorSlug: string, productId: string | null): Observable<ProductForm>;
+
+  /** `createProduct`, plus a `setProductListing` for each market it is carried at. */
+  abstract create(vendorSlug: string, draft: ProductDraft): Observable<VendorProduct>;
+
+  /**
+   * `updateProduct`, plus the listing writes the draft implies —
+   * `setProductListing` where the status changed, `removeProductListing` where
+   * a market was switched off.
+   */
+  abstract update(
+    vendorSlug: string,
+    productId: string,
+    draft: ProductDraft,
+  ): Observable<VendorProduct>;
+
+  /**
+   * Takes the product off every market. The backend has no `deleteProduct`
+   * mutation yet — `../backend/src/products/products.service.ts` stops at
+   * `removeListing` — so the GraphQL adapter will need one added before it can
+   * implement this.
+   */
+  abstract remove(vendorSlug: string, productId: string): Observable<void>;
 }

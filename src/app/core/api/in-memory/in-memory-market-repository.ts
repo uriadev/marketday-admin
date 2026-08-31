@@ -8,11 +8,13 @@ import {
   MarketRoster,
   MarketSchedulePatch,
   MarketSettingsPatch,
+  MarketStallPlan,
   MarketStatus,
   MarketSummary,
   MarketVendor,
   MarketVendorStanding,
   Stall,
+  StallPitch,
   StallFeeStatus,
   TradingDay,
   WeekVendor,
@@ -151,35 +153,31 @@ function rosterOrder(a: MarketVendor, b: MarketVendor): number {
 export function buildMarketRoster(slug: string): MarketRoster | undefined {
   const market = MARKETS_FIXTURE.find((candidate) => candidate.slug === slug);
   if (!market) return undefined;
-  const stalls =
-    slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL.stalls : buildDetail(market).stalls;
-  return buildRoster(market, stalls);
+  return buildRoster(market, FIXTURE_STALL_PLANS[slug] ?? []);
 }
 
-function buildRoster(market: MarketSummary, stalls: readonly Stall[]): MarketRoster {
+function buildRoster(market: MarketSummary, plan: MarketStallPlan): MarketRoster {
   const label = MARKET_LABELS[market.slug] ?? market.name;
-  const total = market.metrics?.stallsTotal ?? 0;
 
-  const assigned = stalls.filter((stall) => stall.state !== 'free');
-  const byVendor = new Map(assigned.map((stall) => [stall.vendor, stall] as const));
-  const takenIds = new Set(assigned.map((stall) => stall.id));
-  const spare = stallRefs(total).filter((id) => !takenIds.has(id));
+  const byVendor = new Map(
+    plan.filter((pitch) => pitch.vendorSlug).map((pitch) => [pitch.vendorSlug!, pitch] as const),
+  );
+  const spare = plan.filter((pitch) => !pitch.vendorSlug).map((pitch) => pitch.id);
   let nextSpare = 0;
 
   const vendors = membersOf(market)
     .map<MarketVendor>((vendor) => {
       const paused = vendor.standing === 'paused';
-      const pitch = byVendor.get(vendor.name);
+      const pitch = byVendor.get(vendor.slug);
       let stall: string | null = null;
       if (!paused) {
         stall = pitch?.id ?? spare[nextSpare++] ?? null;
       }
       // "Fee unpaid ×1" is one market's fee, not every market's: the first
-      // market they joined is the one the fixture charges it to.
-      const owes =
-        !paused &&
-        (pitch?.state === 'unpaid' ||
-          (vendor.standing === 'fee-unpaid' && vendor.markets[0] === label));
+      // market they joined is the one the fixture charges it to. The fee
+      // follows the vendor, never the pitch — moving somebody does not move
+      // what they owe, and the stall map reads its colour back from here.
+      const owes = !paused && vendor.standing === 'fee-unpaid' && vendor.markets[0] === label;
       const standing: MarketVendorStanding = paused ? 'paused' : owes ? 'fee-unpaid' : 'trading';
       const fee: StallFeeStatus = owes ? 'unpaid' : 'paid';
       return {
@@ -348,6 +346,80 @@ export const TEMPLE_BAR_DETAIL: MarketDetail = buildDetail(
   TEMPLE_BAR_OVERRIDES,
 );
 
+/* ────────────────────────────────────────────────────────────────────────────
+   Pitch layouts, for the Stalls tab. The plan is the source of truth: the
+   Overview's stall map and the Settings tab's stall count are both drawn from
+   it, so an organiser who adds a pitch here sees it counted everywhere.
+──────────────────────────────────────────────────────────────────────────── */
+
+const SLUG_BY_VENDOR_NAME = new Map(
+  VENDORS_FIXTURE.map((vendor) => [vendor.name, vendor.slug] as const),
+);
+const NAME_BY_VENDOR_SLUG = new Map(
+  VENDORS_FIXTURE.map((vendor) => [vendor.slug, vendor.name] as const),
+);
+
+/** "B4" → "B". A pitch reference is its row followed by its number. */
+export function rowOf(pitchId: string): string {
+  return pitchId.replace(/\d+$/, '');
+}
+
+/**
+ * The layout the fixture ships for a market, taken once from the stall map the
+ * design already draws. From here on the plan is what everything reads, so this
+ * runs at module load and never again.
+ */
+function buildStallPlan(market: MarketSummary): MarketStallPlan {
+  const stalls =
+    market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL.stalls : buildDetail(market).stalls;
+  if (stalls.length) {
+    return stalls.map<StallPitch>((stall) => ({
+      id: stall.id,
+      row: rowOf(stall.id),
+      vendorSlug: stall.state === 'free' ? null : (SLUG_BY_VENDOR_NAME.get(stall.vendor) ?? null),
+    }));
+  }
+  // A draft carries no metrics for `buildDetail` to lay out from, so its map is
+  // the pitch count it was set up with, every one of them still free.
+  return stallRefs(MARKET_SETTINGS[market.slug]?.stallCount ?? 0).map<StallPitch>((id) => ({
+    id,
+    row: rowOf(id),
+    vendorSlug: null,
+  }));
+}
+
+/**
+ * The layout one market ships with, or `undefined` for a slug no fixture
+ * matches. Exported for the same reason {@link buildMarketRoster} is: a spec
+ * asserts against the shipped fixture without waiting on the adapter's `delay`.
+ */
+export function buildMarketStallPlan(slug: string): MarketStallPlan | undefined {
+  return FIXTURE_STALL_PLANS[slug];
+}
+
+const FIXTURE_STALL_PLANS: Record<string, MarketStallPlan> = Object.fromEntries(
+  MARKETS_FIXTURE.map((market) => [market.slug, buildStallPlan(market)] as const),
+);
+
+/**
+ * The stall map as the Overview draws it: the plan, with each occupant's name
+ * and the colour their fee earns them. A free pitch is free; everyone else is
+ * confirmed unless the roster says they still owe.
+ */
+function stallsFromPlan(plan: MarketStallPlan, roster: MarketRoster): readonly Stall[] {
+  const owing = new Set(
+    roster.vendors.filter((vendor) => vendor.fee === 'unpaid').map((vendor) => vendor.slug),
+  );
+  return plan.map<Stall>((pitch) => {
+    if (!pitch.vendorSlug) return { id: pitch.id, vendor: 'Free', state: 'free' };
+    return {
+      id: pitch.id,
+      vendor: NAME_BY_VENDOR_SLUG.get(pitch.vendorSlug) ?? pitch.vendorSlug,
+      state: owing.has(pitch.vendorSlug) ? 'unpaid' : 'confirmed',
+    };
+  });
+}
+
 /** ISO weekday (1 = Monday) → the label the directory's Day filter uses. */
 const DAY_BY_ISO: readonly TradingDay[] = [
   'Monday',
@@ -383,6 +455,15 @@ function summariseWhen(place: string, pattern: MarketSchedulePatch): string {
 /** "Dublin 2 · Saturdays 09:00–14:30" → "Dublin 2" — the half a schedule edit keeps. */
 function placeOf(when: string): string {
   return when.split(' · ')[0] ?? '';
+}
+
+/** A brand-new market's pitches: the count the wizard asked for, all free. */
+function draftStallPlan(draft: MarketDraft): MarketStallPlan {
+  return stallRefs(draft.stallCount ?? 0).map<StallPitch>((id) => ({
+    id,
+    row: rowOf(id),
+    vendorSlug: null,
+  }));
 }
 
 /** The settings half of the wizard's payload, on its own. */
@@ -483,6 +564,9 @@ export class InMemoryMarketRepository extends MarketRepository {
   /** Settings edited this session, layered over {@link MARKET_SETTINGS}. */
   private readonly editedSettings = new Map<string, MarketSettingsPatch>();
 
+  /** Layouts edited this session, layered over the fixture's own. */
+  private readonly stallPlans = new Map<string, MarketStallPlan>();
+
   /**
    * Rows whose `when` line a schedule edit has rewritten. The fixture markets
    * are module constants, so a saved pattern needs somewhere else to live —
@@ -564,10 +648,26 @@ export class InMemoryMarketRepository extends MarketRepository {
     if (!market) {
       return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
     }
-    // A market the wizard published this session has no vendors yet.
-    return of(
-      buildMarketRoster(market.slug) ?? { vendors: [], applications: [], feesOutstanding: 0 },
-    ).pipe(delay(300));
+    return of(this.rosterFor(market)).pipe(delay(300));
+  }
+
+  override stallPlan(slug: string): Observable<MarketStallPlan> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    return of(this.planFor(market)).pipe(delay(300));
+  }
+
+  override saveStallPlan(slug: string, plan: MarketStallPlan): Observable<MarketStallPlan> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    const stored = plan.map<StallPitch>((pitch) => ({ ...pitch }));
+    this.stallPlans.set(slug, stored);
+    // Nothing else to write: `rowFor` counts the card's pitches off the plan.
+    return of(stored).pipe(delay(300));
   }
 
   override counties(): Observable<readonly string[]> {
@@ -594,6 +694,7 @@ export class InMemoryMarketRepository extends MarketRepository {
     // and the row it just wrote is the current one.
     this.schedules.set(summary.slug, draftSchedule(draft));
     this.editedSettings.set(summary.slug, draftSettings(draft));
+    this.stallPlans.set(summary.slug, draftStallPlan(draft));
     this.summaryOverrides.delete(summary.slug);
     return of(summary).pipe(delay(300));
   }
@@ -603,6 +704,16 @@ export class InMemoryMarketRepository extends MarketRepository {
     const market =
       MARKETS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.created.get(slug);
     return market && this.rowFor(market);
+  }
+
+  /** The market's layout as it stands now. */
+  private planFor(market: MarketSummary): MarketStallPlan {
+    return this.stallPlans.get(market.slug) ?? FIXTURE_STALL_PLANS[market.slug] ?? [];
+  }
+
+  /** The membership list, placed on the layout as it stands now. */
+  private rosterFor(market: MarketSummary): MarketRoster {
+    return buildRoster(market, this.planFor(market));
   }
 
   /** The market's pattern as it stands now. */
@@ -615,9 +726,11 @@ export class InMemoryMarketRepository extends MarketRepository {
    * entry from the moment it was saved, so only a slug with neither is blank.
    */
   private settingsFor(market: MarketSummary): MarketSettingsPatch {
-    return (
-      this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug] ?? blankSettings(market)
-    );
+    const stored =
+      this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug] ?? blankSettings(market);
+    // The Stalls tab owns the layout, so the count is read off it rather than
+    // stored twice — the Settings tab shows this number but cannot set it.
+    return { ...stored, stallCount: this.planFor(market).length };
   }
 
   /** The town a `when` line leads with — from the settings, which own it. */
@@ -626,9 +739,23 @@ export class InMemoryMarketRepository extends MarketRepository {
     return settings ? settings.city || settings.county || '' : placeOf(market.when);
   }
 
-  /** The row with any schedule edit from this session applied. */
+  /**
+   * The row as it stands now: any schedule or settings edit from this session,
+   * with the stall counts read off the plan. "18 of 20 filled" and the map that
+   * draws those pitches are the same fact, so only one of them is stored.
+   */
   private rowFor(market: MarketSummary): MarketSummary {
-    return this.summaryOverrides.get(market.slug) ?? market;
+    const row = this.summaryOverrides.get(market.slug) ?? market;
+    if (!row.metrics) return row;
+    const plan = this.planFor(market);
+    return {
+      ...row,
+      metrics: {
+        ...row.metrics,
+        stallsTotal: plan.length,
+        stallsFilled: plan.filter((pitch) => pitch.vendorSlug).length,
+      },
+    };
   }
 
   /**
@@ -637,10 +764,17 @@ export class InMemoryMarketRepository extends MarketRepository {
    * `when` writes it instead — everything else about the screen is unchanged.
    */
   private detailFor(market: MarketSummary): MarketDetail {
-    if (!this.summaryOverrides.has(market.slug)) {
-      return market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_DETAIL : buildDetail(market);
-    }
     const design = market.slug === TEMPLE_BAR_DETAIL.slug ? TEMPLE_BAR_OVERRIDES : {};
-    return buildDetail(market, { ...design, meta: undefined });
+    // A schedule or settings save rewrote the row, so the design's hand-written
+    // meta line is out of date and the row's own `when` writes it instead.
+    const meta = this.summaryOverrides.has(market.slug) ? undefined : design.meta;
+    return buildDetail(market, {
+      ...design,
+      meta,
+      // The stall map is the plan, always — it is the one thing on this screen
+      // another tab can change while this one is open.
+      stalls: stallsFromPlan(this.planFor(market), this.rosterFor(market)),
+      stallMapHint: undefined,
+    });
   }
 }
