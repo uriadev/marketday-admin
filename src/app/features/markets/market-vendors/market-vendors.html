@@ -20,7 +20,11 @@
       <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
         Export roster
       </button>
-      <a matButton="filled" routerLink="/vendors/invite">
+      <a
+        matButton="filled"
+        [routerLink]="['/vendors', 'invite']"
+        [queryParams]="{ market: slug() }"
+      >
         <mat-icon>add</mat-icon>
         Invite vendor
       </a>
@@ -104,7 +108,9 @@
       headline="No vendors here yet"
       body="Invite a vendor, or approve an application, and they show up on this roster."
     >
-      <a matButton="filled" routerLink="/vendors/invite">Invite vendor</a>
+      <a matButton="filled" [routerLink]="['/vendors', 'invite']" [queryParams]="{ market: slug() }"
+        >Invite vendor</a
+      >
     </md-empty-state>
   } @else if (store.isFilteredEmpty()) {
     <md-empty-state

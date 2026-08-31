@@ -208,4 +208,12 @@ describe('MarketVendors', () => {
     expect(text(fixture)).toContain('No market matches “not-a-market”.');
     expect((fixture.nativeElement as HTMLElement).querySelector('table')).toBeNull();
   });
+
+  it('carries this market into "Invite vendor", so it is pre-picked there', () => {
+    const fixture = open('temple-bar');
+    const host = fixture.nativeElement as HTMLElement;
+    const invite = host.querySelector('a[href^="/vendors/invite"]');
+
+    expect(invite?.getAttribute('href')).toBe('/vendors/invite?market=temple-bar');
+  });
 });

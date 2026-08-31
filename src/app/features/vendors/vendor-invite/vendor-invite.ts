@@ -3,7 +3,10 @@ import {
   Component,
   OnInit,
   computed,
+  effect,
   inject,
+  input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -92,10 +95,22 @@ export class VendorInvite implements OnInit {
   });
 
   /**
-   * Markets live outside the group: they are chosen as chips rather than typed,
-   * and "none picked" means every market rather than an invalid form.
+   * The market this invitation was started from, as a slug, from the query
+   * param (§7) — `/vendors/invite?market=temple-bar`. It seeds the scope, and
+   * sending returns there.
    */
-  protected readonly selectedMarkets = signal<readonly string[]>([]);
+  readonly market = input<string>();
+
+  /**
+   * Markets live outside the group: they are chosen as chips rather than typed,
+   * and "none picked" means every market rather than an invalid form. Seeded
+   * from `market()`, but still independently editable — it is a suggestion,
+   * not a lock.
+   */
+  protected readonly selectedMarkets = linkedSignal<readonly string[]>(() => {
+    const from = this.market();
+    return from ? [from] : [];
+  });
 
   /** What has been typed into the chip input, narrowing the autocomplete. */
   protected readonly marketQuery = signal('');
@@ -160,6 +175,23 @@ export class VendorInvite implements OnInit {
     return sent === undefined ? '' : `${sent} invitations sent this month`;
   });
 
+  constructor() {
+    // The chips render from the loaded market list, so a slug it does not
+    // know would count towards the scope while showing nothing. Drop it
+    // instead. `update()` does not register a dependency, so this only
+    // re-runs when the market list itself changes — it cannot re-add a chip
+    // the admin removed.
+    effect(() => {
+      const known = new Set(this.facade.markets$().map((m) => m.slug));
+      if (known.size === 0) return;
+      this.selectedMarkets.update((current) =>
+        current.every((slug) => known.has(slug))
+          ? current
+          : current.filter((slug) => known.has(slug)),
+      );
+    });
+  }
+
   ngOnInit(): void {
     this.facade.load();
   }
@@ -209,7 +241,8 @@ export class VendorInvite implements OnInit {
         this.form.patchValue({ businessName: '', contactName: '', email: '', phone: '', note: '' });
         this.form.markAsUntouched();
       } else {
-        void this.router.navigate(['/vendors']);
+        const from = this.market();
+        void this.router.navigate(from ? ['/markets', from, 'vendors'] : ['/vendors']);
       }
     });
   }

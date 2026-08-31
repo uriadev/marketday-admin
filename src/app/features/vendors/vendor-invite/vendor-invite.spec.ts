@@ -158,8 +158,9 @@ describe('VendorInvite', () => {
     }).compileComponents();
   });
 
-  function open() {
+  function open(market?: string) {
     const fixture = TestBed.createComponent(VendorInvite);
+    if (market !== undefined) fixture.componentRef.setInput('market', market);
     fixture.detectChanges();
     return fixture;
   }
@@ -260,6 +261,28 @@ describe('VendorInvite', () => {
     expect(component['summary']()).toContain('All 7 markets');
   });
 
+  it('pre-fills the market it was opened from, as a removable chip', () => {
+    const fixture = open('temple-bar');
+    const component = fixture.componentInstance;
+
+    expect(component['selectedMarkets']()).toEqual(['temple-bar']);
+    expect(component['summary']()).toBe('1 market selected · owner access');
+    expect(component['marketOptions']().map((market) => market.slug)).not.toContain('temple-bar');
+
+    // It is a suggestion, not a lock — the admin can still clear it.
+    component['removeMarket']('temple-bar');
+    fixture.detectChanges();
+    expect(component['selectedMarkets']()).toEqual([]);
+    expect(component['summary']()).toContain('All 7 markets');
+  });
+
+  it('drops a market slug the market list does not know', () => {
+    const fixture = open('not-a-market');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['selectedMarkets']()).toEqual([]);
+  });
+
   it('will not send without a business, a contact and an email', () => {
     const fixture = open();
 
@@ -294,6 +317,17 @@ describe('VendorInvite', () => {
     expect(vendors.sent?.marketSlugs).toEqual(['bantry-friday']);
     expect(vendors.sent?.skipApplicationReview).toBe(false);
     expect(navigate).toHaveBeenCalledWith(['/vendors']);
+  });
+
+  it('sends the seeded market and returns to that market, when opened from one', () => {
+    const fixture = open('temple-bar');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fill(fixture);
+
+    fixture.componentInstance['send']();
+
+    expect(vendors.sent?.marketSlugs).toEqual(['temple-bar']);
+    expect(navigate).toHaveBeenCalledWith(['/markets', 'temple-bar', 'vendors']);
   });
 
   it('"Save and add another" keeps the access choices and clears who it is for', () => {
