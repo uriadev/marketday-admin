@@ -75,7 +75,8 @@
               "buildTarget": "marketday-admin:build:production"
             },
             "development": {
-              "buildTarget": "marketday-admin:build:development"
+              "buildTarget": "marketday-admin:build:development",
+              "proxyConfig": "proxy.conf.mjs"
             }
           },
           "defaultConfiguration": "development"

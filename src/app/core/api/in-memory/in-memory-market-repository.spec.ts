@@ -6,7 +6,7 @@ import {
 } from './in-memory-market-repository';
 import { MARKETS_FIXTURE } from './market-fixture';
 import { VENDORS_FIXTURE } from './in-memory-vendor-repository';
-import { MarketStallPlan } from '../../models/market.model';
+import { MarketStallPlan, MarketStatus } from '../../models/market.model';
 
 /**
  * The stall plan is the source of truth for three things an organiser can see
@@ -51,7 +51,7 @@ describe('InMemoryMarketRepository stall plans', () => {
     const card = rows.find((row) => row.slug === slug)!;
 
     expect(detail.stalls.length).toBe(plan.length);
-    expect(settings.stallCount).toBe(plan.length);
+    expect(settings.name).toBe(card.name);
     if (card.metrics) {
       expect(card.metrics.stallsTotal).toBe(plan.length);
       expect(card.metrics.stallsFilled).toBe(filled);
@@ -69,12 +69,12 @@ describe('InMemoryMarketRepository stall plans', () => {
     const grown: MarketStallPlan = [...plan, { id: 'Z9', row: 'Z', vendorSlug: null }];
     await firstValueFrom(repo.saveStallPlan('temple-bar', grown));
 
-    const [detail, settings] = await Promise.all([
+    const [detail, rows] = await Promise.all([
       firstValueFrom(repo.detail('temple-bar')),
-      firstValueFrom(repo.settings('temple-bar')),
+      firstValueFrom(repo.list()),
     ]);
     expect(detail.stalls.some((stall) => stall.id === 'Z9')).toBe(true);
-    expect(settings.stallCount).toBe(grown.length);
+    expect(rows.find((row) => row.slug === 'temple-bar')?.metrics?.stallsTotal).toBe(grown.length);
   });
 
   it('leaves the fee with the vendor when they move pitch', async () => {
@@ -102,5 +102,56 @@ describe('InMemoryMarketRepository stall plans', () => {
     // The debt followed them; it did not stay behind on the pitch.
     expect(after.stalls.find((stall) => stall.id === owing.id)?.state).toBe('free');
     expect(after.stalls.find((stall) => stall.id === free.id)?.state).toBe('unpaid');
+  });
+});
+
+/**
+ * `draft()` is what the wizard re-opens a market with, and re-saving one is how
+ * a draft is finished. The fixture ships exactly one draft (`bantry-friday`),
+ * which is the case that matters: it is already a row in `MARKETS_FIXTURE`, so
+ * saving it again must update that row rather than stand a second one beside it.
+ */
+describe('InMemoryMarketRepository drafts', () => {
+  const DRAFT = 'bantry-friday';
+
+  it('hands the wizard every field of a stored market at once', async () => {
+    const repo = new InMemoryMarketRepository();
+
+    const draft = await firstValueFrom(repo.draft(DRAFT));
+
+    // One payload spanning all three steps — details, location and schedule.
+    expect(draft.name).toBe('Bantry Friday Market');
+    expect(draft.slug).toBe(DRAFT);
+    expect(draft.address).not.toBe('');
+    expect(draft.tradingDays).toEqual([5]);
+    expect(draft.stallFeePerDay).toBeGreaterThan(0);
+  });
+
+  it('rejects a slug no market has', async () => {
+    const repo = new InMemoryMarketRepository();
+
+    await expect(firstValueFrom(repo.draft('no-such-market'))).rejects.toThrow(/no-such-market/);
+  });
+
+  it('reads back what the wizard last saved', async () => {
+    const repo = new InMemoryMarketRepository();
+    const draft = await firstValueFrom(repo.draft(DRAFT));
+
+    await firstValueFrom(repo.saveDraft({ ...draft, name: 'Bantry Harbour Market' }));
+
+    expect((await firstValueFrom(repo.draft(DRAFT))).name).toBe('Bantry Harbour Market');
+  });
+
+  it('publishes the draft in place, without forking a second market', async () => {
+    const repo = new InMemoryMarketRepository();
+    const before = (await firstValueFrom(repo.list())).length;
+    const draft = await firstValueFrom(repo.draft(DRAFT));
+
+    await firstValueFrom(repo.publish(draft));
+    const rows = await firstValueFrom(repo.list());
+
+    expect(rows.length).toBe(before);
+    expect(rows.filter((market) => market.slug === DRAFT)).toHaveLength(1);
+    expect(rows.find((market) => market.slug === DRAFT)?.status).toBe(MarketStatus.Published);
   });
 });

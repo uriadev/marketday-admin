@@ -56,6 +56,10 @@ class StubMarketRepository extends MarketRepository {
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
   }
+  /** Not a screen this stub stands in for. */
+  override draft(slug: string): Observable<MarketDraft> {
+    return throwError(() => new Error(`No market matches “${slug}”.`));
+  }
   override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
     return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });
   }

@@ -352,6 +352,7 @@ const REST: readonly VendorSeed[] = [
 
 function toSummary(seed: VendorSeed, index: number): VendorSummary {
   const slug = slugify(seed.name);
+  const staff = seed.staff ?? staffFor(index, seed.staffCount);
   return {
     id: `vnd-${slug}`,
     slug,
@@ -359,7 +360,8 @@ function toSummary(seed: VendorSeed, index: number): VendorSummary {
     meta: `${seed.trade} · ${seed.tenure}`,
     markets: seed.markets,
     appliedLabel: seed.appliedLabel ?? null,
-    staff: seed.staff ?? staffFor(index, seed.staffCount),
+    staff,
+    staffCount: staff.length,
     standing: seed.standing,
     standingLabel: STANDING_LABELS[seed.standing],
   };
@@ -843,6 +845,7 @@ export class InMemoryVendorRepository extends VendorRepository {
       markets: [],
       appliedLabel: null,
       staff: invite.contactName ? [invite.contactName] : [],
+      staffCount: invite.contactName ? 1 : 0,
       standing: 'invited',
       standingLabel: STANDING_LABELS.invited,
     };

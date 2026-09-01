@@ -72,20 +72,9 @@
   <mat-divider />
 
   <section class="mt-4">
-    <h2 class="text-title-medium mb-4">Stalls and applications</h2>
+    <h2 class="text-title-medium mb-4">Fees and applications</h2>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <mat-form-field class="w-full">
-          <mat-label>Number of stalls</mat-label>
-          <input matInput type="number" min="1" formControlName="stallCount" />
-          @if (form().controls.stallCount.hasError('required')) {
-            <mat-error>How many stalls?</mat-error>
-          } @else if (lockStallCount()) {
-            <mat-hint>Add and remove pitches on the Stalls tab.</mat-hint>
-          }
-        </mat-form-field>
-      </div>
       <div>
         <mat-form-field class="w-full">
           <mat-label>Stall fee per day</mat-label>
@@ -104,18 +93,6 @@
               <p class="details-form__hint">Off means any verified vendor can book a free stall.</p>
             </div>
             <mat-slide-toggle formControlName="reviewApplications" />
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card appearance="outlined" class="md:col-span-2">
-        <mat-card-content>
-          <div class="flex flex-row justify-between items-center gap-4">
-            <div>
-              <p class="details-form__toggle-label">Accept customer pre-orders</p>
-              <p class="details-form__hint">Vendors choose per product once the market is live.</p>
-            </div>
-            <mat-slide-toggle formControlName="acceptsPreOrders" />
           </div>
         </mat-card-content>
       </mat-card>

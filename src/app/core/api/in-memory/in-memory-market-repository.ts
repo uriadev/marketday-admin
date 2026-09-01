@@ -26,6 +26,7 @@ import {
   MARKETS_FIXTURE,
   MARKET_LABELS,
   MARKET_SCHEDULES,
+  FIXTURE_DRAFT_PITCHES,
   MARKET_SETTINGS,
   STALL_FEE,
 } from './market-fixture';
@@ -380,8 +381,8 @@ function buildStallPlan(market: MarketSummary): MarketStallPlan {
     }));
   }
   // A draft carries no metrics for `buildDetail` to lay out from, so its map is
-  // the pitch count it was set up with, every one of them still free.
-  return stallRefs(MARKET_SETTINGS[market.slug]?.stallCount ?? 0).map<StallPitch>((id) => ({
+  // the pitch count the fixture seeds it with, every one of them still free.
+  return stallRefs(FIXTURE_DRAFT_PITCHES[market.slug] ?? 0).map<StallPitch>((id) => ({
     id,
     row: rowOf(id),
     vendorSlug: null,
@@ -457,15 +458,6 @@ function placeOf(when: string): string {
   return when.split(' · ')[0] ?? '';
 }
 
-/** A brand-new market's pitches: the count the wizard asked for, all free. */
-function draftStallPlan(draft: MarketDraft): MarketStallPlan {
-  return stallRefs(draft.stallCount ?? 0).map<StallPitch>((id) => ({
-    id,
-    row: rowOf(id),
-    vendorSlug: null,
-  }));
-}
-
 /** The settings half of the wizard's payload, on its own. */
 function draftSettings(draft: MarketDraft): MarketSettingsPatch {
   const {
@@ -474,7 +466,6 @@ function draftSettings(draft: MarketDraft): MarketSettingsPatch {
     tradingDays: _tradingDays,
     opensAt: _opensAt,
     closesAt: _closesAt,
-    bookingDeadlineHours: _bookingDeadlineHours,
     ...settings
   } = draft;
   return settings;
@@ -488,7 +479,6 @@ function draftSchedule(draft: MarketDraft): MarketSchedulePatch {
     tradingDays: [...draft.tradingDays],
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
-    bookingDeadlineHours: draft.bookingDeadlineHours,
   };
 }
 
@@ -501,10 +491,8 @@ function blankSettings(market: MarketSummary): MarketSettingsPatch {
     description: '',
     imageUrl: null,
     bannerUrl: null,
-    stallCount: market.metrics?.stallsTotal ?? null,
     stallFeePerDay: STALL_FEE,
     reviewApplications: true,
-    acceptsPreOrders: true,
     address: '',
     city: '',
     county: market.county || null,
@@ -524,7 +512,6 @@ const NO_SCHEDULE: MarketSchedulePatch = {
   tradingDays: [],
   opensAt: '09:00',
   closesAt: '15:00',
-  bookingDeadlineHours: 48,
 };
 
 /** Turns the wizard's payload into the row the directory renders. */
@@ -542,9 +529,8 @@ function draftToSummary(draft: MarketDraft, status: MarketStatus): MarketSummary
     badgeLabel: published ? 'Not trading yet' : 'Draft',
     // A brand-new market has no occurrence yet, so it sorts after the known ones.
     nextMarketDay: '9999-12-31',
-    metrics: published
-      ? { stallsFilled: 0, stallsTotal: draft.stallCount ?? 0, preorders: 0, enquiries: 0 }
-      : null,
+    // A market has no pitches until the Stalls tab lays some out.
+    metrics: published ? { stallsFilled: 0, stallsTotal: 0, preorders: 0, enquiries: 0 } : null,
   };
 }
 
@@ -576,9 +562,13 @@ export class InMemoryMarketRepository extends MarketRepository {
   private readonly summaryOverrides = new Map<string, MarketSummary>();
 
   override list(): Observable<readonly MarketSummary[]> {
-    const rows = [...MARKETS_FIXTURE, ...this.created.values()].map((market) =>
-      this.rowFor(market),
-    );
+    // Keyed by slug, `created` last: the wizard can re-save a market the fixture
+    // already has (its one draft), and that must update the row rather than add
+    // a second card for the same slug.
+    const bySlug = new Map<string, MarketSummary>();
+    for (const market of MARKETS_FIXTURE) bySlug.set(market.slug, market);
+    for (const market of this.created.values()) bySlug.set(market.slug, market);
+    const rows = [...bySlug.values()].map((market) => this.rowFor(market));
     return of(rows).pipe(delay(300));
   }
 
@@ -629,16 +619,14 @@ export class InMemoryMarketRepository extends MarketRepository {
     }
     const stored: MarketSettingsPatch = { ...patch };
     this.editedSettings.set(slug, stored);
-    // Name, county, town and stall count are all on the card too. The pattern
-    // is the Schedule tab's to write, so it is read here and put back unchanged.
+    // Name, county and town are all on the card too. The pattern is the
+    // Schedule tab's to write and the pitch counts the Stalls tab's, so both are
+    // read here and put back unchanged.
     this.summaryOverrides.set(slug, {
       ...market,
       name: stored.name,
       county: stored.county ?? market.county,
       when: summariseWhen(stored.city || stored.county || '', this.scheduleFor(slug)),
-      metrics: market.metrics
-        ? { ...market.metrics, stallsTotal: stored.stallCount ?? market.metrics.stallsTotal }
-        : market.metrics,
     });
     return of(stored).pipe(delay(300));
   }
@@ -674,6 +662,14 @@ export class InMemoryMarketRepository extends MarketRepository {
     return of(IRISH_COUNTIES).pipe(delay(120));
   }
 
+  override draft(slug: string): Observable<MarketDraft> {
+    const market = this.find(slug);
+    if (!market) {
+      return throwError(() => new Error(`No market matches “${slug}”.`)).pipe(delay(300));
+    }
+    return of({ ...this.settingsFor(market), ...this.scheduleFor(slug) }).pipe(delay(300));
+  }
+
   override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
     return this.store(draft, MarketStatus.Draft);
   }
@@ -694,15 +690,20 @@ export class InMemoryMarketRepository extends MarketRepository {
     // and the row it just wrote is the current one.
     this.schedules.set(summary.slug, draftSchedule(draft));
     this.editedSettings.set(summary.slug, draftSettings(draft));
-    this.stallPlans.set(summary.slug, draftStallPlan(draft));
+    // The stall map is untouched: the Stalls tab owns it, and a wizard save
+    // must not empty the layout of a market that already has one.
     this.summaryOverrides.delete(summary.slug);
     return of(summary).pipe(delay(300));
   }
 
-  /** A fixture market, or one the wizard published this session — as it stands now. */
+  /**
+   * A market the wizard saved this session, or a fixture one — as it stands now.
+   * `created` is read first: re-saving the fixture's draft is how it gets
+   * published, and reading the fixture row back would leave it a draft forever.
+   */
   private find(slug: string): MarketSummary | undefined {
     const market =
-      MARKETS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.created.get(slug);
+      this.created.get(slug) ?? MARKETS_FIXTURE.find((candidate) => candidate.slug === slug);
     return market && this.rowFor(market);
   }
 
@@ -726,11 +727,9 @@ export class InMemoryMarketRepository extends MarketRepository {
    * entry from the moment it was saved, so only a slug with neither is blank.
    */
   private settingsFor(market: MarketSummary): MarketSettingsPatch {
-    const stored =
-      this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug] ?? blankSettings(market);
-    // The Stalls tab owns the layout, so the count is read off it rather than
-    // stored twice — the Settings tab shows this number but cannot set it.
-    return { ...stored, stallCount: this.planFor(market).length };
+    return (
+      this.editedSettings.get(market.slug) ?? MARKET_SETTINGS[market.slug] ?? blankSettings(market)
+    );
   }
 
   /** The town a `when` line leads with — from the settings, which own it. */

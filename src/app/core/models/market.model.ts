@@ -289,10 +289,8 @@ export interface MarketDetailsPatch {
   readonly description: string;
   readonly imageUrl: string | null;
   readonly bannerUrl: string | null;
-  readonly stallCount: number | null;
   readonly stallFeePerDay: number | null;
   readonly reviewApplications: boolean;
-  readonly acceptsPreOrders: boolean;
 }
 
 /**
@@ -313,7 +311,6 @@ export interface MarketSchedulePatch {
   readonly tradingDays: readonly number[];
   readonly opensAt: string;
   readonly closesAt: string;
-  readonly bookingDeadlineHours: number;
 }
 
 /** What the Location step writes — and the other half of the Settings tab's save. */

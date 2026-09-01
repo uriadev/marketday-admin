@@ -12,6 +12,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { ScheduleGap } from '../../../core/scheduling/recurrence';
 import { Notifications } from '../../../core/notifications/notifications';
 import { MarketDetailFacade } from '../market-detail-facade';
 import { MarketScheduleFacade } from '../market-schedule-facade';
@@ -60,6 +61,14 @@ export class MarketSchedule {
   private readonly revision = signal(0);
 
   /**
+   * What the stored rule holds that the editor cannot show — see
+   * {@link seedScheduleForm}. Empty for a pattern this console wrote; anything
+   * else the API happens to hold gets a notice above the controls instead of an
+   * approximation passed off as the truth.
+   */
+  protected readonly gaps = signal<readonly ScheduleGap[]>([]);
+
+  /**
    * Whether there is anything to save. Reactive forms are not signals, so a
    * template reading `form.pristine` directly would have nothing to re-render
    * on — every place that can change it bumps `revision` instead.
@@ -103,7 +112,7 @@ export class MarketSchedule {
   protected reset(): void {
     const stored = this.facade.schedule();
     if (!stored) return;
-    seedScheduleForm(this.form, stored);
+    this.gaps.set(seedScheduleForm(this.form, stored));
     this.revision.update((n) => n + 1);
   }
 }

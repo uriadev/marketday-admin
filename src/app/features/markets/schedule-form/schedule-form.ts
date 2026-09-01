@@ -23,6 +23,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
@@ -30,12 +31,13 @@ import { MarketSchedulePatch } from '../../../core/models/market.model';
 import {
   RecurrenceEnd,
   RecurrenceFrequency,
+  ScheduleGap,
   composeSchedule,
   describeSchedule,
   durationMinutes,
+  expandSchedule,
   formatTimeOfDay,
   nextOccurrence,
-  parseSchedule,
   parseTimeOfDay,
 } from '../../../core/scheduling/recurrence';
 
@@ -91,7 +93,6 @@ export type ScheduleFormGroup = FormGroup<{
   endsAfter: FormControl<number | null>;
   opensAt: FormControl<Date | null>;
   closesAt: FormControl<Date | null>;
-  bookingDeadlineHours: FormControl<number>;
 }>;
 export type ScheduleFormValue = ReturnType<ScheduleFormGroup['getRawValue']>;
 
@@ -116,7 +117,6 @@ export function createScheduleForm(fb: FormBuilder = inject(FormBuilder)): Sched
       ]),
       opensAt: fb.nonNullable.control<Date | null>(parseTimeOfDay('09:00'), Validators.required),
       closesAt: fb.nonNullable.control<Date | null>(parseTimeOfDay('15:00'), Validators.required),
-      bookingDeadlineHours: fb.nonNullable.control<number>(48),
     },
     { validators: tradingWindow },
   );
@@ -163,7 +163,6 @@ export function scheduleFields(value: ScheduleFormValue): MarketSchedulePatch {
     tradingDays: [...value.tradingDays],
     opensAt,
     closesAt,
-    bookingDeadlineHours: value.bookingDeadlineHours,
   };
 }
 
@@ -175,27 +174,51 @@ export function scheduleFields(value: ScheduleFormValue): MarketSchedulePatch {
  * the group — is re-applied here rather than left to the subscription.
  *
  * The group is left pristine: a loaded pattern is the form's new baseline, not
- * an edit of it. A rule the four controls cannot express (`parseSchedule`
- * returns `null`) falls back to the stored days, so the form shows what it can
- * rather than nothing at all.
+ * an edit of it.
+ *
+ * Returns what {@link expandSchedule} could not fit into the four controls, for
+ * the host to hand back to {@link MarketScheduleForm.gaps} — empty for any rule
+ * this console wrote. The stored `opensAt` / `closesAt` win over the rule's own
+ * `DTSTART` time, because the patch carries the market's `duration` and the rule
+ * does not: closing time exists nowhere else.
  */
-export function seedScheduleForm(form: ScheduleFormGroup, stored: MarketSchedulePatch): void {
-  const recurrence = parseSchedule(stored.schedule);
+export function seedScheduleForm(
+  form: ScheduleFormGroup,
+  stored: MarketSchedulePatch,
+): readonly ScheduleGap[] {
+  const expanded = expandSchedule(stored.schedule);
+  const recurrence = expanded?.recurrence;
   const ends: RecurrenceEnd = recurrence?.ends ?? { kind: 'NEVER' };
+  const days = recurrence?.tradingDays.length ? recurrence.tradingDays : stored.tradingDays;
 
   form.reset({
     frequency: recurrence?.frequency ?? 'WEEKLY',
-    tradingDays: [...(recurrence?.tradingDays ?? stored.tradingDays)],
+    tradingDays: [...days],
     startsOn: recurrence?.startsOn ?? null,
     ends: ends.kind,
     endsOn: ends.kind === 'ON' ? ends.date : null,
     endsAfter: ends.kind === 'AFTER' ? ends.count : 12,
-    opensAt: parseTimeOfDay(stored.opensAt),
+    opensAt: parseTimeOfDay(stored.opensAt) ?? parseTimeOfDay(recurrence?.opensAt ?? ''),
     closesAt: parseTimeOfDay(stored.closesAt),
-    bookingDeadlineHours: stored.bookingDeadlineHours,
   });
   applyEndKind(form, ends.kind);
+  return expanded?.gaps ?? [];
 }
+
+/**
+ * What each gap costs the organiser, in the terms the editor speaks. Read out
+ * in the notice above the controls whenever a stored rule needed approximating
+ * — saving replaces that rule with whatever these controls hold, so the notice
+ * is the one chance to say what is about to be dropped.
+ */
+export const SCHEDULE_GAP_NOTES: Readonly<Record<ScheduleGap, string>> = {
+  frequency: 'it repeats on a cycle this editor has no option for, shown as the nearest one',
+  startsOn:
+    'it carries no start date — it is read as starting today, which is how the API reads it too',
+  opensAt: 'it carries no opening time — set one, and closing follows from the stored duration',
+  tradingDays: 'it repeats by date rather than by weekday, so the days shown are approximate',
+  restrictions: 'it carries extra conditions these controls cannot show',
+};
 
 /**
  * The wizard's schedule step and the detail tab's trading-pattern editor,
@@ -218,6 +241,7 @@ export function seedScheduleForm(form: ScheduleFormGroup, stored: MarketSchedule
     MatDatepickerModule,
     MatNativeDateModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatSelectModule,
     MatTimepickerModule,
@@ -227,8 +251,28 @@ export function seedScheduleForm(form: ScheduleFormGroup, stored: MarketSchedule
 })
 export class MarketScheduleForm {
   readonly form = input.required<ScheduleFormGroup>();
+  /**
+   * What the stored rule held that these controls could not take, as returned by
+   * {@link seedScheduleForm}. Empty for a rule this console wrote, which is the
+   * normal case — the notice only appears for a pattern that arrived some other
+   * way and would be quietly rewritten by the next save.
+   */
+  readonly gaps = input<readonly ScheduleGap[]>([]);
+  /**
+   * The market's stored trading duration, in minutes.
+   *
+   * Closing time is not a stored field anywhere: the API keeps `duration`, and
+   * "Closes" is only ever "Opens" plus that — which is why {@link toSchedulePatch}
+   * derives one from the other and {@link scheduleFields} derives it back. So a
+   * rule that arrived without a `DTSTART` time still knows how long the market
+   * runs, and closing follows the moment an organiser sets an opening time.
+   */
+  readonly durationMinutes = input(0);
   /** Dev-only RFC 5545 read-back. An input so the wizard's tests can turn it off. */
   readonly showRepeatRule = input(isDevMode());
+
+  /** The gaps as sentences, for the notice above the controls. */
+  protected readonly gapNotes = computed(() => this.gaps().map((gap) => SCHEDULE_GAP_NOTES[gap]));
 
   protected readonly tradingDays = TRADING_DAYS;
   protected readonly frequencies = FREQUENCIES;
@@ -245,6 +289,16 @@ export class MarketScheduleForm {
     effect((onCleanup) => {
       const sub = this.form().valueChanges.subscribe(() => this.revision.update((n) => n + 1));
       onCleanup(() => sub.unsubscribe());
+    });
+
+    // Closing time follows opening plus the stored duration. Only ever fills a
+    // blank — the one case being a pattern seeded from a rule with no opening
+    // time to anchor it — so it never argues with an organiser who set one.
+    effect(() => {
+      const minutes = this.durationMinutes();
+      const { opensAt, closesAt } = this.value();
+      if (minutes <= 0 || closesAt || !opensAt) return;
+      this.form().controls.closesAt.setValue(new Date(opensAt.getTime() + minutes * 60_000));
     });
   }
 

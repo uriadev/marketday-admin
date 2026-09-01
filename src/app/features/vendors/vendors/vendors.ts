@@ -185,6 +185,6 @@ export class Vendors implements OnInit {
   }
 
   protected staffLabel(vendor: VendorSummary): string {
-    return `${vendor.staff.length} staff`;
+    return `${vendor.staffCount} staff`;
   }
 }

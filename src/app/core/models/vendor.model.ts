@@ -38,8 +38,15 @@ export interface VendorSummary {
   markets: readonly string[];
   /** Pending-application chip — "+1 applied", "Temple Bar · applied". */
   appliedLabel: string | null;
-  /** Staff names, for the face pile. */
+  /**
+   * Staff names, for the face pile. Empty on the real-API directory path — the
+   * list query (`adminVendors`) carries the team's size, not its roster — where
+   * {@link staffCount} still drives the "N staff" label and the face-pile discs.
+   */
   staff: readonly string[];
+  /** How many people hold a seat — the authoritative team size, whether or not
+   *  {@link staff} names are loaded (`VendorModel.memberCount`). */
+  staffCount: number;
   standing: VendorStanding;
   /** "Trading", "Fee unpaid ×1", "Paused". `null` while pending — the row
    *  offers a Review button in place of a badge. */

@@ -25,6 +25,12 @@ export const MARKETS_ROUTES: Routes = [
     loadComponent: () => import('./market-wizard/market-wizard').then((m) => m.MarketWizard),
   },
   {
+    // Two segments, so it has to come before `:slug` to be matched at all.
+    path: ':slug/edit',
+    title: 'Continue market setup · MarketDay Admin',
+    loadComponent: () => import('./market-wizard/market-wizard').then((m) => m.MarketWizard),
+  },
+  {
     path: ':slug',
     title: 'Manage market · MarketDay Admin',
     providers: [MarketDetailFacade],

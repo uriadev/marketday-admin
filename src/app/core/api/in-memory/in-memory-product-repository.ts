@@ -403,8 +403,46 @@ export class InMemoryProductRepository extends ProductRepository {
    */
   private readonly logs = new Map<string, readonly ProductChange[]>();
 
+  /**
+   * Real vendor names by slug, set by {@link primeBoard} when
+   * `GraphqlProductRepository` hands over a board it read from the API — the
+   * directory fixture has no row for a vendor that only exists server-side.
+   */
+  private readonly names = new Map<string, string>();
+
   /** Ids handed out this session, so a second "Save and add another" is unique. */
   private nextId = 1;
+
+  /** True once this vendor's board has been built or {@link primeBoard}d. */
+  hasBoard(vendorSlug: string): boolean {
+    return this.boards.has(vendorSlug);
+  }
+
+  /**
+   * Seeds a vendor's board from outside — `GraphqlProductRepository` hands over
+   * what it read from the API so the session's writes have a real board to run
+   * against. `vendorName` fills {@link form}'s breadcrumb.
+   */
+  primeBoard(vendorSlug: string, board: VendorProductBoard, vendorName?: string): void {
+    this.boards.set(vendorSlug, board);
+    if (vendorName) this.names.set(vendorSlug, vendorName);
+  }
+
+  /** The board as it stands right now, without the {@link board} round-trip delay. */
+  snapshot(vendorSlug: string): VendorProductBoard | undefined {
+    return this.boards.get(vendorSlug);
+  }
+
+  /** Folds one product into the board — replace by id, or prepend a new row. */
+  upsertProduct(vendorSlug: string, product: VendorProduct): void {
+    const board = this.boards.get(vendorSlug);
+    if (!board) return;
+    const known = board.products.some((row) => row.id === product.id);
+    const products = known
+      ? board.products.map((row) => (row.id === product.id ? product : row))
+      : [product, ...board.products];
+    this.boards.set(vendorSlug, { ...board, products });
+  }
 
   override board(vendorSlug: string): Observable<VendorProductBoard> {
     const board = this.boards.get(vendorSlug) ?? buildProductBoard(vendorSlug);
@@ -473,7 +511,9 @@ export class InMemoryProductRepository extends ProductRepository {
     this.boards.set(vendorSlug, board);
 
     const vendorName =
-      VENDORS_FIXTURE.find((candidate) => candidate.slug === vendorSlug)?.name ?? 'Vendor';
+      this.names.get(vendorSlug) ??
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === vendorSlug)?.name ??
+      'Vendor';
     if (productId === null) {
       return of({
         vendorSlug,

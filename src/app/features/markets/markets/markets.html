@@ -134,8 +134,10 @@
                 <md-status-pill [tone]="badgeTone(market)">{{ market.badgeLabel }}</md-status-pill>
               </div>
 
-              @if (market.metrics; as metrics) {
-                <div class="footer">
+              <!-- Split on status, not on `metrics`: a published market can have no
+                   numbers to show yet, and that is not the same as a half-entered one. -->
+              <div class="footer">
+                @if (market.metrics; as metrics) {
                   <span class="metric">
                     <span class="metric-value"
                       >{{ metrics.stallsFilled }}/{{ metrics.stallsTotal }}</span
@@ -152,18 +154,24 @@
                     }}</span>
                     <span class="metric-label">Enquiries</span>
                   </span>
-                  <a matButton="outlined" class="ml-auto" [routerLink]="['/markets', market.slug]"
-                    >Manage</a
-                  >
-                </div>
-              } @else {
-                <div class="footer">
+                }
+                @if (market.status === MarketStatus.Draft) {
                   <span class="text-body-medium text-on-surface-variant"
                     >Awaiting organiser details and stall map</span
                   >
-                  <a matButton="filled" class="ml-auto" routerLink="/markets/new"> Finish setup </a>
-                </div>
-              }
+                  <a
+                    matButton="filled"
+                    class="ml-auto"
+                    [routerLink]="['/markets', market.slug, 'edit']"
+                  >
+                    Continue setup
+                  </a>
+                } @else {
+                  <a matButton="outlined" class="ml-auto" [routerLink]="['/markets', market.slug]"
+                    >Manage</a
+                  >
+                }
+              </div>
             </div>
           </mat-card>
         }

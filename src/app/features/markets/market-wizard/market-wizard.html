@@ -1,4 +1,8 @@
-<md-page-header heading="New market" backLink="/markets" breadcrumb="Markets">
+<md-page-header
+  [heading]="editing() ? 'Continue setup' : 'New market'"
+  backLink="/markets"
+  breadcrumb="Markets"
+>
   @if (savedAt(); as saved) {
     <span class="saved" aria-live="polite">
       <span class="saved-dot"></span>
@@ -7,14 +11,35 @@
   }
 </md-page-header>
 
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading market" />
+}
+
 <div class="layout">
   <div class="main">
     <div class="flex-none">
-      <h2 class="m-0 text-headline-small font-bold text-on-surface">Add market</h2>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">
+        {{ editing() ? preview().name : 'Add market' }}
+      </h2>
       <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
-        Three steps. Vendors can apply as soon as it is published.
+        @if (editing()) {
+          Pick up where this draft was left. Vendors can apply as soon as it is published.
+        } @else {
+          Three steps. Vendors can apply as soon as it is published.
+        }
       </p>
     </div>
+
+    @if (loadError(); as message) {
+      <div
+        class="flex flex-none items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+        role="alert"
+      >
+        <mat-icon class="text-error">error</mat-icon>
+        <span class="flex-1">{{ message }}</span>
+        <button matButton type="button" (click)="load()">Retry</button>
+      </div>
+    }
 
     <mat-stepper
       class="stepper"
@@ -23,7 +48,9 @@
       (selectedIndexChange)="onStepChange($event)"
     >
       <mat-step [stepControl]="detailsForm" label="Details">
-        <md-market-details-form [form]="detailsForm" />
+        <!-- The slug is what the repository keys create-vs-update on, so a market
+             already stored cannot have it changed here without forking a second one. -->
+        <md-market-details-form [form]="detailsForm" [lockSlug]="editing()" />
       </mat-step>
 
       <mat-step [stepControl]="scheduleForm" label="Schedule">
@@ -35,7 +62,11 @@
               calendar.
             </p>
           </div>
-          <md-market-schedule-form [form]="scheduleForm" />
+          <md-market-schedule-form
+            [form]="scheduleForm"
+            [gaps]="scheduleGaps()"
+            [durationMinutes]="scheduleDuration()"
+          />
         </section>
       </mat-step>
 
@@ -75,10 +106,6 @@
         </div>
         <div class="preview-metrics">
           <span class="metric">
-            <span class="metric-value">{{ preview().stalls }}</span>
-            <span class="metric-label">Stalls</span>
-          </span>
-          <span class="metric">
             <span class="metric-value">{{ preview().fee }}</span>
             <span class="metric-label">Per day</span>
           </span>
@@ -112,13 +139,18 @@
     } @else {
       <button matButton="outlined" type="button" (click)="goBack()">Back</button>
     }
-    <button matButton type="button" (click)="saveDraft()" [disabled]="saving()">
+    <button matButton type="button" (click)="saveDraft()" [disabled]="saving() || loading()">
       Save as draft
     </button>
     @if (stepIndex() < 2) {
       <button matButton="filled" type="button" (click)="goNext()">Continue</button>
     } @else {
-      <button matButton="filled" type="button" (click)="publish()" [disabled]="saving()">
+      <button
+        matButton="filled"
+        type="button"
+        (click)="publish()"
+        [disabled]="saving() || loading()"
+      >
         Publish market
       </button>
     }

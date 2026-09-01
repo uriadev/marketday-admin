@@ -10,6 +10,14 @@
  */
 export const environment = {
   production: true,
+  api: {
+    /**
+     * Relative on purpose. The console is served behind a reverse proxy that
+     * terminates `/graphql` and adds the `x-api-key` header the backend's global
+     * `ApiKeyGuard` requires — the key must never reach the browser bundle.
+     */
+    graphqlUrl: '/graphql',
+  },
   googleMaps: {
     apiKey: '',
     /** Advanced markers need a map ID; replace with a Cloud-styled one. */

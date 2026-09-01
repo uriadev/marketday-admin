@@ -12,31 +12,40 @@ import { ProfileRepository } from './ports/profile-repository';
 import { SupportRepository } from './ports/support-repository';
 import { InMemoryAccountRepository } from './in-memory/in-memory-account-repository';
 import { InMemoryActivityRepository } from './in-memory/in-memory-activity-repository';
-import { InMemoryAuthRepository } from './in-memory/in-memory-auth-repository';
 import { InMemoryDashboardRepository } from './in-memory/in-memory-dashboard-repository';
-import { InMemoryMarketRepository } from './in-memory/in-memory-market-repository';
-import { InMemoryVendorRepository } from './in-memory/in-memory-vendor-repository';
-import { InMemoryMediaRepository } from './in-memory/in-memory-media-repository';
 import { InMemoryPaymentRepository } from './in-memory/in-memory-payment-repository';
-import { InMemoryProductRepository } from './in-memory/in-memory-product-repository';
-import { InMemoryProfileRepository } from './in-memory/in-memory-profile-repository';
 import { InMemorySupportRepository } from './in-memory/in-memory-support-repository';
+import { GraphqlAuthRepository } from './graphql/graphql-auth-repository';
+import { GraphqlMarketRepository } from './graphql/graphql-market-repository';
+import { GraphqlMediaRepository } from './graphql/graphql-media-repository';
+import { GraphqlProductRepository } from './graphql/graphql-product-repository';
+import { GraphqlProfileRepository } from './graphql/graphql-profile-repository';
+import { GraphqlVendorRepository } from './graphql/graphql-vendor-repository';
 
 /**
- * Binds every repository port to its implementation. Today that is the in-memory
- * fixture backend; swapping to GraphQL (see `../../../../docs/ARCHITECTURE.md` §8)
- * is a change to the `useClass` lines here and nothing above `core/`.
+ * Binds every repository port to its implementation. `../../../../docs/ARCHITECTURE.md`
+ * §8 describes the swap as a change to these `useClass` lines and nothing above
+ * `core/` — in practice it is a **hybrid**: `schema.gql` covers Auth, Markets,
+ * Profile, Media, Vendors and Products, so those six are wired to
+ * `core/api/graphql/`. `adminVendors` closed `docs/backend-api-gaps.md` #2 and
+ * a `slug` field closed #10; the vendor *write* paths still have no admin
+ * endpoint (`GraphqlVendorRepository` documents which and why). Products' write
+ * mutations were widened to `@Roles(VENDOR, ADMIN)` server-side (#7), so
+ * `GraphqlProductRepository` runs the grid and the form end-to-end; only
+ * `deleteProduct` is still missing (#8). The remaining five ports have no
+ * admin-facing backend surface yet — see `docs/backend-api-gaps.md` — and stay
+ * on their `InMemory*Repository` fixture until they do.
  */
 export const API_PROVIDERS: Provider[] = [
   { provide: AccountRepository, useClass: InMemoryAccountRepository },
   { provide: ActivityRepository, useClass: InMemoryActivityRepository },
-  { provide: AuthRepository, useClass: InMemoryAuthRepository },
+  { provide: AuthRepository, useClass: GraphqlAuthRepository },
   { provide: DashboardRepository, useClass: InMemoryDashboardRepository },
-  { provide: MarketRepository, useClass: InMemoryMarketRepository },
-  { provide: VendorRepository, useClass: InMemoryVendorRepository },
-  { provide: MediaRepository, useClass: InMemoryMediaRepository },
+  { provide: MarketRepository, useClass: GraphqlMarketRepository },
+  { provide: VendorRepository, useClass: GraphqlVendorRepository },
+  { provide: MediaRepository, useClass: GraphqlMediaRepository },
   { provide: PaymentRepository, useClass: InMemoryPaymentRepository },
-  { provide: ProductRepository, useClass: InMemoryProductRepository },
-  { provide: ProfileRepository, useClass: InMemoryProfileRepository },
+  { provide: ProductRepository, useClass: GraphqlProductRepository },
+  { provide: ProfileRepository, useClass: GraphqlProfileRepository },
   { provide: SupportRepository, useClass: InMemorySupportRepository },
 ];

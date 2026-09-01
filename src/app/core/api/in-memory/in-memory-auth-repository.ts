@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, mergeMap } from 'rxjs/operators';
 import { AdminUser } from '../../models/admin-user.model';
-import { AuthRepository, SignInChallenge } from '../ports/auth-repository';
+import { AuthRepository, SignInOutcome } from '../ports/auth-repository';
 
 /** The single seat that can sign in against the fixture backend. */
 const FIXTURE_EMAIL = 'aine@marketday.ie';
@@ -30,14 +30,15 @@ function fail(message: string): Observable<never> {
  */
 @Injectable()
 export class InMemoryAuthRepository extends AuthRepository {
-  override signIn(email: string, password: string): Observable<SignInChallenge> {
+  override signIn(email: string, password: string): Observable<SignInOutcome> {
     const normalised = email.trim().toLowerCase();
     if (normalised !== FIXTURE_EMAIL || password.length < 6) {
       return fail("That email and password don't match an account.");
     }
-    return of<SignInChallenge>({ email: FIXTURE_EMAIL, sentTo: 'number ending 4471' }).pipe(
-      delay(LATENCY_MS),
-    );
+    return of<SignInOutcome>({
+      kind: 'challenge',
+      challenge: { email: FIXTURE_EMAIL, sentTo: 'number ending 4471' },
+    }).pipe(delay(LATENCY_MS));
   }
 
   override verifyCode(email: string, code: string): Observable<AdminUser> {
@@ -46,5 +47,9 @@ export class InMemoryAuthRepository extends AuthRepository {
       return fail('That code has expired or is incorrect.');
     }
     return of(FIXTURE_USER).pipe(delay(LATENCY_MS));
+  }
+
+  override signOut(): Observable<void> {
+    return of(undefined).pipe(delay(LATENCY_MS));
   }
 }

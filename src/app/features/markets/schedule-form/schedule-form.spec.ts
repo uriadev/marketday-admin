@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { parseTimeOfDay } from '../../../core/scheduling/recurrence';
+import { formatTimeOfDay, parseTimeOfDay } from '../../../core/scheduling/recurrence';
 import { MarketSchedulePatch } from '../../../core/models/market.model';
 import {
   MarketScheduleForm,
@@ -149,7 +149,6 @@ describe('MarketScheduleForm', () => {
       tradingDays: [6, 7],
       opensAt: '09:00',
       closesAt: '14:30',
-      bookingDeadlineHours: 24,
     };
 
     seedScheduleForm(group, stored);
@@ -160,6 +159,75 @@ describe('MarketScheduleForm', () => {
     expect(group.pristine).toBe(true);
   });
 
+  it('loads a rule it did not write, and says what it could not show', () => {
+    // No DTSTART, so nothing in the rule says when the pattern starts or opens
+    // — the kind of string the API accepts (`@IsNotEmpty()`) but this editor
+    // used to give up on entirely, leaving the tab blank and invalid.
+    const gaps = seedScheduleForm(group, {
+      schedule: 'RRULE:FREQ=WEEKLY;BYDAY=SA',
+      duration: 330,
+      tradingDays: [],
+      opensAt: '',
+      closesAt: '',
+    });
+
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    expect(group.controls.tradingDays.value).toEqual([6]);
+    expect(group.controls.startsOn.value).toEqual(midnight);
+    expect(gaps).toEqual(['startsOn', 'opensAt']);
+
+    fixture.componentRef.setInput('gaps', gaps);
+    fixture.detectChanges();
+    const notice = fixture.nativeElement.textContent;
+    expect(notice).toContain('saved pattern was not written here');
+    expect(notice).toContain('read as starting today');
+    expect(notice).toContain('closing follows from the stored duration');
+  });
+
+  it('closes a market its stored duration after it opens', () => {
+    // The API stores `duration`, never a closing time, so a rule with no
+    // opening time to anchor it still knows the market runs 5½ hours.
+    seedScheduleForm(group, {
+      schedule: 'RRULE:FREQ=WEEKLY;BYDAY=SA',
+      duration: 330,
+      tradingDays: [],
+      opensAt: '',
+      closesAt: '',
+    });
+    fixture.componentRef.setInput('durationMinutes', 330);
+    fixture.detectChanges();
+    expect(group.controls.closesAt.value).toBeNull();
+
+    group.controls.opensAt.setValue(parseTimeOfDay('09:00'));
+    fixture.detectChanges();
+
+    expect(formatTimeOfDay(group.controls.closesAt.value)).toBe('14:30');
+  });
+
+  it('leaves a closing time an organiser already has alone', () => {
+    fillSchedule({ closesAt: parseTimeOfDay('13:00') });
+    fixture.componentRef.setInput('durationMinutes', 330);
+    fixture.detectChanges();
+
+    expect(formatTimeOfDay(group.controls.closesAt.value)).toBe('13:00');
+  });
+
+  it('says nothing when the stored rule is one it wrote itself', () => {
+    const gaps = seedScheduleForm(group, {
+      schedule: 'DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA',
+      duration: 330,
+      tradingDays: [6],
+      opensAt: '09:00',
+      closesAt: '14:30',
+    });
+
+    expect(gaps).toEqual([]);
+    fixture.componentRef.setInput('gaps', gaps);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('saved pattern was not written here');
+  });
+
   it('re-enables the companion control a stored end date needs', () => {
     seedScheduleForm(group, {
       schedule: 'DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;UNTIL=20261231T235959Z;BYDAY=SA',
@@ -167,7 +235,6 @@ describe('MarketScheduleForm', () => {
       tradingDays: [6],
       opensAt: '09:00',
       closesAt: '14:30',
-      bookingDeadlineHours: 48,
     });
 
     // `reset()` writes values but not control state; seeding has to do both, or

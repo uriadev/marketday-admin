@@ -220,7 +220,7 @@ export class VendorProfile {
   /** Uploads through `MediaRepository`, so the form only ever stores a URL. */
   protected onPhotoPicked(index: number, file: File): void {
     this.uploading.set(index);
-    this.media.upload(file).subscribe({
+    this.media.upload(file, 'vendor-image').subscribe({
       next: ({ url }) => {
         const photos = [...this.photos()];
         photos[index] = url;

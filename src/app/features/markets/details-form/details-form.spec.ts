@@ -37,11 +37,10 @@ describe('MarketDetailsForm', () => {
     fixture.detectChanges();
   });
 
-  it('needs a name, a slug, a type, a stall count and a fee', () => {
+  it('needs a name, a slug, a type and a fee', () => {
     expect(group.controls.name.hasError('required')).toBe(true);
     expect(group.controls.slug.hasError('required')).toBe(true);
     expect(group.controls.marketType.hasError('required')).toBe(true);
-    expect(group.controls.stallCount.hasError('required')).toBe(true);
     expect(group.controls.stallFeePerDay.hasError('required')).toBe(true);
   });
 
@@ -70,7 +69,7 @@ describe('MarketDetailsForm', () => {
     const file = new File(['x'], 'cover.png', { type: 'image/png' });
     cover.selected.emit(file);
 
-    expect(media.upload).toHaveBeenCalledWith(file);
+    expect(media.upload).toHaveBeenCalledWith(file, 'market-image');
     expect(group.controls.imageUrl.value).toBe('blob:cover');
     expect(group.controls.imageUrl.dirty).toBe(true);
   });
@@ -106,7 +105,6 @@ describe('detailsFields', () => {
       name: 'Temple Bar Food Market',
       slug: 'temple-bar',
       marketType: MarketType.FoodProduce,
-      stallCount: 20,
       stallFeePerDay: 35,
     });
 
@@ -117,10 +115,8 @@ describe('detailsFields', () => {
       description: '',
       imageUrl: null,
       bannerUrl: null,
-      stallCount: 20,
       stallFeePerDay: 35,
       reviewApplications: true,
-      acceptsPreOrders: true,
     });
   });
 });

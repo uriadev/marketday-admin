@@ -1,8 +1,15 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/button';
+
+/** One step of the header's breadcrumb trail. */
+export interface Crumb {
+  readonly label: string;
+  /** Where the step goes. `null` renders the label without a destination. */
+  readonly link: string | null;
+}
 
 /**
  * The 64px bar at the top of every console screen: a leading button, the screen
@@ -10,8 +17,8 @@ import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/butto
  *
  * The leading button is the drawer toggle by default (design 1e, 1f). Pass
  * `backLink` and the bar becomes a detail header instead — a back arrow and a
- * breadcrumb to the parent list (design 1g). Presentational either way: it
- * emits `menu` and lets the feature decide what that does.
+ * breadcrumb trail to the screens above (design 1g). Presentational either way:
+ * it emits `menu` and lets the feature decide what that does.
  */
 @Component({
   selector: 'md-page-header',
@@ -20,11 +27,7 @@ import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/butto
   template: `
     <mat-toolbar class="header">
       @if (backLink(); as link) {
-        <a
-          matIconButton
-          [routerLink]="link"
-          [attr.aria-label]="'Back to ' + (breadcrumb() ?? 'the previous screen')"
-        >
+        <a matIconButton [routerLink]="link" [attr.aria-label]="'Back to ' + backLabel()">
           <mat-icon>chevron_left</mat-icon>
         </a>
       } @else {
@@ -34,11 +37,19 @@ import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/butto
       }
 
       <div class="titles">
-        @if (breadcrumb(); as crumb) {
-          <a matButton class="crumb" [routerLink]="backLink()">{{ crumb }}</a>
-          <span class="separator" aria-hidden="true">/</span>
+        @if (crumbs().length) {
+          <nav class="trail" aria-label="Breadcrumb">
+            @for (crumb of crumbs(); track crumb.label) {
+              @if (crumb.link; as link) {
+                <a matButton class="crumb" [routerLink]="link">{{ crumb.label }}</a>
+              } @else {
+                <span class="crumb crumb--flat">{{ crumb.label }}</span>
+              }
+              <span class="separator" aria-hidden="true">/</span>
+            }
+          </nav>
         }
-        <h1 class="heading" [class.heading--compact]="breadcrumb() !== null">{{ heading() }}</h1>
+        <h1 class="heading" [class.heading--compact]="crumbs().length > 0">{{ heading() }}</h1>
       </div>
 
       <span class="spacer"></span>
@@ -61,11 +72,26 @@ import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/butto
       gap: 4px;
       min-inline-size: 0;
     }
+    .trail {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
     .crumb {
       color: var(--mat-sys-on-surface-variant);
     }
+    .crumb--flat {
+      padding-inline: 12px;
+      font: var(--mat-sys-label-large);
+    }
     .separator {
       color: var(--mat-sys-outline);
+    }
+    /* Too narrow for a trail: only the step the back arrow returns to stays. */
+    @media (width < 600px) {
+      .trail > :not(:nth-last-child(-n + 2)) {
+        display: none;
+      }
     }
     .heading {
       margin: 0;
@@ -94,9 +120,27 @@ import { MatAnchor, MatIconAnchor, MatIconButton } from '@angular/material/butto
 })
 export class PageHeader {
   readonly heading = input.required<string>();
-  /** Route for the back arrow and the breadcrumb. `null` keeps the drawer toggle. */
+  /** Route for the back arrow. `null` keeps the drawer toggle. */
   readonly backLink = input<string | null>(null);
-  /** Parent label shown before the heading — only meaningful with `backLink`. */
-  readonly breadcrumb = input<string | null>(null);
+  /**
+   * What sits before the heading — only meaningful with `backLink`. A bare
+   * string is the single parent at `backLink`; a list is the whole trail, each
+   * step carrying its own route.
+   */
+  readonly breadcrumb = input<string | readonly Crumb[] | null>(null);
   readonly menu = output<void>();
+
+  /** The trail, normalized — a lone string is one crumb pointing at `backLink`. */
+  protected readonly crumbs = computed<readonly Crumb[]>(() => {
+    const breadcrumb = this.breadcrumb();
+    if (breadcrumb === null) return [];
+    return typeof breadcrumb === 'string'
+      ? [{ label: breadcrumb, link: this.backLink() }]
+      : breadcrumb;
+  });
+
+  /** The arrow goes where the trail ends, so it is announced by that name. */
+  protected readonly backLabel = computed(
+    () => this.crumbs().at(-1)?.label ?? 'the previous screen',
+  );
 }

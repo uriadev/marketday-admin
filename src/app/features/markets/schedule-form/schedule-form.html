@@ -1,4 +1,29 @@
 <form [formGroup]="form()" class="schedule-form">
+  @if (gapNotes().length) {
+    <!--
+    The saved rule did not come from these controls and does not fit them
+    exactly. Saving overwrites it with whatever is shown, so what is about to be
+    lost is spelled out before an organiser touches anything.
+  -->
+    <div
+      class="schedule-form__wide flex gap-3 rounded-xl border border-outline-variant bg-surface-container p-4"
+      role="status"
+    >
+      <mat-icon class="text-tertiary shrink-0">info</mat-icon>
+      <div>
+        <p class="text-body-medium m-0">This market’s saved pattern was not written here.</p>
+        <ul class="text-body-small text-on-surface-variant mt-1 mb-0 list-disc ps-5">
+          @for (note of gapNotes(); track note) {
+            <li>{{ note }}</li>
+          }
+        </ul>
+        <p class="text-body-small text-on-surface-variant mt-2 mb-0">
+          Saving replaces the stored rule with the pattern below.
+        </p>
+      </div>
+    </div>
+  }
+
   <div>
     <mat-form-field class="w-full">
       <mat-label>Repeats</mat-label>
@@ -143,16 +168,4 @@
       }
     </div>
   }
-
-  <div class="schedule-form__wide">
-    <mat-form-field class="w-full md:w-1/2">
-      <mat-label>Vendor booking deadline</mat-label>
-      <mat-select formControlName="bookingDeadlineHours">
-        <mat-option [value]="24">24 hours before opening</mat-option>
-        <mat-option [value]="48">48 hours before opening</mat-option>
-        <mat-option [value]="72">72 hours before opening</mat-option>
-      </mat-select>
-      <mat-hint>After the deadline, unclaimed stalls are released to the waiting list.</mat-hint>
-    </mat-form-field>
-  </div>
 </form>

@@ -31,10 +31,8 @@ export type DetailsFormGroup = FormGroup<{
   description: FormControl<string>;
   imageUrl: FormControl<string | null>;
   bannerUrl: FormControl<string | null>;
-  stallCount: FormControl<number | null>;
   stallFeePerDay: FormControl<number | null>;
   reviewApplications: FormControl<boolean>;
-  acceptsPreOrders: FormControl<boolean>;
 }>;
 export type DetailsFormValue = ReturnType<DetailsFormGroup['getRawValue']>;
 
@@ -51,16 +49,11 @@ export function createDetailsForm(fb: FormBuilder = inject(FormBuilder)): Detail
     description: fb.nonNullable.control('', Validators.maxLength(300)),
     imageUrl: fb.nonNullable.control<string | null>(null),
     bannerUrl: fb.nonNullable.control<string | null>(null),
-    stallCount: fb.nonNullable.control<number | null>(null, [
-      Validators.required,
-      Validators.min(1),
-    ]),
     stallFeePerDay: fb.nonNullable.control<number | null>(null, [
       Validators.required,
       Validators.min(0),
     ]),
     reviewApplications: fb.nonNullable.control(true),
-    acceptsPreOrders: fb.nonNullable.control(true),
   });
 }
 
@@ -114,13 +107,6 @@ export class MarketDetailsForm {
    */
   readonly lockSlug = input(false);
 
-  /**
-   * Whether the pitch count is fixed. It is on the Settings tab: the Stalls tab
-   * owns the layout, and the count is how many pitches are on it — a second
-   * number that could disagree would just be a bug waiting to be filed.
-   */
-  readonly lockStallCount = input(false);
-
   protected readonly marketTypes = Object.entries(MARKET_TYPE_LABELS) as [MarketType, string][];
   /** Which of the two images is mid-upload, so only that zone shows a bar. */
   protected readonly uploading = signal<MarketImage | null>(null);
@@ -128,10 +114,9 @@ export class MarketDetailsForm {
   constructor() {
     // Set up once the input is bound, and re-run if a host ever toggles it.
     effect(() => {
-      const { slug, stallCount } = this.form().controls;
+      const { slug } = this.form().controls;
       const options = { emitEvent: false };
       this.lockSlug() ? slug.disable(options) : slug.enable(options);
-      this.lockStallCount() ? stallCount.disable(options) : stallCount.enable(options);
     });
   }
 
@@ -156,7 +141,7 @@ export class MarketDetailsForm {
    */
   protected onImagePicked(image: MarketImage, file: File): void {
     this.uploading.set(image);
-    this.media.upload(file).subscribe({
+    this.media.upload(file, image === 'bannerUrl' ? 'market-banner' : 'market-image').subscribe({
       next: (uploaded) => {
         this.uploading.set(null);
         const control = this.form().controls[image];

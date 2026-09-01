@@ -78,6 +78,10 @@ class StubMarketRepository extends MarketRepository {
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
   }
+  /** Not a screen this stub stands in for. */
+  override draft(slug: string): Observable<MarketDraft> {
+    return throwError(() => new Error(`No market matches “${slug}”.`));
+  }
   override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
     return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });
   }
@@ -159,7 +163,7 @@ describe('MarketSettings', () => {
     expect(field(fixture, 'Public URL').value).toBe('temple-bar');
     expect(field(fixture, 'Address').value).toBe('Meeting House Square, Temple Bar');
     expect(field(fixture, 'Town or city').value).toBe('Dublin 2');
-    expect(field(fixture, 'Number of stalls').value).toBe('20');
+    expect(field(fixture, 'Stall fee per day').value).toBe('35');
     expect(field(fixture, 'Eircode').value).toBe('D02 X406');
   });
 
@@ -181,7 +185,7 @@ describe('MarketSettings', () => {
     expect(saved!.name).toBe('Temple Bar Saturday Market');
     expect(saved!.eircode).toBe('D02 XY01');
     expect(saved!.latitude).toBe(MARKET_SETTINGS['temple-bar']!.latitude);
-    expect(saved!.stallCount).toBe(20);
+    expect(saved!.stallFeePerDay).toBe(MARKET_SETTINGS['temple-bar']!.stallFeePerDay);
   });
 
   it('keeps the public address a rename would otherwise move', async () => {

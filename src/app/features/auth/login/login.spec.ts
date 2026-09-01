@@ -3,23 +3,23 @@ import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject } from 'rxjs';
 import { AuthStore } from '../../../core/auth/auth-store';
-import { SignInChallenge } from '../../../core/api/ports/auth-repository';
+import { SignInOutcome } from '../../../core/api/ports/auth-repository';
 import { Login } from './login';
 
 describe('Login', () => {
-  let requestCode: ReturnType<typeof vi.fn>;
-  let challenge$: Subject<SignInChallenge>;
+  let signIn: ReturnType<typeof vi.fn>;
+  let outcome$: Subject<SignInOutcome>;
 
   beforeEach(async () => {
-    challenge$ = new Subject<SignInChallenge>();
-    requestCode = vi.fn(() => challenge$.asObservable());
+    outcome$ = new Subject<SignInOutcome>();
+    signIn = vi.fn(() => outcome$.asObservable());
 
     await TestBed.configureTestingModule({
       imports: [Login],
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
-        { provide: AuthStore, useValue: { requestCode } },
+        { provide: AuthStore, useValue: { signIn } },
       ],
     }).compileComponents();
   });
@@ -27,7 +27,7 @@ describe('Login', () => {
   it('does not call the store while the form is invalid', () => {
     const fixture = TestBed.createComponent(Login);
     fixture.componentInstance['submit']();
-    expect(requestCode).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
   });
 
   it('requests a code with the entered credentials', () => {
@@ -37,7 +37,7 @@ describe('Login', () => {
 
     component['submit']();
 
-    expect(requestCode).toHaveBeenCalledWith('aine@marketday.ie', 'password123');
+    expect(signIn).toHaveBeenCalledWith('aine@marketday.ie', 'password123');
     expect(component['submitting']()).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe('Login', () => {
     component['form'].setValue({ email: 'aine@marketday.ie', password: 'password123' });
 
     component['submit']();
-    challenge$.error(new Error('That email and password don’t match an account.'));
+    outcome$.error(new Error('That email and password don’t match an account.'));
 
     expect(component['submitting']()).toBe(false);
     expect(component['errorMessage']()).toContain('match an account');

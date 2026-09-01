@@ -153,7 +153,7 @@ export class Profile {
     }
 
     this.uploading.set(true);
-    this.media.upload(file).subscribe({
+    this.media.upload(file, 'avatar').subscribe({
       next: ({ url }) => {
         this.setAvatar(url);
         this.uploading.set(false);

@@ -77,6 +77,16 @@ export abstract class MarketRepository {
   abstract counties(): Observable<readonly string[]>;
 
   /**
+   * The whole wizard payload for a market already stored — what the add-market
+   * wizard re-opens a draft with. One read rather than `settings()` plus
+   * `schedule()` because the wizard owns both halves of the record at once,
+   * unlike the two manage tabs that split it between them.
+   *
+   * Rejects with an error when no market matches `slug`.
+   */
+  abstract draft(slug: string): Observable<MarketDraft>;
+
+  /**
    * Saves the wizard's work without making the market public. Called on every
    * step change, so it must be idempotent for a given draft.
    */

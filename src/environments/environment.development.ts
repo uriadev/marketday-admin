@@ -1,6 +1,10 @@
 /** Development overrides. Swapped in by `fileReplacements` in `angular.json`. */
 export const environment = {
   production: false,
+  api: {
+    /** Served by `proxy.conf.mjs`, which adds `x-api-key` and dodges CORS. */
+    graphqlUrl: '/graphql',
+  },
   googleMaps: {
     // Public by nature — the browser sends it in the clear. It is protected by
     // HTTP-referrer and API restrictions in the Google Cloud console, not by

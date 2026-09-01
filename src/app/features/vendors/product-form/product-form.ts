@@ -34,7 +34,7 @@ import {
 import { Notifications } from '../../../core/notifications/notifications';
 import { Avatar } from '../../../shared/components/avatar/avatar';
 import { ImageUpload } from '../../../shared/components/image-upload/image-upload';
-import { PageHeader } from '../../../shared/components/page-header/page-header';
+import { Crumb, PageHeader } from '../../../shared/components/page-header/page-header';
 import { StatusPill } from '../../../shared/components/status-pill/status-pill';
 import {
   DeleteProductDialog,
@@ -127,6 +127,18 @@ export class ProductForm {
 
   protected readonly isEdit = computed(() => this.productId() !== undefined);
   protected readonly backLink = computed(() => `/vendors/${this.slug()}/products`);
+
+  /**
+   * "Vendors / Cork Artisan Bakery / New product" — the vendor is the step this
+   * screen hangs off, so it is named rather than called "Products". Its name
+   * arrives with the load, and until then the trail is just the directory.
+   */
+  protected readonly crumbs = computed<Crumb[]>(() => {
+    const trail: Crumb[] = [{ label: 'Vendors', link: '/vendors' }];
+    const vendorName = this.facade.form()?.vendorName;
+    if (vendorName) trail.push({ label: vendorName, link: this.backLink() });
+    return trail;
+  });
 
   protected readonly heading = computed(() =>
     this.isEdit() ? (this.facade.form()?.product?.name ?? 'Product') : 'New product',
@@ -251,7 +263,7 @@ export class ProductForm {
 
   protected onImagePicked(file: File): void {
     this.uploading.set(true);
-    this.media.upload(file).subscribe({
+    this.media.upload(file, 'product-image').subscribe({
       next: (uploaded) => {
         this.uploading.set(false);
         this.form.controls.imageUrl.setValue(uploaded.url);

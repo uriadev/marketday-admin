@@ -212,7 +212,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [6],
     opensAt: '09:00',
     closesAt: '14:30',
-    bookingDeadlineHours: 48,
   },
   'marlay-park': {
     schedule: 'DTSTART:20240106T100000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA',
@@ -220,7 +219,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [6],
     opensAt: '10:00',
     closesAt: '16:00',
-    bookingDeadlineHours: 48,
   },
   'howth-harbour': {
     schedule: 'DTSTART:20240106T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA,SU',
@@ -228,7 +226,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [6, 7],
     opensAt: '09:00',
     closesAt: '17:00',
-    bookingDeadlineHours: 48,
   },
   'douglas-village': {
     schedule: 'DTSTART:20240107T110000Z\nRRULE:FREQ=WEEKLY;BYDAY=SU',
@@ -236,7 +233,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [7],
     opensAt: '11:00',
     closesAt: '16:00',
-    bookingDeadlineHours: 48,
   },
   'kinsale-harbour': {
     schedule: 'DTSTART:20240103T100000Z\nRRULE:FREQ=WEEKLY;BYDAY=WE',
@@ -244,7 +240,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [3],
     opensAt: '10:00',
     closesAt: '15:00',
-    bookingDeadlineHours: 48,
   },
   'midleton-farmers': {
     schedule: 'DTSTART:20240104T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=TH',
@@ -252,7 +247,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [4],
     opensAt: '09:00',
     closesAt: '14:00',
-    bookingDeadlineHours: 48,
   },
   'bantry-friday': {
     schedule: 'DTSTART:20240105T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=FR',
@@ -260,7 +254,6 @@ export const MARKET_SCHEDULES: Record<string, MarketSchedulePatch> = {
     tradingDays: [5],
     opensAt: '09:00',
     closesAt: '15:00',
-    bookingDeadlineHours: 48,
   },
 };
 
@@ -284,11 +277,15 @@ interface SettingsSeed {
   readonly accessNotes: string;
   readonly organiserName: string;
   readonly organiserPhone: string;
-  /** Only for a draft, whose row carries no metrics to take it from. */
-  readonly stallCount?: number;
   readonly reviewApplications?: boolean;
-  readonly acceptsPreOrders?: boolean;
 }
+
+/**
+ * Pitches for a market whose row carries no metrics to lay a map out from —
+ * today only the fixture's draft. Everywhere else the Stalls tab owns the
+ * layout, and it is the only thing that says how many pitches a market has.
+ */
+export const FIXTURE_DRAFT_PITCHES: Record<string, number> = { 'bantry-friday': 10 };
 
 const SETTINGS_SEEDS: Record<string, SettingsSeed> = {
   'temple-bar': {
@@ -381,8 +378,6 @@ const SETTINGS_SEEDS: Record<string, SettingsSeed> = {
     accessNotes: 'Square is shared with the Friday fair. Confirm pitch lines with the council.',
     organiserName: 'Nuala Crowley',
     organiserPhone: '027 501 22',
-    stallCount: 10,
-    acceptsPreOrders: false,
   },
 };
 
@@ -396,10 +391,8 @@ function buildSettings(market: MarketSummary, seed: SettingsSeed): MarketSetting
     // an uploaded image is real without anything being fetched over the wire.
     imageUrl: null,
     bannerUrl: null,
-    stallCount: market.metrics?.stallsTotal ?? seed.stallCount ?? null,
     stallFeePerDay: STALL_FEE,
     reviewApplications: seed.reviewApplications ?? true,
-    acceptsPreOrders: seed.acceptsPreOrders ?? true,
     address: seed.address,
     city: seed.city,
     county: market.county,

@@ -82,40 +82,164 @@ export function composeSchedule(recurrence: Recurrence): string {
 }
 
 /**
- * The inverse of {@link composeSchedule}, for seeding the form from a saved
- * market. Returns `null` for anything the four controls cannot express — a
- * daily or yearly rule, say — so the caller can fall back rather than render a
- * lie.
+ * How much of a stored rule the four controls could not take.
+ *
+ * A rule this console composed expands back with none of these. The gaps are
+ * for the rest — a rule seeded into the database, written by another client, or
+ * hand-edited — where the form can show an approximation and has to say so,
+ * because saving overwrites the stored rule with whatever the controls hold.
  */
-export function parseSchedule(text: string): Recurrence | null {
+export type ScheduleGap = 'frequency' | 'startsOn' | 'opensAt' | 'tradingDays' | 'restrictions';
+
+export interface ScheduleExpansion {
+  readonly recurrence: Recurrence;
+  /** Empty when the rule round-trips through the form unchanged. */
+  readonly gaps: readonly ScheduleGap[];
+}
+
+/**
+ * The inverse of {@link composeSchedule}: the best the four controls can make
+ * of a stored rule, plus what they had to approximate to get there.
+ *
+ * Lenient on purpose. `markets.schedule` is a free-form string server-side
+ * (`@IsNotEmpty()` and nothing more), and the backend itself reads it with a
+ * bare `RRule.fromString`, so the console has to load rules it did not write:
+ * no `DTSTART`, no `BYDAY`, a `FREQ` the "Repeats" select has no option for.
+ * Refusing those left the Schedule tab blank and invalid for a market whose
+ * pattern was perfectly good — an approximation the editor is honest about is
+ * more use than nothing.
+ *
+ * Returns `null` only when there is no readable rule at all.
+ */
+export function expandSchedule(text: string): ScheduleExpansion | null {
   const rule = toRule(text);
   if (!rule) return null;
 
-  const { freq, dtstart, until, count } = rule.origOptions;
-  const interval = rule.origOptions.interval ?? 1;
-  if (!dtstart) return null;
-
-  let frequency: RecurrenceFrequency;
-  if (freq === RRule.MONTHLY) frequency = 'MONTHLY';
-  else if (freq === RRule.WEEKLY) frequency = interval >= 2 ? 'FORTNIGHTLY' : 'WEEKLY';
-  else return null;
-
-  const tradingDays = normaliseDays(
-    toArray(rule.origOptions.byweekday).map((day) => isoWeekday(day)),
-  );
-  if (!tradingDays.length) return null;
-
-  let ends: RecurrenceEnd = { kind: 'NEVER' };
-  if (until) ends = { kind: 'ON', date: localDate(until) };
-  else if (count) ends = { kind: 'AFTER', count };
+  const options = rule.origOptions;
+  const gaps = new Set<ScheduleGap>();
+  const frequency = readFrequency(options, gaps);
+  const { startsOn, opensAt } = readStart(rule, gaps);
+  const tradingDays = readTradingDays(options, frequency, startsOn, gaps);
+  if (hasExtraParts(options) || !keepsMonthlyPosition(options, frequency, startsOn)) {
+    gaps.add('restrictions');
+  }
 
   return {
-    frequency,
-    tradingDays,
-    startsOn: localDate(dtstart),
-    opensAt: `${pad(dtstart.getUTCHours())}:${pad(dtstart.getUTCMinutes())}`,
-    ends,
+    recurrence: { frequency, tradingDays, startsOn, opensAt, ends: readEnd(options) },
+    gaps: [...gaps],
   };
+}
+
+type RuleOptions = RRule['origOptions'];
+
+/** `FREQ` + `INTERVAL` collapsed onto the three options "Repeats" offers. */
+function readFrequency(options: RuleOptions, gaps: Set<ScheduleGap>): RecurrenceFrequency {
+  const interval = options.interval ?? 1;
+  if (options.freq === RRule.WEEKLY) {
+    if (interval === 1) return 'WEEKLY';
+    if (interval === 2) return 'FORTNIGHTLY';
+    gaps.add('frequency');
+    return 'FORTNIGHTLY';
+  }
+  if (options.freq === RRule.MONTHLY) {
+    if (interval > 1) gaps.add('frequency');
+    return 'MONTHLY';
+  }
+  // Daily, yearly, and everything below a day. Weekly is the nearest thing the
+  // select can hold; the gap is what stops that standing as the truth.
+  gaps.add('frequency');
+  return 'WEEKLY';
+}
+
+/**
+ * "Starts on" and "Opens", both of which live in `DTSTART`.
+ *
+ * Without one the rule still fires: `rrule` defaults the start to now, and the
+ * backend's occurrence generator reads it with that same default, so today is
+ * not a guess — it is what the stored rule already means server-side. Re-saving
+ * it as an explicit `DTSTART` of today changes nothing but writes it down.
+ *
+ * There is no such reading for the opening time. The rule simply does not carry
+ * one, so the field is left empty for an organiser to fill rather than invented.
+ */
+function readStart(rule: RRule, gaps: Set<ScheduleGap>): { startsOn: Date; opensAt: string } {
+  const dtstart = rule.origOptions.dtstart || new Date();
+  if (dtstart) {
+    return {
+      startsOn: localDate(dtstart),
+      opensAt: `${pad(dtstart.getUTCHours())}:${pad(dtstart.getUTCMinutes())}`,
+    };
+  }
+  gaps.add('startsOn');
+  gaps.add('opensAt');
+  return { startsOn: today(), opensAt: '' };
+}
+
+/**
+ * `BYDAY`, or what stands in for it.
+ *
+ * A weekly rule without `BYDAY` falls on the start date's own weekday (RFC 5545
+ * §3.3.10), so reading it off `startsOn` is exact rather than a guess. A
+ * monthly one without `BYDAY` repeats by date — "the 15th" — which lands on a
+ * different weekday every month and has no honest answer here.
+ */
+function readTradingDays(
+  options: RuleOptions,
+  frequency: RecurrenceFrequency,
+  startsOn: Date,
+  gaps: Set<ScheduleGap>,
+): number[] {
+  const byweekday = normaliseDays(toArray(options.byweekday).map((day) => isoWeekday(day)));
+  if (byweekday.length) return byweekday;
+  if (frequency === 'MONTHLY') gaps.add('tradingDays');
+  return [isoWeekdayOf(startsOn)];
+}
+
+function readEnd(options: RuleOptions): RecurrenceEnd {
+  if (options.until) return { kind: 'ON', date: localDate(options.until) };
+  if (options.count) return { kind: 'AFTER', count: options.count };
+  return { kind: 'NEVER' };
+}
+
+/**
+ * The `BY*` parts beyond `BYDAY`. The form has nowhere to put them and
+ * {@link composeSchedule} never writes them, so a rule carrying one loses it on
+ * save unless the editor says so first.
+ */
+const EXTRA_PARTS = [
+  'bymonthday',
+  'bynmonthday',
+  'bymonth',
+  'bysetpos',
+  'byweekno',
+  'byyearday',
+  'byhour',
+  'byminute',
+  'bysecond',
+  'byeaster',
+] as const;
+
+function hasExtraParts(options: RuleOptions): boolean {
+  return EXTRA_PARTS.some((part) => {
+    const value = options[part];
+    return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined;
+  });
+}
+
+/**
+ * Whether a monthly rule's position in the month survives a save.
+ * {@link composeSchedule} re-derives it from the start date, so "the 1st
+ * Saturday starting on the 1st Saturday" round-trips while "the last Saturday"
+ * or a bare `BYDAY=SA` — every Saturday of the month — does not.
+ */
+function keepsMonthlyPosition(
+  options: RuleOptions,
+  frequency: RecurrenceFrequency,
+  startsOn: Date,
+): boolean {
+  if (frequency !== 'MONTHLY') return true;
+  const expected = weekdayOrdinal(startsOn);
+  return toArray(options.byweekday).every((day) => day instanceof Weekday && day.n === expected);
 }
 
 /**
@@ -209,6 +333,17 @@ function utcInstant(date: Date, time: Time, seconds = 0): Date {
 /** The reverse: a UTC instant back to local midnight on the same calendar day. */
 function localDate(instant: Date): Date {
   return new Date(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate());
+}
+
+/** Local midnight today, the start `rrule` itself assumes for a rule without one. */
+function today(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** ISO weekday of a local date, 1 = Monday … 7 = Sunday. */
+function isoWeekdayOf(date: Date): number {
+  return ((date.getDay() + 6) % 7) + 1;
 }
 
 /** 1 for the first Saturday of the month, 2 for the second, and so on. */

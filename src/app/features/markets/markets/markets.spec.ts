@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { MarketRepository } from '../../../core/api/ports/market-repository';
 import { IRISH_COUNTIES } from '../../../core/models/location.model';
 import {
@@ -62,6 +62,10 @@ class StubMarketRepository extends MarketRepository {
   }
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
+  }
+  /** Not a screen this stub stands in for. */
+  override draft(slug: string): Observable<MarketDraft> {
+    return throwError(() => new Error(`No market matches “${slug}”.`));
   }
   override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
     return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });

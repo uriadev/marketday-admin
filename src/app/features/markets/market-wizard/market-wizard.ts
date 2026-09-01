@@ -2,7 +2,9 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  input,
   signal,
   viewChild,
 } from '@angular/core';
@@ -12,10 +14,15 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MarketRepository } from '../../../core/api/ports/market-repository';
 import { MarketDraft } from '../../../core/models/market.model';
-import { describeSchedule, formatTimeOfDay } from '../../../core/scheduling/recurrence';
+import {
+  ScheduleGap,
+  describeSchedule,
+  formatTimeOfDay,
+} from '../../../core/scheduling/recurrence';
 import { Notifications } from '../../../core/notifications/notifications';
 import { PageHeader } from '../../../shared/components/page-header/page-header';
 import { Avatar } from '../../../shared/components/avatar/avatar';
@@ -24,12 +31,19 @@ import {
   composeFrom,
   createScheduleForm,
   scheduleFields,
+  seedScheduleForm,
 } from '../schedule-form/schedule-form';
-import { MarketDetailsForm, createDetailsForm, detailsFields } from '../details-form/details-form';
+import {
+  MarketDetailsForm,
+  createDetailsForm,
+  detailsFields,
+  seedDetailsForm,
+} from '../details-form/details-form';
 import {
   MarketLocationForm,
   createLocationForm,
   locationFields,
+  seedLocationForm,
 } from '../location-form/location-form';
 
 const STEPS = ['details', 'schedule', 'location'] as const;
@@ -48,6 +62,11 @@ const STEP_LABELS: Record<StepName, string> = {
  * step, and the step lives in `?step=` so an organiser can bookmark or reload
  * mid-wizard — the design's requirement, and the reason this is a Command-style
  * navigation rather than hidden component state.
+ *
+ * Routed twice: `/markets/new` opens it empty, `/markets/:slug/edit` opens it on
+ * a market already stored — which is how a draft is picked back up. The second
+ * is the same screen, not a second one: a draft is only half-entered, so what it
+ * needs is the form that entered it, seeded.
  */
 @Component({
   selector: 'md-market-wizard',
@@ -57,6 +76,7 @@ const STEP_LABELS: Record<StepName, string> = {
     ReactiveFormsModule,
     MatButtonModule,
     MatIconModule,
+    MatProgressBarModule,
     MatStepperModule,
     PageHeader,
     Avatar,
@@ -89,6 +109,16 @@ export class MarketWizard {
   protected readonly scheduleForm = createScheduleForm(this.fb);
 
   /**
+   * What a continued market's stored rule holds that those controls cannot show
+   * — see {@link seedScheduleForm}. Always empty on `/markets/new`, and for any
+   * draft this wizard itself wrote.
+   */
+  protected readonly scheduleGaps = signal<readonly ScheduleGap[]>([]);
+
+  /** That market's stored duration — see `MarketScheduleForm.durationMinutes`. */
+  protected readonly scheduleDuration = signal(0);
+
+  /**
    * Address, the town it is in, and the point the API stores. `latitude` and
    * `longitude` are `required` because `CreateMarketInput` requires them, and
    * they have no field of their own — `MarketLocationForm`'s map picker is the
@@ -103,8 +133,20 @@ export class MarketWizard {
    */
   private readonly locationFormRef = viewChild(MarketLocationForm);
 
+  /**
+   * The market being continued, from the `:slug/edit` route param — `undefined`
+   * on `/markets/new`. Bound by `withComponentInputBinding()`.
+   */
+  readonly slug = input<string>();
+
+  /** Whether this is a stored market being picked back up rather than a new one. */
+  protected readonly editing = computed(() => !!this.slug());
+
   protected readonly savedAt = signal<string | null>(null);
   protected readonly saving = signal(false);
+  protected readonly loading = signal(false);
+  /** Why the stored market could not be read, or `null`. */
+  protected readonly loadError = signal<string | null>(null);
   protected readonly stepIndex = signal(this.indexFromUrl());
 
   /**
@@ -142,7 +184,6 @@ export class MarketWizard {
       location: [location.city || location.county, this.scheduleSummary()]
         .filter(Boolean)
         .join(' · '),
-      stalls: `0/${details.stallCount ?? 0}`,
       fee: details.stallFeePerDay !== null ? `€${details.stallFeePerDay}` : '—',
       imageUrl: details.imageUrl,
     };
@@ -156,10 +197,7 @@ export class MarketWizard {
         label: 'Name, address and hours',
         done: !!details.name && !!location.address && location.latitude !== null,
       },
-      {
-        label: 'Stall count and fee',
-        done: details.stallCount !== null && details.stallFeePerDay !== null,
-      },
+      { label: 'Stall fee', done: details.stallFeePerDay !== null },
       { label: 'Cover photo', done: !!details.imageUrl },
       { label: 'Banner image', done: !!details.bannerUrl },
       { label: 'Organiser phone number', done: !!location.organiserPhone },
@@ -176,6 +214,40 @@ export class MarketWizard {
 
   protected readonly stepName = computed(() => STEPS[this.stepIndex()] ?? 'details');
   protected readonly stepLabel = computed(() => STEP_LABELS[this.stepName()]);
+
+  constructor() {
+    effect(() => {
+      const slug = this.slug();
+      if (slug) this.load(slug);
+    });
+  }
+
+  /**
+   * Seeds all three steps from the stored record. Each seeder `reset()`s, so the
+   * forms come up pristine — a saved draft is the wizard's baseline, not an edit
+   * of it, and `savedAt` says so rather than claiming a save this session made.
+   */
+  protected load(slug: string = this.slug() ?? ''): void {
+    if (!slug) return;
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.repository.draft(slug).subscribe({
+      next: (stored) => {
+        seedDetailsForm(this.detailsForm, stored);
+        this.scheduleGaps.set(seedScheduleForm(this.scheduleForm, stored));
+        this.scheduleDuration.set(stored.duration);
+        seedLocationForm(this.locationForm, stored);
+        this.loading.set(false);
+        this.savedAt.set('earlier');
+      },
+      error: (cause: unknown) => {
+        this.loading.set(false);
+        this.loadError.set(
+          cause instanceof Error ? cause.message : 'That market could not be loaded.',
+        );
+      },
+    });
+  }
 
   private get stepForms() {
     return [this.detailsForm, this.scheduleForm, this.locationForm];
@@ -237,6 +309,9 @@ export class MarketWizard {
 
   /** Quietly keeps the draft current as the organiser moves between steps. */
   private autosave(): void {
+    // A step change racing the load would post the empty forms over the very
+    // market being read back.
+    if (this.loading() || this.loadError()) return;
     if (!this.detailsForm.controls.name.value) return;
     this.repository.saveDraft(this.draft()).subscribe({
       next: () => this.savedAt.set('just now'),

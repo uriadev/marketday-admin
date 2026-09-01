@@ -71,6 +71,10 @@ class StubMarketRepository extends MarketRepository {
   override counties(): Observable<readonly string[]> {
     return of(IRISH_COUNTIES);
   }
+  /** Not a screen this stub stands in for. */
+  override draft(slug: string): Observable<MarketDraft> {
+    return throwError(() => new Error(`No market matches “${slug}”.`));
+  }
   override saveDraft(draft: MarketDraft): Observable<MarketSummary> {
     return of({ ...MARKETS_FIXTURE[0]!, slug: draft.slug, name: draft.name });
   }
@@ -143,7 +147,6 @@ describe('MarketSchedule', () => {
     expect(formatTimeOfDay(value.opensAt)).toBe('09:00');
     expect(formatTimeOfDay(value.closesAt)).toBe('14:30');
     expect(value.ends).toBe('NEVER');
-    expect(value.bookingDeadlineHours).toBe(48);
     // The rule's own start date, recovered from the stored DTSTART.
     expect(value.startsOn?.getFullYear()).toBe(2024);
     expect(value.startsOn?.getMonth()).toBe(0);

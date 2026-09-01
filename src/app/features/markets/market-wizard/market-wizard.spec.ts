@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, of } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { API_PROVIDERS } from '../../../core/api/api.providers';
 import { GOOGLE_MAPS_CONFIG } from '../../../core/maps/google-maps-config';
 import { MarketDraft, MarketStatus, MarketType } from '../../../core/models/market.model';
@@ -161,7 +161,6 @@ describe('MarketWizard · shell', () => {
       name: 'Bantry Friday Market',
       slug: 'bantry-friday',
       marketType: MarketType.FoodProduce,
-      stallCount: 40,
       stallFeePerDay: 35,
     });
     wizard['scheduleForm'].patchValue({
@@ -225,7 +224,6 @@ describe('MarketWizard · shell', () => {
     fillEverything();
 
     expect(wizard['preview']().name).toBe('Bantry Friday Market');
-    expect(wizard['preview']().stalls).toBe('0/40');
     expect(wizard['preview']().fee).toBe('€35');
     // Location and hours, composed from the schedule rule rather than typed.
     expect(wizard['preview']().location).toContain('Bantry');
@@ -271,5 +269,121 @@ describe('MarketWizard · shell', () => {
     expect(published?.schedule).toContain('RRULE:');
     expect(published?.duration).toBe(360);
     expect(navigate).toHaveBeenCalledWith(['/markets', 'bantry-friday']);
+  });
+});
+
+/**
+ * `/markets/:slug/edit` — the same wizard opened on a market already stored,
+ * which is how a draft is picked back up. What belongs here is that the stored
+ * record reaches all three steps and that saving updates it rather than
+ * starting a second market: the seeding itself is covered against the three
+ * `seed*Form` helpers in their own specs.
+ */
+describe('MarketWizard · continuing a draft', () => {
+  let fixture: ComponentFixture<MarketWizard>;
+  let wizard: MarketWizard;
+
+  /** A market half-entered and left — every field the three steps own. */
+  const STORED: MarketDraft = {
+    name: 'Bantry Friday Market',
+    slug: 'bantry-friday',
+    marketType: MarketType.FoodProduce,
+    description: 'Square-side market at the top of the harbour.',
+    imageUrl: 'https://cdn.example/bantry.jpg',
+    bannerUrl: null,
+    stallFeePerDay: 35,
+    reviewApplications: true,
+    schedule: 'DTSTART:20260904T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=FR',
+    duration: 360,
+    tradingDays: [5],
+    opensAt: '09:00',
+    closesAt: '15:00',
+    address: 'Wolfe Tone Square, Bantry, Co. Cork',
+    city: 'Bantry',
+    county: 'Cork',
+    eircode: 'P75 X284',
+    latitude: 51.6812,
+    longitude: -9.4531,
+    accessNotes: '',
+    organiserName: 'Áine Ryan',
+    organiserPhone: '+353 87 123 4567',
+  };
+
+  /** Opens the wizard on `slug`, with the repository answering `answer`. */
+  function open(answer = of(STORED)): void {
+    vi.spyOn(TestBed.inject(MarketRepository), 'draft').mockReturnValue(answer);
+    fixture.componentRef.setInput('slug', 'bantry-friday');
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [MarketWizard],
+      providers: [provideRouter([]), ...API_PROVIDERS, NO_MAPS],
+    });
+    fixture = TestBed.createComponent(MarketWizard);
+    wizard = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('reads the market named by the route and fills in all three steps', () => {
+    const draft = vi.spyOn(TestBed.inject(MarketRepository), 'draft').mockReturnValue(of(STORED));
+    fixture.componentRef.setInput('slug', 'bantry-friday');
+    fixture.detectChanges();
+
+    expect(draft).toHaveBeenCalledWith('bantry-friday');
+    expect(wizard['detailsForm'].getRawValue().name).toBe('Bantry Friday Market');
+    expect(wizard['detailsForm'].getRawValue().stallFeePerDay).toBe(35);
+    expect(wizard['scheduleForm'].getRawValue().tradingDays).toEqual([5]);
+    expect(wizard['locationForm'].getRawValue().address).toBe(
+      'Wolfe Tone Square, Bantry, Co. Cork',
+    );
+    expect(wizard['locationForm'].getRawValue().latitude).toBe(51.6812);
+  });
+
+  it('leaves the seeded forms pristine — a saved draft is the baseline, not an edit', () => {
+    open();
+
+    expect(wizard['detailsForm'].pristine).toBe(true);
+    expect(wizard['scheduleForm'].pristine).toBe(true);
+    expect(wizard['locationForm'].pristine).toBe(true);
+  });
+
+  it('saves under the stored slug, so the draft is updated rather than forked', () => {
+    open();
+
+    let saved: MarketDraft | undefined;
+    vi.spyOn(TestBed.inject(MarketRepository), 'saveDraft').mockImplementation((draft) => {
+      saved = draft;
+      return NEVER;
+    });
+    wizard['saveDraft']();
+
+    expect(saved?.slug).toBe('bantry-friday');
+    expect(saved?.name).toBe('Bantry Friday Market');
+    expect(saved?.schedule).toContain('BYDAY=FR');
+  });
+
+  it('shows the market rather than "Add market", and locks its public URL', () => {
+    open();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Bantry Friday Market');
+    expect(text).not.toContain('Add market');
+    expect(wizard['detailsForm'].controls.slug.disabled).toBe(true);
+  });
+
+  it('reports a market it could not read, and does not autosave over it', () => {
+    open(throwError(() => new Error('No market matches “bantry-friday”.')));
+
+    const repository = TestBed.inject(MarketRepository);
+    const saveDraft = vi.spyOn(repository, 'saveDraft');
+    wizard['onStepChange'](1);
+
+    expect(wizard['loadError']()).toBe('No market matches “bantry-friday”.');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'No market matches “bantry-friday”.',
+    );
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

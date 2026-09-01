@@ -167,6 +167,21 @@ describe('ProductForm · adding a product', () => {
     for (const row of rows) expect(row.textContent).toContain('Not carried');
   });
 
+  it('names the vendor in the trail above the heading', () => {
+    const fixture = open();
+
+    const trail = host(fixture).querySelector('nav[aria-label="Breadcrumb"]')!;
+    const crumbs = Array.from(trail.querySelectorAll('a'));
+    expect(crumbs.map((crumb) => crumb.textContent?.trim())).toEqual([
+      'Vendors',
+      'McNally Family Farm',
+    ]);
+    expect(crumbs[0]!.getAttribute('href')).toBe('/vendors');
+    // The vendor goes back to the list this screen was opened from.
+    expect(crumbs[1]!.getAttribute('href')).toBe(`/vendors/${VENDOR}/products`);
+    expect(host(fixture).querySelector('h1')?.textContent?.trim()).toBe('New product');
+  });
+
   it('offers "Save and add another", which editing does not', () => {
     expect(text(open())).toContain('Save and add another');
     expect(text(open(RHUBARB))).not.toContain('Save and add another');

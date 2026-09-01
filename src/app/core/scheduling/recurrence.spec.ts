@@ -4,9 +4,9 @@ import {
   describeSchedule,
   durationMinutes,
   formatTimeOfDay,
+  expandSchedule,
   nextOccurrence,
   parseTimeOfDay,
-  parseSchedule,
 } from './recurrence';
 
 /** Saturday 5 September 2026 — the first Saturday of that month. */
@@ -65,8 +65,8 @@ describe('composeSchedule', () => {
   });
 });
 
-describe('parseSchedule', () => {
-  it('round-trips every recurrence the four controls can express', () => {
+describe('expandSchedule', () => {
+  it('round-trips every recurrence the four controls can express, with no gaps', () => {
     const cases: Recurrence[] = [
       recurrence(),
       recurrence({ frequency: 'FORTNIGHTLY', tradingDays: [6, 7] }),
@@ -76,18 +76,77 @@ describe('parseSchedule', () => {
       recurrence({ tradingDays: [2, 5], opensAt: '10:15' }),
     ];
     for (const original of cases) {
-      expect(parseSchedule(composeSchedule(original))).toEqual(original);
+      expect(expandSchedule(composeSchedule(original))).toEqual({
+        recurrence: original,
+        gaps: [],
+      });
     }
   });
 
-  it('returns null for a rule the controls cannot express', () => {
-    expect(parseSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=DAILY')).toBeNull();
-    expect(parseSchedule('RRULE:FREQ=WEEKLY;BYDAY=SA')).toBeNull();
+  it('reads a weekly rule with no BYDAY off its start date, exactly', () => {
+    // RFC 5545 §3.3.10: a weekly rule without BYDAY falls on DTSTART's weekday.
+    expect(expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY')).toEqual({
+      recurrence: recurrence(),
+      gaps: [],
+    });
   });
 
-  it('returns null for empty or malformed text', () => {
-    expect(parseSchedule('')).toBeNull();
-    expect(parseSchedule('not a rule')).toBeNull();
+  it('starts a rule that carries no start from today, as the API already does', () => {
+    const expanded = expandSchedule('RRULE:FREQ=WEEKLY;BYDAY=SA');
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+
+    expect(expanded?.recurrence.frequency).toBe('WEEKLY');
+    expect(expanded?.recurrence.tradingDays).toEqual([6]);
+    // `rrule` defaults DTSTART to now, so this is what the stored rule already
+    // means to the backend rather than a date the console picked.
+    expect(expanded?.recurrence.startsOn).toEqual(midnight);
+    // DTSTART is the only place an opening time lives — none is invented.
+    expect(expanded?.recurrence.opensAt).toBe('');
+    expect(expanded?.gaps).toEqual(['startsOn', 'opensAt']);
+  });
+
+  it('reads the trading day off today when neither DTSTART nor BYDAY says', () => {
+    const expanded = expandSchedule('RRULE:FREQ=WEEKLY');
+    const isoToday = ((new Date().getDay() + 6) % 7) + 1;
+
+    expect(expanded?.recurrence.tradingDays).toEqual([isoToday]);
+    expect(expanded?.gaps).toEqual(['startsOn', 'opensAt']);
+  });
+
+  it('falls back to the nearest frequency the select can hold, and says so', () => {
+    const daily = expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=DAILY');
+
+    expect(daily?.recurrence.frequency).toBe('WEEKLY');
+    expect(daily?.recurrence.tradingDays).toEqual([6]);
+    expect(daily?.gaps).toEqual(['frequency']);
+
+    expect(
+      expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=SA')?.gaps,
+    ).toEqual(['frequency']);
+  });
+
+  it('flags a rule that repeats by date rather than by weekday', () => {
+    const expanded = expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15');
+
+    expect(expanded?.recurrence.frequency).toBe('MONTHLY');
+    expect(expanded?.gaps).toEqual(['tradingDays', 'restrictions']);
+  });
+
+  it('flags a monthly position the editor would rewrite on save', () => {
+    // Composing re-derives the position from the start date, so "the last
+    // Saturday" and a bare "every Saturday" both come back as "the 1st".
+    expect(expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=MONTHLY;BYDAY=-1SA')?.gaps).toEqual(
+      ['restrictions'],
+    );
+    expect(expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=MONTHLY;BYDAY=SA')?.gaps).toEqual([
+      'restrictions',
+    ]);
+  });
+
+  it('is null only when there is no readable rule at all', () => {
+    expect(expandSchedule('')).toBeNull();
+    expect(expandSchedule('not a rule')).toBeNull();
   });
 });
 

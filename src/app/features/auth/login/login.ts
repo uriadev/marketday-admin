@@ -32,7 +32,7 @@ export class Login {
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
+    password: ['', [Validators.required, Validators.minLength(3)]],
   });
 
   protected readonly hidePassword = signal(true);
@@ -48,10 +48,11 @@ export class Login {
     this.errorMessage.set(null);
     const { email, password } = this.form.getRawValue();
     this.auth
-      .requestCode(email, password)
+      .signIn(email, password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => void this.router.navigateByUrl('/login/verify'),
+        next: (outcome) =>
+          void this.router.navigateByUrl(outcome.kind === 'signed-in' ? '/' : '/login/verify'),
         error: (err: unknown) => {
           this.submitting.set(false);
           this.errorMessage.set(

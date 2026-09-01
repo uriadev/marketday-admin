@@ -33,7 +33,11 @@
     </div>
   } @else {
     <div class="form-card">
-      <md-market-schedule-form [form]="form" />
+      <md-market-schedule-form
+        [form]="form"
+        [gaps]="gaps()"
+        [durationMinutes]="facade.schedule()?.duration ?? 0"
+      />
     </div>
 
     @if (facade.saveError(); as saveError) {

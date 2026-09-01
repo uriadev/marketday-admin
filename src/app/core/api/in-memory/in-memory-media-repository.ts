@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, from, of } from 'rxjs';
 import { delay, switchMap } from 'rxjs/operators';
-import { MediaRepository, UploadedImage } from '../ports/media-repository';
+import { MediaKind, MediaRepository, UploadedImage } from '../ports/media-repository';
 
 /**
  * Fixture uploads. The file never leaves the browser — it is read into a data
@@ -11,7 +11,8 @@ import { MediaRepository, UploadedImage } from '../ports/media-repository';
  */
 @Injectable()
 export class InMemoryMediaRepository extends MediaRepository {
-  upload(file: File): Observable<UploadedImage> {
+  /** `kind` only matters to the real backend, which mutation picks the bucket. */
+  override upload(file: File, kind: MediaKind): Observable<UploadedImage> {
     return from(readAsDataUrl(file)).pipe(
       switchMap((url) =>
         of<UploadedImage>({ url, fileName: file.name, sizeBytes: file.size }).pipe(delay(300)),

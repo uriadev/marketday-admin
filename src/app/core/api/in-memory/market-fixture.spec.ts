@@ -73,10 +73,6 @@ describe('MARKET_SETTINGS', () => {
     expect(settings.slug).toBe(market.slug);
     expect(settings.county).toBe(market.county);
     expect(settings.stallFeePerDay).toBe(STALL_FEE);
-    // The Overview's "Stalls filled 18/20" and the Settings tab's stall count
-    // are the same number said twice.
-    if (market.metrics) expect(settings.stallCount).toBe(market.metrics.stallsTotal);
-    else expect(settings.stallCount).toBeGreaterThan(0);
   });
 
   it.each(MARKETS_FIXTURE)('puts $slug on the map', (market) => {
