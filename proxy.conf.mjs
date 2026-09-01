@@ -22,6 +22,6 @@ export default {
   '/graphql': {
     target: process.env.MARKETDAY_API_URL ?? 'http://localhost:3000',
     changeOrigin: true,
-    headers: { 'x-api-key': process.env.MARKETDAY_API_KEY ?? 'cGNg0XHSBjDGdg6fcupHozioyKS0nnRl' },
+    headers: { 'x-api-key': process.env.MARKETDAY_API_KEY ?? '' },
   },
 };
