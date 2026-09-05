@@ -38,12 +38,12 @@ let refreshing: Observable<boolean> | null = null;
 const SESSION_EXPIRED = 'Your session has expired. Sign in again.';
 
 /**
- * Attaches the bearer token to GraphQL calls and retries once, after a single
- * token refresh, on an unauthenticated response. Deliberately scoped to the
- * GraphQL endpoint only: the presigned-upload `PUT`s in `core/api/graphql/
- * graphql-media-repository.ts` go straight to R2/LocalStack, and sending
- * `Authorization` or the dev-proxy's `x-api-key` there would break the
- * signature those URLs were signed with.
+ * Attaches the bearer token and `x-api-key` to GraphQL calls and retries once,
+ * after a single token refresh, on an unauthenticated response. Deliberately
+ * scoped to the GraphQL endpoint only: the presigned-upload `PUT`s in
+ * `core/api/graphql/graphql-media-repository.ts` go straight to R2/LocalStack,
+ * and sending either header there would break the signature those URLs were
+ * signed with.
  *
  * When the refresh cannot recover the session — no refresh token, the refresh
  * itself rejected, or the retried request still comes back unauthorised — it
@@ -113,8 +113,22 @@ function isGraphQlRequest(req: HttpRequest<unknown>): boolean {
   return req.url === environment.api.graphqlUrl;
 }
 
+/**
+ * Adds the two headers every GraphQL call needs: the bearer token, and the
+ * `x-api-key` the backend's global `ApiKeyGuard` demands even on `@Public()`
+ * operations. The key comes from `environment.api.key`, which is empty in dev
+ * (`proxy.conf.mjs` injects it there instead) and injected at build time for
+ * production, where there is no proxy in front of the API.
+ */
 function attach(req: HttpRequest<unknown>, token: string | null): HttpRequest<unknown> {
-  return token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (environment.api.key) {
+    headers['x-api-key'] = environment.api.key;
+  }
+  return Object.keys(headers).length > 0 ? req.clone({ setHeaders: headers }) : req;
 }
 
 function hasAuthError(event: HttpResponse<unknown>): boolean {

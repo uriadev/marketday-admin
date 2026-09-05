@@ -91,11 +91,19 @@ found while reading the same code, unrelated to what's missing.
 ## Deployment precondition
 
 12. **No CORS configuration**, and the global `ApiKeyGuard` requires `x-api-key` on every
-    request. The admin console is a browser SPA, not a backend-for-frontend, so it cannot call
-    the API directly without one of: CORS + a public API key (not chosen — see the wiring plan),
-    or a reverse proxy that terminates `/graphql` and injects the key server-side (the approach
-    taken; `proxy.conf.mjs` does this in dev). **Production needs the same reverse proxy** in
-    front of wherever this console is served — the app never holds the key itself.
+    request. The admin console is a browser SPA, not a backend-for-frontend, so it must send the
+    key itself. In dev `proxy.conf.mjs` injects it and makes the call same-origin; **production
+    has no proxy** — `pnpm run build` bakes `MARKETDAY_API_KEY` into `environment.api.key` via
+    `ng build --define` and `authInterceptor` sends it on every GraphQL call. Two consequences:
+
+    - The key is **public** — it ships in the bundle and anyone can read it. It is an
+      identifier for this client, not a secret; issue the console its own and rotate it there.
+    - Serving the API on a **different origin still needs CORS** on the backend
+      (`../backend/src/main.ts` never calls `enableCors`), and `x-api-key` is not a
+      CORS-safelisted header, so the preflight must allow it: `origin` = the console's origin,
+      `allowedHeaders` including `x-api-key`, `authorization`, `content-type`. Until that
+      exists, production must serve console and API from **one origin** — leave
+      `MARKETDAY_API_URL` unset at build time and `graphqlUrl` stays the relative `/graphql`.
 
 ## Bugs found while reading (not missing features)
 

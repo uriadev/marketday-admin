@@ -28,7 +28,7 @@ const PRODUCT_FIELDS = gql`
  * grid's columns — and every product they sell. Both root fields are
  * `@Public()` server-side (`../backend/src/products/products.resolver.ts`,
  * `../backend/src/vendors/vendors.resolver.ts`), so the read needs only the
- * `x-api-key` the proxy injects.
+ * `x-api-key` every request carries.
  *
  * `criteria: { limit: … }` lifts `ProductsService.DEFAULT_LIMIT` (a silent
  * `take(20)` when no `criteria` is passed) so a whole stall's list comes back.

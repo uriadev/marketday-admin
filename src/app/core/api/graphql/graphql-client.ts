@@ -14,8 +14,8 @@ import { GraphQlResponseBody, mapHttpError, toDomainError } from './graphql-erro
  * facade already knows how to render (`cause instanceof Error ? cause.message
  * : …`) — the same contract the `InMemory*Repository` fixtures use.
  *
- * `Authorization` (and, via the dev proxy, `x-api-key`) is attached by
- * {@link authInterceptor}, not here — this client only knows GraphQL.
+ * `Authorization` and `x-api-key` are attached by {@link authInterceptor}, not
+ * here — this client only knows GraphQL.
  */
 @Injectable({ providedIn: 'root' })
 export class GraphqlClient {

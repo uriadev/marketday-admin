@@ -41,13 +41,14 @@ Two documents outside this repo drive the work:
 
 ## Running against the real backend
 
-The GraphQL client (`core/api/graphql/graphql-client.ts`) posts to `environment.api.graphqlUrl`
-(`/graphql`, relative). In dev this is proxied by `proxy.conf.mjs`, wired into
-`angular.json` → `architect.serve.configurations.development.proxyConfig` — it does two jobs
-`../backend` needs done for a browser SPA to reach it at all: dodges CORS (the backend has
-none configured) by making the call same-origin, and injects the `x-api-key` header the
-backend's global `ApiKeyGuard` requires on every request, without ever putting the key in the
-shipped bundle. Run:
+The GraphQL client (`core/api/graphql/graphql-client.ts`) posts to `environment.api.graphqlUrl`.
+The backend's global `ApiKeyGuard` requires an `x-api-key` header on every request, including
+`@Public()` ones, and the backend registers no CORS at all — how those two are handled differs
+by build.
+
+**Dev** is proxied by `proxy.conf.mjs`, wired into `angular.json` →
+`architect.serve.configurations.development.proxyConfig`: it makes `/graphql` same-origin (so
+there is no preflight to fail) and injects the key, keeping it out of the bundle. Run:
 
 ```sh
 MARKETDAY_API_KEY=… pnpm start           # backend on localhost:3000 by default
@@ -64,8 +65,23 @@ checked-in `schema.gql` via `pnpm gql:generate` (`codegen.ts`) into
 `core/api/graphql/generated.ts`, which is committed. Regenerate and rebuild after changing an
 operation document or pulling a new `schema.gql`.
 
-Production is expected to sit behind a reverse proxy doing the same two jobs `proxy.conf.mjs`
-does in dev — the app itself never holds the API key.
+**Production has no proxy** — the bundle sends `x-api-key` itself. `pnpm run build` forwards
+`MARKETDAY_API_URL` / `MARKETDAY_API_KEY` into the bundle through `ng build --define`, where
+`src/environments/environment.ts` reads them into `api.graphqlUrl` and `api.key`, and
+`core/auth/auth-interceptor.ts` attaches the key alongside the bearer token — on GraphQL calls
+only, never on the presigned `PUT`s:
+
+```sh
+MARKETDAY_API_KEY=… pnpm run build                                  # console and API same origin
+MARKETDAY_API_URL=https://api.marketday.ie MARKETDAY_API_KEY=… pnpm run build   # API elsewhere
+```
+
+Two things follow. The key is **public** — it is in the shipped JS, so it identifies this
+client rather than authenticating it; give the console its own and rotate it there. And a
+cross-origin `MARKETDAY_API_URL` **needs CORS on the backend** (`x-api-key` is not a safelisted
+header, so it must be named in `allowedHeaders`); without it, serve console and API from one
+origin and leave `MARKETDAY_API_URL` unset so `graphqlUrl` stays relative. See
+`docs/backend-api-gaps.md` §12.
 
 ## Commands
 

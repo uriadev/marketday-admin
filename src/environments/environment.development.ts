@@ -4,6 +4,8 @@ export const environment = {
   api: {
     /** Served by `proxy.conf.mjs`, which adds `x-api-key` and dodges CORS. */
     graphqlUrl: '/graphql',
+    /** Empty on purpose: the dev proxy injects the key, so the app must not. */
+    key: '',
   },
   googleMaps: {
     // Public by nature — the browser sends it in the clear. It is protected by

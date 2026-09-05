@@ -1,6 +1,7 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { environment } from '../../../environments/environment';
 import { authInterceptor } from './auth-interceptor';
 import { SessionExpiry } from './session-expiry';
 import { SESSION_STORAGE } from './session-storage';
@@ -95,6 +96,21 @@ describe('authInterceptor', () => {
     expect((error as Error).message).toBe(SESSION_EXPIRED);
   });
 
+  it('sends x-api-key on GraphQL calls when the build injected one', () => {
+    // Empty in the development environment these tests build against — the dev
+    // proxy injects the key there. Production builds have a real one.
+    environment.api.key = 'build-time-key';
+    try {
+      http.post(GQL, { query: 'q' }).subscribe();
+
+      const req = httpMock.expectOne(GQL);
+      expect(req.request.headers.get('x-api-key')).toBe('build-time-key');
+      req.flush({ data: { ok: true } });
+    } finally {
+      environment.api.key = '';
+    }
+  });
+
   it('leaves non-GraphQL requests (presigned uploads) untouched', () => {
     const url = 'https://uploads.example/object';
     let error: unknown;
@@ -102,6 +118,7 @@ describe('authInterceptor', () => {
 
     const req = httpMock.expectOne(url);
     expect(req.request.headers.has('Authorization')).toBe(false);
+    expect(req.request.headers.has('x-api-key')).toBe(false);
     req.flush('denied', { status: 401, statusText: 'Unauthorized' });
 
     expect(expire).not.toHaveBeenCalled();
