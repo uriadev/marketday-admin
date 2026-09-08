@@ -81,6 +81,7 @@ class StubProductRepository extends ProductRepository {
 
   override form(vendorSlug: string, productId: string | null): Observable<ProductForm> {
     return of({
+      vendorId: null,
       vendorSlug,
       vendorName: 'McNally Family Farm',
       markets: this.board_.markets,

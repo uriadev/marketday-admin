@@ -37,6 +37,8 @@ export class ProductFormFacade {
   readonly isEdit = computed(() => this._form()?.product !== null);
 
   readonly markets = computed(() => this._form()?.markets ?? []);
+  /** What the photo upload presigns against — `null` until the load lands. */
+  readonly vendorId = computed(() => this._form()?.vendorId ?? null);
 
   load(vendorSlug: string, productId: string | null): void {
     this.vendorSlug = vendorSlug;

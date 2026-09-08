@@ -9,7 +9,9 @@ import { gql } from '../gql-tag';
  * this type — it lives on the admin-only `adminVendorMembers` query
  * ({@link ADMIN_VENDOR_MEMBERS}), which `detail()` folds in for the Staff tab;
  * the directory does not fan out to it, so `staff` names stay empty on the list
- * read. `slug` is server-issued (gap #10 closed).
+ * read. `slug` is server-issued (gap #10 closed). `updatedAt` is the only thing
+ * behind the Profile tab's "Last edited" line — `VendorModel` records *when* a
+ * record changed but not *who* changed it, so that half stays blank.
  */
 const VENDOR_FIELDS = gql`
   fragment VendorFields on VendorModel {
@@ -23,6 +25,7 @@ const VENDOR_FIELDS = gql`
     isAcceptingOrders
     memberCount
     createdAt
+    updatedAt
     markets {
       id
       slug
@@ -81,6 +84,75 @@ export const ADMIN_VENDOR_MEMBERS = gql`
           name
         }
       }
+    }
+  }
+`;
+
+/**
+ * Creating a vendor from the invite screen (design 1n) — `@Roles(ADMIN)`.
+ *
+ * Selects the same fragment the reads do, so the created row is mapped by
+ * `toVendorSummary` and lands in the directory looking exactly like one that
+ * came back from `adminVendors`. `ownerEmail`/`ownerName` are **required for an
+ * admin caller** — the backend seats that person as the vendor's `OWNER`,
+ * reusing their account or creating a passwordless one — and refusing without
+ * them is what stops the calling admin being made the owner by default.
+ *
+ * `CreateVendorInput` covers those plus `name`, `slug`, `category`,
+ * `description`, `imageUrl` and `marketIds` and nothing else, so the
+ * invitation's own half (the note, the phone, skipping application review) has
+ * nowhere to go and no mutation to send it; see `docs/backend-api-gaps.md` #9.
+ */
+export const CREATE_VENDOR = gql`
+  ${VENDOR_FIELDS}
+  mutation CreateVendor($input: CreateVendorInput!) {
+    createVendor(input: $input) {
+      ...VendorFields
+    }
+  }
+`;
+
+/**
+ * Slug → id for the markets an invitee may apply to. `CreateVendorInput` takes
+ * `marketIds`, the console picks markets by slug, and the criteria filters are
+ * a silent no-op server-side (`docs/backend-api-gaps.md`, bugs), so the whole
+ * admin list comes back and is matched here — deliberately a two-field
+ * projection rather than a reuse of `operations/market.ts`'s fat
+ * `MarketFields`, since nothing else on a market is wanted.
+ */
+export const MARKET_IDS = gql`
+  query MarketIds {
+    adminMarkets {
+      id
+      slug
+    }
+  }
+`;
+
+/**
+ * Saving the Profile tab (design 2a) — `@Roles(ADMIN, VENDOR)`.
+ *
+ * An ADMIN caller edits the vendor named in `id`: they hold no seat for the
+ * backend to infer one from, so the argument is the target and the role guard
+ * is the whole gate — the same shape `updateProduct` has, and the change that
+ * closed the write half of `docs/backend-api-gaps.md` #7. A VENDOR caller
+ * still reaches only their own business.
+ *
+ * `UpdateVendorInput` carries `name`, `slug`, `category`, `description`,
+ * `imageUrl` and `isActive` and nothing else, so the Profile tab's registered
+ * name, VAT, produce tags, contact block and address have no field to travel
+ * in — they are disabled on the screen rather than collected and dropped.
+ * `slug` is deliberately never sent: the backend never re-derives it from a
+ * changed `name`, so a rename keeps the URL the console routes by and every
+ * link already shared. `isAcceptingOrders` is not on this input at all
+ * (`setVendorAcceptingOrders` owns it), which is what stops a profile save from
+ * un-pausing a stall as a side effect.
+ */
+export const UPDATE_VENDOR = gql`
+  ${VENDOR_FIELDS}
+  mutation UpdateVendor($id: ID!, $input: UpdateVendorInput!) {
+    updateVendor(id: $id, input: $input) {
+      ...VendorFields
     }
   }
 `;

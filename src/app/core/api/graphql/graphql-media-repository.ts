@@ -48,8 +48,8 @@ export class GraphqlMediaRepository extends MediaRepository {
   private readonly client = inject(GraphqlClient);
   private readonly http = inject(HttpClient);
 
-  override upload(file: File, kind: MediaKind): Observable<UploadedImage> {
-    return this.presign(file, kind).pipe(
+  override upload(file: File, kind: MediaKind, vendorId?: string): Observable<UploadedImage> {
+    return this.presign(file, kind, vendorId).pipe(
       switchMap((presigned) =>
         this.http
           .put(presigned.uploadUrl, file, {
@@ -62,7 +62,7 @@ export class GraphqlMediaRepository extends MediaRepository {
   }
 
   /** Five distinct mutations, five distinct result types — schema.gql has no shared interface. */
-  private presign(file: File, kind: MediaKind): Observable<UploadUrlResult> {
+  private presign(file: File, kind: MediaKind, vendorId?: string): Observable<UploadUrlResult> {
     const mimeType = file.type;
     switch (kind) {
       case 'market-image':
@@ -83,7 +83,7 @@ export class GraphqlMediaRepository extends MediaRepository {
         return this.client
           .request<CreateVendorImageUploadUrlMutation, CreateVendorImageUploadUrlMutationVariables>(
             CREATE_VENDOR_IMAGE_UPLOAD_URL,
-            { mimeType },
+            { mimeType, vendorId },
           )
           .pipe(map((r): UploadUrlResult => r.createVendorImageUploadUrl));
       case 'product-image':
@@ -91,7 +91,7 @@ export class GraphqlMediaRepository extends MediaRepository {
           .request<
             CreateProductImageUploadUrlMutation,
             CreateProductImageUploadUrlMutationVariables
-          >(CREATE_PRODUCT_IMAGE_UPLOAD_URL, { mimeType })
+          >(CREATE_PRODUCT_IMAGE_UPLOAD_URL, { mimeType, vendorId })
           .pipe(map((r): UploadUrlResult => r.createProductImageUploadUrl));
       case 'avatar':
         return this.client

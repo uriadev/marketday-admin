@@ -23,6 +23,7 @@ import { VendorProfile } from './vendor-profile';
 
 /** The last patch a save sent, so a spec can assert on what was published. */
 let saved: VendorProfilePatch | null = null;
+let media: StubMediaRepository;
 
 class StubVendorRepository extends VendorRepository {
   override list(): Observable<readonly VendorSummary[]> {
@@ -38,7 +39,9 @@ class StubVendorRepository extends VendorRepository {
     if (slug !== MCNALLY_PROFILE.tradingName && slug !== 'mcnally-family-farm') {
       return throwError(() => new Error(`No vendor matches “${slug}”.`));
     }
-    return of(MCNALLY_PROFILE);
+    // The real-API shape: a profile read through GraphQL carries the id its
+    // photo presign is keyed by, which the fixture has no server-side id for.
+    return of({ ...MCNALLY_PROFILE, vendorId: 'vnd-mcnally' });
   }
   override saveProfile(_slug: string, patch: VendorProfilePatch): Observable<VendorProfileModel> {
     if (patch.tradingName.trim() === '') {
@@ -67,9 +70,23 @@ class StubVendorRepository extends VendorRepository {
 }
 
 class StubMediaRepository extends MediaRepository {
-  override upload(file: File): Observable<UploadedImage> {
+  /** What the last upload asked for — the presign is keyed by the vendor. */
+  lastCall: { kind: string; vendorId?: string } | null = null;
+
+  override upload(file: File, kind: string, vendorId?: string): Observable<UploadedImage> {
+    this.lastCall = { kind, vendorId };
     return of({ url: `stored:${file.name}`, fileName: file.name, sizeBytes: file.size });
   }
+}
+
+/** Hands the first drop zone a file the way picking one does. */
+function pickPhoto(fixture: { nativeElement: unknown; detectChanges: () => void }): void {
+  const zone = host(fixture).querySelector('md-image-upload') as HTMLElement;
+  const picker = zone.querySelector('input[type="file"]') as HTMLInputElement;
+  const file = new File(['x'], 'stall.png', { type: 'image/png' });
+  Object.defineProperty(picker, 'files', { value: [file] });
+  picker.dispatchEvent(new Event('change'));
+  fixture.detectChanges();
 }
 
 function open(slug = 'mcnally-family-farm') {
@@ -110,6 +127,13 @@ function type(
   fixture.detectChanges();
 }
 
+/** The chip grid's own input — the one that used to add a produce tag. */
+function tagInput(fixture: { nativeElement: unknown }): HTMLInputElement {
+  const input = host(fixture).querySelector('input[placeholder="Add produce tag"]');
+  expect(input).not.toBeNull();
+  return input as HTMLInputElement;
+}
+
 function button(fixture: { nativeElement: unknown }, label: string): HTMLButtonElement {
   const match = Array.from(host(fixture).querySelectorAll('button')).find((candidate) =>
     candidate.textContent?.trim().startsWith(label),
@@ -121,6 +145,7 @@ function button(fixture: { nativeElement: unknown }, label: string): HTMLButtonE
 describe('VendorProfile', () => {
   beforeEach(async () => {
     saved = null;
+    media = new StubMediaRepository();
     await TestBed.configureTestingModule({
       imports: [VendorProfile],
       providers: [
@@ -129,7 +154,7 @@ describe('VendorProfile', () => {
         VendorDetailFacade,
         VendorProfileFacade,
         { provide: VendorRepository, useClass: StubVendorRepository },
-        { provide: MediaRepository, useClass: StubMediaRepository },
+        { provide: MediaRepository, useValue: media },
       ],
     }).compileComponents();
   });
@@ -188,13 +213,42 @@ describe('VendorProfile', () => {
     expect(text(fixture)).toContain('13 / 400');
   });
 
-  it('lists the produce tags as removable chips', () => {
+  it('lists the produce tags it holds, with no way to change them', () => {
     const fixture = open();
     const chips = Array.from(host(fixture).querySelectorAll('mat-chip-row'));
 
     expect(chips.length).toBe(5);
     expect(chips[0]?.textContent).toContain('Vegetables');
     expect(chips.at(-1)?.textContent).toContain('Pre-order');
+
+    // `VendorModel` has no tags column (docs/backend-api-gaps.md #7), so the
+    // grid shows what is on file and takes nothing new.
+    expect(tagInput(fixture).disabled).toBe(true);
+  });
+
+  it('greys out every field the API has no column for', () => {
+    const fixture = open();
+
+    // `UpdateVendorInput` carries the trading name, category, description and
+    // photo. Anything else typed here would be dropped by the save, so it is
+    // disabled rather than left looking editable — gap #7.
+    for (const label of [
+      'Registered name',
+      'VAT number',
+      'Main contact',
+      'Phone',
+      'Email',
+      'Website',
+      'Farm address',
+    ]) {
+      expect(field(fixture, label).disabled).toBe(true);
+    }
+    expect(field(fixture, 'Trading name').disabled).toBe(false);
+    expect(field(fixture, 'Stall description').disabled).toBe(false);
+
+    // And says why, rather than leaving an admin to wonder what is broken.
+    expect(text(fixture)).toContain('Not stored by the API yet');
+    expect(text(fixture)).toContain('None of this reaches the backend yet');
   });
 
   it('keeps Save inert until something actually changes', () => {
@@ -202,7 +256,7 @@ describe('VendorProfile', () => {
     expect(button(fixture, 'Save changes').disabled).toBe(true);
     expect(button(fixture, 'Discard changes').disabled).toBe(true);
 
-    type(fixture, 'Registered name', 'McNally Produce Limited');
+    type(fixture, 'Trading name', 'McNally Family Farm & Sons');
 
     expect(button(fixture, 'Save changes').disabled).toBe(false);
     expect(text(fixture)).toContain('Unsaved changes on this record.');
@@ -211,13 +265,16 @@ describe('VendorProfile', () => {
   it('publishes the whole record and settles back to pristine', () => {
     const fixture = open();
 
-    type(fixture, 'Website', 'mcnallyfarm.com');
+    type(fixture, 'Stall description', 'Twelve acres in Ballyboughal.');
     button(fixture, 'Save changes').click();
     fixture.detectChanges();
 
-    expect(saved?.website).toBe('mcnallyfarm.com');
-    // Untouched fields go with it — this is the record, not a field patch.
+    expect(saved?.description).toBe('Twelve acres in Ballyboughal.');
+    // Untouched fields go with it — this is the record, not a field patch —
+    // and that includes the disabled ones, which ride along unchanged rather
+    // than being blanked by a save they have no column for.
     expect(saved?.tradingName).toBe('McNally Family Farm');
+    expect(saved?.website).toBe('mcnallyfarm.ie');
     expect(saved?.produceTags).toEqual([...MCNALLY_PROFILE.produceTags]);
 
     expect(button(fixture, 'Save changes').disabled).toBe(true);
@@ -269,30 +326,110 @@ describe('VendorProfile', () => {
     expect(rail.textContent).toContain('Manage the 5 staff accounts');
   });
 
-  it('adds a slot as soon as a photo lands', () => {
+  it('presigns the photo against the vendor it belongs to', () => {
     const fixture = open();
 
-    const zone = host(fixture).querySelector('md-image-upload') as HTMLElement;
-    const picker = zone.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['x'], 'stall.png', { type: 'image/png' });
-    Object.defineProperty(picker, 'files', { value: [file] });
-    picker.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    pickPhoto(fixture);
 
-    // The uploaded photo, plus the empty slot that takes the next one.
-    expect(host(fixture).querySelectorAll('md-image-upload').length).toBe(2);
+    // Without the vendor the backend has nothing to resolve one from — an admin
+    // holds no seat at a vendor — and answers "Specify the vendor this image
+    // belongs to."
+    expect(media.lastCall).toEqual({ kind: 'vendor-image', vendorId: 'vnd-mcnally' });
+  });
+
+  it('fills the one slot when a photo lands, without offering a second', () => {
+    const fixture = open();
+
+    pickPhoto(fixture);
+
+    // `Vendor.imageUrl` is a single column, so a second zone would take a photo
+    // the save then dropped.
+    expect(host(fixture).querySelectorAll('md-image-upload').length).toBe(1);
     expect(host(fixture).querySelector('md-image-upload img')?.getAttribute('src')).toBe(
       'stored:stall.png',
     );
   });
 
-  it('offers a cover slot even though this vendor has no photos yet', () => {
+  it('sends the photo as the one image on the record', () => {
+    const fixture = open();
+
+    pickPhoto(fixture);
+    button(fixture, 'Save changes').click();
+
+    expect(saved?.imageUrl).toBe('stored:stall.png');
+  });
+
+  it('offers a cover slot even though this vendor has no photo yet', () => {
     const fixture = open();
     const zones = host(fixture).querySelectorAll('md-image-upload');
 
     expect(zones.length).toBe(1);
     expect(zones[0]?.textContent).toContain('Cover');
-    expect(text(fixture)).toContain('The first photo is the cover shoppers see');
+    expect(text(fixture)).toContain('The cover shoppers see beside this vendor');
+  });
+
+  it('asks for the same 1600×800 hero a market banner takes', () => {
+    const fixture = open();
+    const zone = host(fixture).querySelector('md-image-upload') as HTMLElement;
+
+    expect(zone.textContent).toContain('1600×800px');
+    // The preview box is the shape of the file it is asking for, so a wide
+    // hero is not previewed in a 4:3 box that crops it.
+    expect((zone.querySelector('.md-upload__zone') as HTMLElement).style.aspectRatio).toBe('2 / 1');
+  });
+});
+
+/**
+ * What `vendor(id)` actually answers with: the four covered fields filled and
+ * every uncovered one blank, since the backend has no column to fill them from.
+ */
+class RealApiShapeRepository extends StubVendorRepository {
+  override profile(): Observable<VendorProfileModel> {
+    return of({
+      ...MCNALLY_PROFILE,
+      vendorId: 'vnd-mcnally',
+      registeredName: '',
+      vatNumber: '',
+      produceTags: [],
+      contactName: '',
+      phone: '',
+      email: '',
+      website: '',
+      address: '',
+    });
+  }
+}
+
+describe('VendorProfile against the record the real API returns', () => {
+  beforeEach(async () => {
+    saved = null;
+    media = new StubMediaRepository();
+    await TestBed.configureTestingModule({
+      imports: [VendorProfile],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        VendorDetailFacade,
+        VendorProfileFacade,
+        { provide: VendorRepository, useClass: RealApiShapeRepository },
+        { provide: MediaRepository, useValue: media },
+      ],
+    }).compileComponents();
+  });
+
+  it('still saves, though the main contact it asks for is blank and required', () => {
+    const fixture = open();
+
+    // `contactName` keeps its `required` validator for the day the column
+    // lands, and a disabled control is skipped by the group's validity — so a
+    // blank one cannot lock the Save button on a record no admin can fill.
+    type(fixture, 'Stall description', 'Twelve acres in Ballyboughal.');
+    button(fixture, 'Save changes').click();
+    fixture.detectChanges();
+
+    expect(saved?.description).toBe('Twelve acres in Ballyboughal.');
+    expect(saved?.contactName).toBe('');
+    expect(text(fixture)).not.toContain('Some fields still need attention');
   });
 });
 
@@ -313,7 +450,7 @@ describe('VendorProfile for a vendor that is not there', () => {
         VendorDetailFacade,
         VendorProfileFacade,
         { provide: VendorRepository, useClass: MissingVendorRepository },
-        { provide: MediaRepository, useClass: StubMediaRepository },
+        { provide: MediaRepository, useValue: media },
       ],
     }).compileComponents();
   });

@@ -68,7 +68,7 @@
           <mat-form-field>
             <mat-label>Registered name</mat-label>
             <input matInput formControlName="registeredName" />
-            <mat-hint>The name on the company filings, if it differs</mat-hint>
+            <mat-hint>The name on the company filings. Not stored by the API yet</mat-hint>
           </mat-form-field>
 
           <mat-form-field>
@@ -86,6 +86,7 @@
           <mat-form-field>
             <mat-label>VAT number</mat-label>
             <input matInput formControlName="vatNumber" />
+            <mat-hint>Not stored by the API yet</mat-hint>
           </mat-form-field>
         </div>
 
@@ -103,7 +104,11 @@
 
         <mat-form-field>
           <mat-label>Produce tags</mat-label>
-          <mat-chip-grid #tagGrid aria-label="Produce tags">
+          <mat-chip-grid
+            #tagGrid
+            aria-label="Produce tags"
+            [disabled]="form.controls.produceTags.disabled"
+          >
             @for (tag of produceTags(); track tag) {
               <mat-chip-row (removed)="removeTag(tag)">
                 {{ tag }}
@@ -119,12 +124,16 @@
               (matChipInputTokenEnd)="addTag($event)"
             />
           </mat-chip-grid>
-          <mat-hint>What shoppers filter a market page by. Enter or a comma adds one</mat-hint>
+          <mat-hint>What shoppers filter a market page by. Not stored by the API yet</mat-hint>
         </mat-form-field>
       </section>
 
       <section class="section">
         <h3 class="section-title">Contact and address</h3>
+        <p class="m-0 text-body-medium text-on-surface-variant">
+          None of this reaches the backend yet — the vendor record has no contact, website or
+          address columns, so these show what is on file and stay read-only until it grows them.
+        </p>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <mat-form-field>
             <mat-label>Main contact</mat-label>
@@ -162,34 +171,22 @@
       </section>
 
       <section class="section">
-        <h3 class="section-title">Photos · used on every market page</h3>
-        <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-          @for (photo of photos(); track $index) {
-            <md-image-upload
-              [label]="photoLabel($index)"
-              aspect="4 / 3"
-              [src]="photo"
-              [busy]="uploading() === $index"
-              [disabled]="uploading() !== null && uploading() !== $index"
-              (selected)="onPhotoPicked($index, $event)"
-              (cleared)="onPhotoCleared($index)"
-              (rejected)="onPhotoRejected($event)"
-            />
-          }
-          @if (canAddPhoto()) {
-            <md-image-upload
-              [label]="photos().length === 0 ? 'Cover' : 'Add photo'"
-              aspect="4 / 3"
-              [busy]="uploading() === photos().length"
-              [disabled]="uploading() !== null && uploading() !== photos().length"
-              (selected)="onPhotoPicked(photos().length, $event)"
-              (rejected)="onPhotoRejected($event)"
-            />
-          }
+        <h3 class="section-title">Photo · used on every market page</h3>
+        <div class="max-w-130">
+          <md-image-upload
+            label="Cover"
+            hint="Wide hero for the public vendor page. 1600×800px."
+            aspect="2 / 1"
+            [src]="imageUrl()"
+            [busy]="uploading()"
+            (selected)="onPhotoPicked($event)"
+            (cleared)="onPhotoCleared()"
+            (rejected)="onPhotoRejected($event)"
+          />
         </div>
         <p class="m-0 text-label-large text-on-surface-variant">
-          The first photo is the cover shoppers see in a market’s vendor list. Up to
-          {{ photoLimit }} in all.
+          The cover shoppers see beside this vendor in a market’s list. One photo — replacing it
+          swaps the one on every market page.
         </p>
       </section>
     </form>

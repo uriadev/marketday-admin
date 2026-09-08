@@ -22,6 +22,8 @@ export class VendorProfileFacade {
   private readonly _saveError = signal<string | null>(null);
 
   readonly profile = this._profile.asReadonly();
+  /** What the photo upload presigns against — `null` until the load lands. */
+  readonly vendorId = computed(() => this._profile()?.vendorId ?? null);
   readonly status = this._status.asReadonly();
   readonly error = this._error.asReadonly();
   readonly isLoading = computed(() => this._status() === 'loading');

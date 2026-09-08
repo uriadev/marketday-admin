@@ -231,6 +231,13 @@ export interface ProductDraft {
  */
 export interface ProductForm {
   vendorSlug: string;
+  /**
+   * The vendor's backend id. Carried alongside the slug because the photo's
+   * presign is keyed by it — `createProductImageUploadUrl` cannot resolve a
+   * vendor from an admin, who holds no seat at one. `null` on the fixture path,
+   * where nothing is presigned.
+   */
+  vendorId: string | null;
   /** "McNally Family Farm" — the breadcrumb above the form. */
   vendorName: string;
   /** The vendor's markets, in the order the Products grid columns are in. */

@@ -596,6 +596,7 @@ function buildStaff(vendor: VendorSummary): VendorStaffMember[] {
 /** The vendor design 2a edits, in its own copy rather than derived text. */
 export const MCNALLY_PROFILE: VendorProfile = {
   reference: 'v_1042',
+  vendorId: null,
   tradingName: 'McNally Family Farm',
   registeredName: 'McNally Produce Ltd',
   category: 'Vegetables & eggs',
@@ -608,7 +609,7 @@ export const MCNALLY_PROFILE: VendorProfile = {
   email: 'tom@mcnallyfarm.ie',
   website: 'mcnallyfarm.ie',
   address: 'Grallagh, Ballyboughal, Co. Dublin, A41 KV62',
-  photos: [],
+  imageUrl: null,
   created: 'Created 14 March 2021 by Gráinne Doyle',
   lastEdited: 'Last edited 6 days ago',
   lastEditedBy: 'by Tom McNally, in the vendor app',
@@ -624,6 +625,7 @@ function buildProfile(vendor: VendorSummary, index: number): VendorProfile {
   const trade = vendor.meta.split(' · ')[0] ?? 'Craft & other';
   return {
     reference: `v_${1000 + index}`,
+    vendorId: null,
     tradingName: vendor.name,
     registeredName: '',
     category: trade,
@@ -635,7 +637,7 @@ function buildProfile(vendor: VendorSummary, index: number): VendorProfile {
     email: `${emailName(owner)}@${slugify(vendor.name)}.ie`,
     website: '',
     address: '',
-    photos: [],
+    imageUrl: null,
     created: `Created by ${owner}`,
     lastEdited: 'Not edited since it was created',
     lastEditedBy: '',

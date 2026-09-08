@@ -14,8 +14,16 @@ dialog), Users, Support inbox and Account.
 Data is a **hybrid**: Auth, Markets, Profile, Media, Vendors and Products are wired to
 `../backend`'s real GraphQL API (`core/api/graphql/`) — the ports the schema genuinely covers
 for an admin. Vendors is partial: `adminVendors` + `vendor(id)` back the directory list, the
-detail shell and the Profile tab's read, but there is still no admin write path (`saveProfile`
-is session-local, `invite` calls no endpoint). Products runs end-to-end — `products(vendorId:)`
+detail shell and the Profile tab's read, `updateVendor` (widened server-side to take an ADMIN
+branch before its owner-only seat lookup) backs that tab's save, and `createVendor`
+(`@Roles(ADMIN)`) makes the invite screen (design 1n) create the business for real — name,
+trade, the picked markets, and an owner: the contact name and email seat that person as the
+vendor's `OWNER`, reusing their MarketDay account or creating a passwordless one, and "skip
+application review" rides on `isAcceptingOrders` (off → created paused). What the invite screen
+still has no endpoint for is the invitation itself: no email is sent, and the owner gets in via
+Forgot password. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
+registered name, VAT, produce tags, contact block and address have no column at all, so the tab
+disables them and the adapter drops them. Products runs end-to-end — `products(vendorId:)`
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`
 server-side) for every write; `GraphqlProductRepository` keeps a private
 `InMemoryProductRepository` primed from the real read to reconstruct the shapes the port hands

@@ -28,13 +28,16 @@ import { GraphqlVendorRepository } from './graphql/graphql-vendor-repository';
  * `core/` — in practice it is a **hybrid**: `schema.gql` covers Auth, Markets,
  * Profile, Media, Vendors and Products, so those six are wired to
  * `core/api/graphql/`. `adminVendors` closed `docs/backend-api-gaps.md` #2 and
- * a `slug` field closed #10; the vendor *write* paths still have no admin
- * endpoint (`GraphqlVendorRepository` documents which and why). Products' write
- * mutations were widened to `@Roles(VENDOR, ADMIN)` server-side (#7), so
- * `GraphqlProductRepository` runs the grid and the form end-to-end; only
- * `deleteProduct` is still missing (#8). The remaining five ports have no
- * admin-facing backend surface yet — see `docs/backend-api-gaps.md` — and stay
- * on their `InMemory*Repository` fixture until they do.
+ * a `slug` field closed #10; `createVendor` (`@Roles(ADMIN)`) makes the invite
+ * screen's create real, owner and all (#9), and `updateVendor` grew an ADMIN
+ * branch so the Profile tab's save persists too (#7). Only the *invitation*
+ * itself is still unwired (`GraphqlVendorRepository` documents which and why).
+ * Products' write mutations were widened to `@Roles(VENDOR, ADMIN)` server-side
+ * (#7 as well), so `GraphqlProductRepository` runs the grid and the form
+ * end-to-end; only `deleteProduct` is still missing (#8). The remaining five
+ * ports have no admin-facing backend surface yet — see
+ * `docs/backend-api-gaps.md` — and stay on their `InMemory*Repository` fixture
+ * until they do.
  */
 export const API_PROVIDERS: Provider[] = [
   { provide: AccountRepository, useClass: InMemoryAccountRepository },

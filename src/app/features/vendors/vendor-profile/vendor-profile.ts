@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
 import {
   FormBuilder,
   FormControl,
@@ -28,7 +29,6 @@ import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { MediaRepository } from '../../../core/api/ports/media-repository';
 import {
   VENDOR_DESCRIPTION_LIMIT,
-  VENDOR_PHOTO_LIMIT,
   VENDOR_TRADES,
   VendorProfilePatch,
 } from '../../../core/models/vendor.model';
@@ -50,7 +50,7 @@ type ProfileForm = FormGroup<{
   email: FormControl<string>;
   website: FormControl<string>;
   address: FormControl<string>;
-  photos: FormControl<string[]>;
+  imageUrl: FormControl<string | null>;
 }>;
 
 /**
@@ -58,9 +58,20 @@ type ProfileForm = FormGroup<{
  * reads from.
  *
  * One profile per vendor, not one per membership — the description, tags and
- * photos are the business's own, so a save publishes to every market page at
+ * photo are the business's own, so a save publishes to every market page at
  * once. That is why the rail says so in as many words rather than leaving an
  * admin to guess how far an edit reaches.
+ *
+ * Most of the record is read-only here. `UpdateVendorInput` covers the trading
+ * name, category, description and photo; the registered name, VAT, produce
+ * tags, contact block and address have no column server-side
+ * (`docs/backend-api-gaps.md` #7), so they are disabled and say so. Whatever
+ * the record already holds still shows in them — the fixture path fills them
+ * all — it just cannot be edited from the console. {@link save} still sends
+ * `getRawValue()`, so a disabled field rides along untouched and the port
+ * decides its fate: the fixture keeps the whole patch, while
+ * `GraphqlVendorRepository` sends the four fields `updateVendor` has a column
+ * for and drops the rest rather than posting them nowhere.
  */
 @Component({
   selector: 'md-vendor-profile',
@@ -93,36 +104,51 @@ export class VendorProfile {
   private readonly notifications = inject(Notifications);
 
   protected readonly descriptionLimit = VENDOR_DESCRIPTION_LIMIT;
-  protected readonly photoLimit = VENDOR_PHOTO_LIMIT;
   /** Enter or a comma finishes a produce tag. */
   protected readonly tagSeparators = [ENTER, COMMA];
 
+  /**
+   * Four of these are editable and eight are not. `UpdateVendorInput` carries
+   * `name`, `category`, `description` and `imageUrl` and nothing else
+   * (`docs/backend-api-gaps.md` #7), so the registered name, VAT, produce tags,
+   * the whole contact block and the address are disabled: they have no column
+   * to land in, and a field that looks editable but drops what is typed is
+   * worse than one that is plainly greyed out.
+   *
+   * Their validators stay attached. A disabled control is skipped by the
+   * group's validity, so `contactName`'s `required` costs nothing today, and
+   * enabling the control when the column lands is then the whole change.
+   */
   protected readonly form: ProfileForm = this.fb.nonNullable.group({
     tradingName: this.fb.nonNullable.control('', Validators.required),
-    registeredName: this.fb.nonNullable.control(''),
+    registeredName: this.fb.nonNullable.control({ value: '', disabled: true }),
     category: this.fb.nonNullable.control('', Validators.required),
-    vatNumber: this.fb.nonNullable.control(''),
+    vatNumber: this.fb.nonNullable.control({ value: '', disabled: true }),
     description: this.fb.nonNullable.control('', Validators.maxLength(VENDOR_DESCRIPTION_LIMIT)),
-    produceTags: this.fb.nonNullable.control<string[]>([]),
-    contactName: this.fb.nonNullable.control('', Validators.required),
-    phone: this.fb.nonNullable.control(''),
-    email: this.fb.nonNullable.control('', Validators.email),
-    website: this.fb.nonNullable.control(''),
-    address: this.fb.nonNullable.control(''),
-    photos: this.fb.nonNullable.control<string[]>([]),
+    produceTags: this.fb.nonNullable.control<string[]>({ value: [], disabled: true }),
+    contactName: this.fb.nonNullable.control({ value: '', disabled: true }, Validators.required),
+    phone: this.fb.nonNullable.control({ value: '', disabled: true }),
+    email: this.fb.nonNullable.control({ value: '', disabled: true }, Validators.email),
+    website: this.fb.nonNullable.control({ value: '', disabled: true }),
+    address: this.fb.nonNullable.control({ value: '', disabled: true }),
+    imageUrl: this.fb.control<string | null>(null),
   });
 
-  /** Which photo slot is mid-upload, so only that zone shows a bar. */
-  protected readonly uploading = signal<number | null>(null);
+  /** True while the one photo is uploading, so its zone shows a bar. */
+  protected readonly uploading = signal(false);
 
   /**
    * Reactive forms are not signals, so anything the template derives from the
    * form reads this rather than the controls — a `computed()` over a
-   * `FormControl` has no signal to depend on and never recomputes.
+   * `FormControl` has no signal to depend on and never recomputes. Re-read raw
+   * rather than taking `valueChanges`' own payload, which omits every disabled
+   * control — that is most of this form, and the tags and photo the template
+   * renders are two of them.
    */
-  private readonly value = toSignal(this.form.valueChanges, {
-    initialValue: this.form.getRawValue(),
-  });
+  private readonly value = toSignal(
+    this.form.valueChanges.pipe(map(() => this.form.getRawValue())),
+    { initialValue: this.form.getRawValue() },
+  );
 
   constructor() {
     effect(() => this.facade.load(this.slug()));
@@ -161,13 +187,13 @@ export class VendorProfile {
   protected readonly reachBody = computed(() => {
     const names = this.reachedMarkets();
     if (names.length === 0) {
-      return 'The description, tags and photos are the vendor’s own. They publish the moment this vendor joins their first market.';
+      return 'The description, tags and photo are the vendor’s own. They publish the moment this vendor joins their first market.';
     }
     const listed =
       names.length === 1
         ? names[0]
         : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-    return `The description, tags and photos are the vendor’s own, not a market’s. Saving publishes to ${listed} at once.`;
+    return `The description, tags and photo are the vendor’s own, not a market’s. Saving publishes to ${listed} at once.`;
   });
 
   /** Whoever holds the account — the person a transfer would move it from. */
@@ -204,31 +230,28 @@ export class VendorProfile {
     this.form.controls.produceTags.markAsDirty();
   }
 
-  /* ── Photos ────────────────────────────────────────────────────────────── */
-
-  /** Every stored photo, plus the empty slot that adds the next one. */
   protected readonly produceTags = computed(() => this.value().produceTags ?? []);
 
-  protected readonly photos = computed(() => this.value().photos ?? []);
+  /* ── Photo ─────────────────────────────────────────────────────────────── */
 
-  protected readonly canAddPhoto = computed(() => this.photos().length < VENDOR_PHOTO_LIMIT);
-
-  protected photoLabel(index: number): string {
-    return index === 0 ? 'Cover' : `Photo ${index + 1}`;
-  }
+  /**
+   * One slot, not a gallery: `Vendor.imageUrl` is a single column, so a second
+   * zone would take a photo the save then silently dropped.
+   */
+  protected readonly imageUrl = computed(() => this.value().imageUrl ?? null);
 
   /** Uploads through `MediaRepository`, so the form only ever stores a URL. */
-  protected onPhotoPicked(index: number, file: File): void {
-    this.uploading.set(index);
-    this.media.upload(file, 'vendor-image').subscribe({
+  protected onPhotoPicked(file: File): void {
+    this.uploading.set(true);
+    // Required, not incidental: the presign is keyed by the vendor and an admin
+    // holds no seat the backend could infer one from.
+    this.media.upload(file, 'vendor-image', this.facade.vendorId() ?? undefined).subscribe({
       next: ({ url }) => {
-        const photos = [...this.photos()];
-        photos[index] = url;
-        this.setPhotos(photos);
-        this.uploading.set(null);
+        this.setImage(url);
+        this.uploading.set(false);
       },
       error: (cause: unknown) => {
-        this.uploading.set(null);
+        this.uploading.set(false);
         this.notifications.error(
           cause instanceof Error ? cause.message : 'That photo could not be uploaded.',
         );
@@ -236,17 +259,17 @@ export class VendorProfile {
     });
   }
 
-  protected onPhotoCleared(index: number): void {
-    this.setPhotos(this.photos().filter((_, i) => i !== index));
+  protected onPhotoCleared(): void {
+    this.setImage(null);
   }
 
   protected onPhotoRejected(reason: string): void {
     this.notifications.error(reason);
   }
 
-  private setPhotos(photos: string[]): void {
-    this.form.controls.photos.setValue(photos);
-    this.form.controls.photos.markAsDirty();
+  private setImage(url: string | null): void {
+    this.form.controls.imageUrl.setValue(url);
+    this.form.controls.imageUrl.markAsDirty();
   }
 
   /* ── Save ──────────────────────────────────────────────────────────────── */
@@ -290,7 +313,7 @@ export class VendorProfile {
       email: profile.email,
       website: profile.website,
       address: profile.address,
-      photos: [...profile.photos],
+      imageUrl: profile.imageUrl,
     });
   }
 }

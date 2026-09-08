@@ -24,6 +24,12 @@ export type AccountDeletionLinkInput = {
   token: Scalars['String']['input'];
 };
 
+export type AppleAuthInput = {
+  fullName?: InputMaybe<Scalars['String']['input']>;
+  identityToken: Scalars['String']['input'];
+  nonce: Scalars['String']['input'];
+};
+
 export type AuthResponse = {
   __typename?: 'AuthResponse';
   accessToken: Scalars['String']['output'];
@@ -78,7 +84,7 @@ export type CreateOrderInput = {
   items: Array<OrderItemInput>;
   marketId: Scalars['ID']['input'];
   notes?: InputMaybe<Scalars['String']['input']>;
-  pickupTime?: InputMaybe<Scalars['String']['input']>;
+  pickupTime?: InputMaybe<Scalars['DateTime']['input']>;
   vendorId: Scalars['ID']['input'];
 };
 
@@ -110,8 +116,11 @@ export type CreateVendorInput = {
   category: Scalars['String']['input'];
   description?: InputMaybe<Scalars['String']['input']>;
   imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isAcceptingOrders?: InputMaybe<Scalars['Boolean']['input']>;
   marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   name: Scalars['String']['input'];
+  ownerEmail?: InputMaybe<Scalars['String']['input']>;
+  ownerName?: InputMaybe<Scalars['String']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -224,6 +233,7 @@ export enum MarketType {
 export type Mutation = {
   __typename?: 'Mutation';
   acceptVendorInvite: VendorMemberModel;
+  appleAuth: AuthResponse;
   cancelOrder: OrderModel;
   changePassword: UserModel;
   confirmAccountDeletion: Scalars['Boolean']['output'];
@@ -257,9 +267,12 @@ export type Mutation = {
   requestPasswordReset: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
   revokeVendorInvite: Scalars['Boolean']['output'];
+  setMarketFavorite: Scalars['Boolean']['output'];
+  setProductFavorite: Scalars['Boolean']['output'];
   setProductListing: ProductListingModel;
   setRole: UserModel;
   setVendorAcceptingOrders: VendorModel;
+  setVendorFavorite: Scalars['Boolean']['output'];
   submitContactMessage: Scalars['Boolean']['output'];
   submitSupportMessage: SupportMessageModel;
   toggleProduct: ProductModel;
@@ -275,6 +288,11 @@ export type Mutation = {
 
 export type MutationAcceptVendorInviteArgs = {
   code: Scalars['String']['input'];
+};
+
+
+export type MutationAppleAuthArgs = {
+  input: AppleAuthInput;
 };
 
 
@@ -343,6 +361,7 @@ export type MutationCreateVendorArgs = {
 
 export type MutationCreateVendorImageUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -432,6 +451,18 @@ export type MutationRevokeVendorInviteArgs = {
 };
 
 
+export type MutationSetMarketFavoriteArgs = {
+  favorite: Scalars['Boolean']['input'];
+  marketId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetProductFavoriteArgs = {
+  favorite: Scalars['Boolean']['input'];
+  productId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetProductListingArgs = {
   input: SetProductListingInput;
 };
@@ -444,6 +475,12 @@ export type MutationSetRoleArgs = {
 
 export type MutationSetVendorAcceptingOrdersArgs = {
   accepting: Scalars['Boolean']['input'];
+};
+
+
+export type MutationSetVendorFavoriteArgs = {
+  favorite: Scalars['Boolean']['input'];
+  vendorId: Scalars['ID']['input'];
 };
 
 
@@ -512,6 +549,7 @@ export type Notification = {
 };
 
 export enum NotificationType {
+  MarketDayReminder = 'MARKET_DAY_REMINDER',
   NewOrder = 'NEW_ORDER',
   OrderCancelled = 'ORDER_CANCELLED',
   OrderStatusChanged = 'ORDER_STATUS_CHANGED'
@@ -561,7 +599,7 @@ export type OrderModel = {
   market: Maybe<MarketModel>;
   marketId: Scalars['ID']['output'];
   notes: Maybe<Scalars['String']['output']>;
-  pickupTime: Maybe<Scalars['String']['output']>;
+  pickupTime: Maybe<Scalars['DateTime']['output']>;
   status: OrderStatus;
   total: Scalars['Float']['output'];
   updatedAt: Scalars['DateTime']['output'];
@@ -676,6 +714,12 @@ export type Query = {
   market: Maybe<MarketModel>;
   markets: Array<MarketModel>;
   me: UserProfileModel;
+  myFavoriteMarketIds: Array<Scalars['ID']['output']>;
+  myFavoriteMarkets: Array<MarketModel>;
+  myFavoriteProductIds: Array<Scalars['ID']['output']>;
+  myFavoriteProducts: Array<ProductModel>;
+  myFavoriteVendorIds: Array<Scalars['ID']['output']>;
+  myFavoriteVendors: Array<VendorModel>;
   myNotifications: NotificationsPage;
   myOrders: Array<OrderModel>;
   orderByToken: Maybe<OrderModel>;
@@ -729,6 +773,16 @@ export type QueryMarketsArgs = {
   city?: InputMaybe<Scalars['String']['input']>;
   criteria?: InputMaybe<CriteriaInput>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
+export type QueryMyFavoriteProductsArgs = {
+  marketId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QueryMyFavoriteVendorsArgs = {
+  marketId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -1134,6 +1188,7 @@ export type CreateMarketBannerUploadUrlMutation = { __typename?: 'Mutation', cre
 
 export type CreateVendorImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 }>;
 
 
@@ -1141,6 +1196,7 @@ export type CreateVendorImageUploadUrlMutation = { __typename?: 'Mutation', crea
 
 export type CreateProductImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 }>;
 
 
@@ -1225,21 +1281,21 @@ export type RequestPasswordResetMutationVariables = Exact<{
 
 export type RequestPasswordResetMutation = { __typename?: 'Mutation', requestPasswordReset: boolean };
 
-export type VendorFieldsFragment = { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> };
+export type VendorFieldsFragment = { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> };
 
 export type AdminVendorsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
 
-export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> } };
+export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> } };
 
 export type VendorByIdQueryVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
 
-export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } | null };
+export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } | null };
 
 export type AdminVendorMembersQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
@@ -1247,3 +1303,23 @@ export type AdminVendorMembersQueryVariables = Exact<{
 
 
 export type AdminVendorMembersQuery = { __typename?: 'Query', adminVendorMembers: { __typename?: 'VendorMembersPage', totalCount: number, items: Array<{ __typename?: 'VendorMemberModel', id: string, userId: string, fullName: string, email: string, role: VendorMemberRole, market: { __typename?: 'MarketModel', id: string, name: string } | null }> } };
+
+export type CreateVendorMutationVariables = Exact<{
+  input: CreateVendorInput;
+}>;
+
+
+export type CreateVendorMutation = { __typename?: 'Mutation', createVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };
+
+export type MarketIdsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MarketIdsQuery = { __typename?: 'Query', adminMarkets: Array<{ __typename?: 'MarketModel', id: string, slug: string }> };
+
+export type UpdateVendorMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  input: UpdateVendorInput;
+}>;
+
+
+export type UpdateVendorMutation = { __typename?: 'Mutation', updateVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };

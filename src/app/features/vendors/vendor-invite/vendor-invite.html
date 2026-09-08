@@ -9,12 +9,16 @@
     <div class="flex-none">
       <h2 class="m-0 text-headline-small font-bold text-on-surface">Invite a vendor</h2>
       <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
-        They set their own password and fill in the rest of their profile.
+        This adds the business to the directory now. They fill in the rest of their profile.
       </p>
     </div>
 
     <div class="fields">
       <h3 class="section-title">Who are you inviting</h3>
+      <p class="-mt-1 mb-0 text-body-medium text-on-surface-variant">
+        The name and address below become the business’s owner account — the one person who can add
+        staff and book stalls.
+      </p>
 
       <mat-form-field>
         <mat-label>Business name</mat-label>
@@ -26,22 +30,22 @@
 
       <div class="pair">
         <mat-form-field>
-          <mat-label>Contact name</mat-label>
+          <mat-label>Owner’s name</mat-label>
           <input matInput formControlName="contactName" autocomplete="name" />
           @if (form.controls.contactName.hasError('required')) {
-            <mat-error>Who will receive this?</mat-error>
+            <mat-error>Who will run this business?</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field>
-          <mat-label>Email address</mat-label>
+          <mat-label>Owner’s email address</mat-label>
           <input matInput type="email" formControlName="email" autocomplete="email" />
           @if (form.controls.email.touched && form.controls.email.hasError('required')) {
-            <mat-error>An invitation needs an email address</mat-error>
+            <mat-error>An owner needs an email address</mat-error>
           } @else if (form.controls.email.touched && form.controls.email.hasError('email')) {
             <mat-error>That doesn’t look like an email address</mat-error>
           } @else {
-            <mat-hint>The invitation link is valid for {{ facade.linkValidDays() }} days.</mat-hint>
+            <mat-hint>Their MarketDay account, or a new one. Nothing is emailed yet.</mat-hint>
           }
         </mat-form-field>
       </div>
@@ -50,6 +54,7 @@
         <mat-form-field>
           <mat-label>Phone (optional)</mat-label>
           <input matInput formControlName="phone" placeholder="+353 …" autocomplete="tel" />
+          <mat-hint>A vendor has no phone number in the API yet</mat-hint>
         </mat-form-field>
 
         <mat-form-field>
@@ -110,15 +115,6 @@
         </div>
       </div>
 
-      <mat-form-field>
-        <mat-label>Role</mat-label>
-        <mat-select formControlName="role">
-          @for (role of roles; track role[0]) {
-            <mat-option [value]="role[0]">{{ role[1] }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
       <mat-card appearance="outlined">
         <mat-card-content>
           <div class="flex flex-row items-center justify-between gap-4">
@@ -127,7 +123,8 @@
                 Skip application review
               </p>
               <p class="m-0 text-body-small text-on-surface-variant">
-                On means they can book a stall the moment they sign up.
+                On, the stall takes orders the moment it exists. Off, it is created paused until
+                someone turns it on.
               </p>
             </div>
             <mat-slide-toggle formControlName="skipApplicationReview" />
@@ -140,7 +137,7 @@
       <mat-form-field>
         <mat-label>Personal note (optional)</mat-label>
         <textarea matInput rows="3" formControlName="note" maxlength="400"></textarea>
-        <mat-hint>Appears above the sign-up button in the invitation email.</mat-hint>
+        <mat-hint>Would appear above the sign-up button — nothing is emailed yet.</mat-hint>
       </mat-form-field>
     </div>
   </form>
@@ -148,6 +145,9 @@
   <aside class="rail" aria-label="Email preview and what happens next">
     <section class="section">
       <h3 class="rail-title">Email preview</h3>
+      <p class="m-0 text-body-small text-on-surface-variant">
+        What they will receive once MarketDay can send it. Not sent today.
+      </p>
       <div class="email">
         <div class="email-to">To {{ preview().to }}</div>
         <div class="email-body">
@@ -170,12 +170,14 @@
     <section class="section">
       <h3 class="rail-title">What happens next</h3>
       <p class="m-0 text-body-medium text-on-surface-variant">
-        They appear in the directory as
-        <md-status-pill tone="alert">Invitation pending</md-status-pill>
-        until they sign up.
+        The business is created and appears in the directory as
+        <md-status-pill [tone]="standing().tone">{{ standing().label }}</md-status-pill>
+        at the markets picked here.
       </p>
       <p class="m-0 text-body-medium text-on-surface-variant">
-        A reminder goes out after {{ facade.reminderAfterDays() }} days if there is no reply.
+        The owner’s account is created at the same time, without a password. Tell them yourself for
+        now, and send them to <strong>Forgot password</strong> to set one — MarketDay cannot send
+        the invitation above until the backend grows an endpoint for it.
       </p>
     </section>
 
@@ -193,7 +195,7 @@
       Save and add another
     </button>
     <button matButton="filled" type="button" [disabled]="facade.sending()" (click)="send()">
-      Send invitation
+      Create vendor
     </button>
   </div>
 </div>

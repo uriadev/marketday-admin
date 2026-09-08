@@ -43,11 +43,26 @@ const STANDING_LABELS: Record<VendorStanding, string | null> = {
   invited: 'Invitation pending',
 };
 
-/** "14 March 2021" — the day the vendor record was created, for the meta line. */
-function joinedLabel(createdAt: string): string {
-  const date = new Date(createdAt);
+/** "14 March 2021" — one timestamp as a day, for the meta and record lines. */
+function dayLabel(timestamp: string): string {
+  const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return 'MarketDay';
   return date.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * The Profile tab's "Last edited" line. `updatedAt` is what a save moves, so
+ * this is how a persisted edit shows on the next read — the second of slack is
+ * for a create that stamps the two columns from two separate `now()` calls, not
+ * for a real edit.
+ */
+function editedLabel(vendor: GqlVendor): string {
+  const created = new Date(vendor.createdAt).getTime();
+  const updated = new Date(vendor.updatedAt).getTime();
+  if (Number.isNaN(created) || Number.isNaN(updated) || updated - created < 1000) {
+    return 'Not edited since it was created';
+  }
+  return `Last edited ${dayLabel(vendor.updatedAt)}`;
 }
 
 /** "Vegetables & eggs · since 2021" — category plus the year they joined. */
@@ -168,7 +183,7 @@ export function toVendorDetail(
     id: vendor.id,
     slug: vendor.slug,
     name: vendor.name,
-    meta: `${vendor.category} · on MarketDay since ${joinedLabel(vendor.createdAt)}`,
+    meta: `${vendor.category} · on MarketDay since ${dayLabel(vendor.createdAt)}`,
     badges,
     marketCount: memberships.length,
     staffCount,
@@ -195,15 +210,19 @@ export function toVendorDetail(
 }
 
 /**
- * The Profile tab's own value (design 2a). `UpdateVendorInput` carries only
- * `name`, `slug`, `category`, `description` and `imageUrl`; registered name,
- * VAT, contact, website, address and tags have no column
- * (`core/models/vendor.model.ts`'s own note), so they load blank rather than
- * faked — mirrors `toSettingsPatch` for a market.
+ * The Profile tab's own value (design 2a), and what `saveProfile` maps the
+ * `updateVendor` response back through — so the screen renders the row the
+ * backend actually stored rather than the form's own copy of it.
+ *
+ * `UpdateVendorInput` carries only `name`, `slug`, `category`, `description`
+ * and `imageUrl`; registered name, VAT, contact, website, address and tags have
+ * no column (`core/models/vendor.model.ts`'s own note), so they load blank
+ * rather than faked — mirrors `toSettingsPatch` for a market.
  */
 export function toVendorProfile(vendor: GqlVendor): VendorProfile {
   return {
     reference: vendor.id,
+    vendorId: vendor.id,
     tradingName: vendor.name,
     registeredName: '',
     category: vendor.category,
@@ -215,9 +234,12 @@ export function toVendorProfile(vendor: GqlVendor): VendorProfile {
     email: '',
     website: '',
     address: '',
-    photos: vendor.imageUrl ? [vendor.imageUrl] : [],
-    created: `Created ${joinedLabel(vendor.createdAt)}`,
-    lastEdited: 'Not edited since it was created',
+    imageUrl: vendor.imageUrl ?? null,
+    created: `Created ${dayLabel(vendor.createdAt)}`,
+    lastEdited: editedLabel(vendor),
+    // `VendorModel` stamps *when* a record changed, never *who* changed it — an
+    // admin, the owner and a staff member all leave the same mark — so the
+    // second half of the line stays empty rather than naming a guess.
     lastEditedBy: '',
   };
 }

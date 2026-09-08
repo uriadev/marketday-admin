@@ -11,8 +11,9 @@ import { MediaKind, MediaRepository, UploadedImage } from '../ports/media-reposi
  */
 @Injectable()
 export class InMemoryMediaRepository extends MediaRepository {
-  /** `kind` only matters to the real backend, which mutation picks the bucket. */
-  override upload(file: File, kind: MediaKind): Observable<UploadedImage> {
+  /** `kind` and `vendorId` only matter to the real backend — which mutation,
+   *  which bucket folder. Nothing leaves the browser here. */
+  override upload(file: File, kind: MediaKind, vendorId?: string): Observable<UploadedImage> {
     return from(readAsDataUrl(file)).pipe(
       switchMap((url) =>
         of<UploadedImage>({ url, fileName: file.name, sizeBytes: file.size }).pipe(delay(300)),

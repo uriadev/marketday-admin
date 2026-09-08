@@ -200,24 +200,27 @@ export interface VendorDetail {
 /** How long a stall description may run, in characters. */
 export const VENDOR_DESCRIPTION_LIMIT = 400;
 
-/** How many photos a vendor may carry — a cover and a few stall pictures. */
-export const VENDOR_PHOTO_LIMIT = 6;
-
 /**
  * The editable half of a vendor record (design 2a). One vendor, one profile:
- * the description, tags and photos belong to the business rather than to any
+ * the description, tags and photo belong to the business rather than to any
  * one market, so saving publishes to every market page at once.
  *
- * Note for the GraphQL swap: `UpdateVendorInput` today carries only `name`,
+ * What the API stores: `UpdateVendorInput` carries only `name`, `slug`,
  * `category`, `description` and `imageUrl`. The rest — registered name, VAT,
- * contact, website, address, tags and the photos past the first — have **no
- * column server-side** yet, the way `county` and `eircode` don't on a market.
- * They are console fields until the API grows them, and the adapter simply
- * will not send them.
+ * contact, website, address and tags — have **no column server-side** yet, the
+ * way `county` and `eircode` don't on a market. They are console fields until
+ * the API grows them, and the adapter simply does not send them.
  */
 export interface VendorProfile {
   /** "v_1042" — the reference support quotes, not the routing slug. */
   reference: string;
+  /**
+   * The vendor's backend id, for the photo presign — `createVendorImageUploadUrl`
+   * signs a `vendors/<vendorId>/…` key and an admin holds no seat it could be
+   * inferred from. Separate from {@link reference}, which is a label the console
+   * prints. `null` on the fixture path, where nothing is presigned.
+   */
+  vendorId: string | null;
   tradingName: string;
   /** The name on the company filings, when it differs from the stall's. */
   registeredName: string;
@@ -234,20 +237,30 @@ export interface VendorProfile {
   website: string;
   /** Where the produce comes from. Held for the organiser, never published. */
   address: string;
-  /** Photo URLs, cover first. */
-  photos: readonly string[];
+  /**
+   * The one photo shoppers see beside this vendor, or `null` for a tinted
+   * placeholder. Singular because `Vendor.imageUrl` is: the design's gallery of
+   * stall pictures has no column behind it, so offering more slots than the
+   * backend keeps would drop every photo past the first on save.
+   */
+  imageUrl: string | null;
   /** "Created 14 March 2021 by Gráinne Doyle". */
   created: string;
   /** "Last edited 6 days ago". */
   lastEdited: string;
-  /** "by Tom McNally, in the vendor app". */
+  /** "by Tom McNally, in the vendor app". Empty on the real-API path, which
+   *  records *when* a vendor changed but never *who* changed it. */
   lastEditedBy: string;
 }
 
-/** What the Profile tab sends back — everything on it an admin can change. */
+/**
+ * What the Profile tab sends back — everything on it an admin can change.
+ * `vendorId` is omitted with the rest of the identity: it is what the screen
+ * uploads *against*, never something the form edits.
+ */
 export type VendorProfilePatch = Omit<
   VendorProfile,
-  'reference' | 'created' | 'lastEdited' | 'lastEditedBy'
+  'reference' | 'vendorId' | 'created' | 'lastEdited' | 'lastEditedBy'
 >;
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -271,6 +284,12 @@ export const VENDOR_TRADES: readonly string[] = [
 /** The form design 1n fills in. */
 export interface VendorInvite {
   businessName: string;
+  /**
+   * The person who will own the business. Not a preference — `createVendor`
+   * seats them as the vendor's `OWNER`, finding their MarketDay account by
+   * {@link VendorInvite.email} or creating one, so there is no role to choose:
+   * whoever is named here holds the business.
+   */
   contactName: string;
   email: string;
   /** Optional; empty string when not given. */
@@ -278,7 +297,6 @@ export interface VendorInvite {
   trade: string;
   /** Slugs of the markets they may apply to. Empty means every market. */
   marketSlugs: readonly string[];
-  role: VendorMemberRole;
   /** On, they can book a stall the moment they sign up. */
   skipApplicationReview: boolean;
   /** Shown above the sign-up button in the invitation email. */

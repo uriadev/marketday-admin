@@ -33,14 +33,8 @@ import { BrandMark } from '../../../shared/components/brand-mark/brand-mark';
 import {
   VENDOR_TRADES,
   VendorInvite as VendorInviteModel,
-  VendorMemberRole,
 } from '../../../core/models/vendor.model';
 import { VendorInviteFacade } from '../vendor-invite-facade';
-
-const ROLE_LABELS: Record<VendorMemberRole, string> = {
-  [VendorMemberRole.Owner]: 'Vendor owner · can add staff and book stalls',
-  [VendorMemberRole.Staff]: 'Stallholder · can work a stall, not change the business',
-};
 
 /**
  * Invite vendor (design 1n): one form, with the email it will send previewed
@@ -49,6 +43,26 @@ const ROLE_LABELS: Record<VendorMemberRole, string> = {
  * The preview is not decoration — an invitation is the first thing a vendor
  * ever sees of MarketDay, and it goes out under the admin's name, so it is
  * worth reading before sending.
+ *
+ * Most of that is live. `VendorRepository.invite` reaches the real
+ * `createVendor`, which records the business, its market scope **and its
+ * owner**: the contact name and email address are the person seated as the
+ * vendor's `OWNER`, found by address if they already have a MarketDay account
+ * and created — without a password — if they do not. There is no role to pick,
+ * because there is only one seat to give.
+ *
+ * "Skip application review" lands as well, on the vendor's `isAcceptingOrders`
+ * flag: off, the stall is created paused, and the rail's pill says so before
+ * the admin commits.
+ *
+ * What is still missing is the message. No invitation endpoint exists
+ * (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone field,
+ * so neither the note nor the phone number has anywhere to go; the new owner
+ * gets in through Forgot password. Both fields are therefore **disabled** —
+ * they stay on the screen, since this is the shape the form takes the day the
+ * endpoint lands, but nothing is collected that would be silently dropped. The
+ * rail says as much rather than letting the preview imply a message left the
+ * building.
  */
 @Component({
   selector: 'md-vendor-invite',
@@ -81,17 +95,21 @@ export class VendorInvite implements OnInit {
 
   protected readonly facade = inject(VendorInviteFacade);
   protected readonly trades = VENDOR_TRADES;
-  protected readonly roles = Object.entries(ROLE_LABELS) as [VendorMemberRole, string][];
 
+  /**
+   * `phone` and `note` are disabled: `createVendor` takes neither, and nothing
+   * emails the note (`docs/backend-api-gaps.md` #9). They are still sent —
+   * {@link send} reads `getRawValue()` — so the day an endpoint takes them,
+   * enabling the two controls is the whole change.
+   */
   protected readonly form = this.fb.group({
     businessName: this.fb.control('', Validators.required),
     contactName: this.fb.control('', Validators.required),
     email: this.fb.control('', [Validators.required, Validators.email]),
-    phone: this.fb.control(''),
+    phone: this.fb.control({ value: '', disabled: true }),
     trade: this.fb.control(VENDOR_TRADES[0]!, Validators.required),
-    role: this.fb.control(VendorMemberRole.Owner, Validators.required),
     skipApplicationReview: this.fb.control(false),
-    note: this.fb.control('', Validators.maxLength(400)),
+    note: this.fb.control({ value: '', disabled: true }, Validators.maxLength(400)),
   });
 
   /**
@@ -159,20 +177,43 @@ export class VendorInvite implements OnInit {
     };
   });
 
-  /** "Two markets selected · owner access" — the footer's running summary. */
+  /**
+   * "Two markets selected · Dervla owns it" — the footer's running summary.
+   * There is no access half any more: whoever is named as the contact is the
+   * owner, so the second clause says who rather than what they may do.
+   */
   protected readonly summary = computed(() => {
     const count = this.selectedMarkets().length;
     const scope =
       count === 0
         ? `All ${this.facade.marketCount()} markets`
         : `${count} ${count === 1 ? 'market' : 'markets'} selected`;
-    const access = this.value().role === VendorMemberRole.Owner ? 'owner access' : 'stall access';
-    return `${scope} · ${access}`;
+    const owner = this.value().contactName.trim();
+    return `${scope} · ${owner ? `${owner} owns it` : 'owner not named yet'}`;
   });
 
+  /**
+   * What the directory will show the moment this lands. "Skip application
+   * review" is carried by `isAcceptingOrders` server-side (there is no
+   * application model — `docs/backend-api-gaps.md` #9), and a vendor that is
+   * not accepting orders maps to `Paused`, so the toggle decides the pill.
+   */
+  protected readonly standing = computed(() =>
+    this.value().skipApplicationReview
+      ? { label: 'Trading', tone: 'positive' as const }
+      : { label: 'Paused', tone: 'muted' as const },
+  );
+
+  /**
+   * How many vendors this session has added. Nothing server-side counts them
+   * (`docs/backend-api-gaps.md` #9) — the repository counts its own creates —
+   * so the line stays hidden at zero rather than opening with a number the
+   * console cannot actually know.
+   */
   protected readonly headerNote = computed(() => {
-    const sent = this.facade.summary()?.sentThisMonth;
-    return sent === undefined ? '' : `${sent} invitations sent this month`;
+    const added = this.facade.summary()?.sentThisMonth ?? 0;
+    if (added === 0) return '';
+    return `${added} ${added === 1 ? 'vendor' : 'vendors'} added this session`;
   });
 
   constructor() {
@@ -221,7 +262,7 @@ export class VendorInvite implements OnInit {
   protected send(addAnother = false): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.error('Fill in the business, contact and email before sending.');
+      this.notifications.error('Fill in the business, and the owner’s name and email, first.');
       return;
     }
 
@@ -232,10 +273,15 @@ export class VendorInvite implements OnInit {
 
     this.facade.send(invite, (created) => {
       if (!created) {
-        this.notifications.error(this.facade.error() ?? "That invitation didn't send.");
+        this.notifications.error(this.facade.error() ?? "That vendor couldn't be created.");
         return;
       }
-      this.notifications.success(`Invitation sent to ${created.name}.`);
+      // Not "invitation sent": `createVendor` is the whole of what the backend
+      // can do here — the vendor and its owner exist, no email has gone
+      // anywhere, so the admin has to tell them themselves.
+      this.notifications.success(
+        `${created.name} created, owned by ${invite.contactName}. No email sent yet.`,
+      );
       if (addAnother) {
         // Keep the access choices, clear who it is for.
         this.form.patchValue({ businessName: '', contactName: '', email: '', phone: '', note: '' });

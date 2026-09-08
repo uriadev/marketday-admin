@@ -21,5 +21,11 @@ export type MediaKind =
  * own DI token while staying a checkable type — see `api.providers.ts`.
  */
 export abstract class MediaRepository {
-  abstract upload(file: File, kind: MediaKind): Observable<UploadedImage>;
+  /**
+   * `vendorId` is read for `'product-image'` and `'vendor-image'`, and is
+   * required for both: those two presigns sign a key under the vendor's own
+   * prefix, and an admin holds no seat the backend could resolve one from.
+   * See `graphql/operations/media.ts`.
+   */
+  abstract upload(file: File, kind: MediaKind, vendorId?: string): Observable<UploadedImage>;
 }

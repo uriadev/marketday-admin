@@ -32,7 +32,6 @@ import {
   VendorDetail,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
-  VendorMemberRole,
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
@@ -93,6 +92,7 @@ class StubMarketRepository extends MarketRepository {
 class StubVendorRepository extends VendorRepository {
   sent: VendorInviteModel | undefined;
   refuse = false;
+  addedSoFar = 14;
 
   override list(): Observable<readonly VendorSummary[]> {
     return of(VENDORS_FIXTURE);
@@ -107,7 +107,7 @@ class StubVendorRepository extends VendorRepository {
     return of({ ...MCNALLY_PROFILE, ...patch });
   }
   override inviteSummary(): Observable<VendorInviteSummary> {
-    return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
+    return of({ sentThisMonth: this.addedSoFar, linkValidDays: 14, reminderAfterDays: 5 });
   }
   override invite(invite: VendorInviteModel): Observable<VendorSummary> {
     if (this.refuse) {
@@ -176,20 +176,77 @@ describe('VendorInvite', () => {
       contactName: 'Dervla Ó Súilleabháin',
       email: 'dervla@cooleacheese.ie',
       trade: 'Cheese & dairy',
-      note: 'Dervla — we met at the Bantry organisers’ evening.',
     });
     fixture.detectChanges();
   }
 
-  it('renders the form and the running invitation count', () => {
+  /** The input under a `mat-form-field` whose label starts with `label`. */
+  function field(fixture: ReturnType<typeof open>, label: string): HTMLInputElement {
+    const host = fixture.nativeElement as HTMLElement;
+    const match = Array.from(host.querySelectorAll('mat-form-field')).find((wrapper) =>
+      wrapper.querySelector('mat-label')?.textContent?.trim().startsWith(label),
+    );
+    expect(match).toBeDefined();
+    const input = match!.querySelector('input, textarea');
+    expect(input).not.toBeNull();
+    return input as HTMLInputElement;
+  }
+
+  it('renders the form and the running count of what it added', () => {
     const fixture = open();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Invite a vendor');
-    expect(text).toContain('They set their own password and fill in the rest of their profile.');
-    expect(text).toContain('14 invitations sent this month');
-    expect(text).toContain('The invitation link is valid for 14 days.');
-    expect(text).toContain('A reminder goes out after 5 days if there is no reply.');
+    expect(text).toContain('This adds the business to the directory now.');
+    expect(text).toContain('14 vendors added this session');
+  });
+
+  it('hides the count until this visit has added something', () => {
+    vendors.addedSoFar = 0;
+
+    const text = (open().nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('added this session');
+  });
+
+  it('says the record and its owner land, but the email does not', () => {
+    // `createVendor` is the whole of what the backend can do here
+    // (docs/backend-api-gaps.md #9). The screen may not imply otherwise.
+    const text = (open().nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('become the business’s owner account');
+    expect(text).toContain('Their MarketDay account, or a new one. Nothing is emailed yet.');
+    expect(text).toContain('Not sent today.');
+    expect(text).toContain('The business is created and appears in the directory');
+    expect(text).toContain('Off, it is created paused until someone turns it on.');
+    expect(text).toContain('The owner’s account is created at the same time, without a password.');
+    expect(text).toContain('Create vendor');
+  });
+
+  it('shows the standing the review toggle will produce', () => {
+    // "Skip application review" is carried by `isAcceptingOrders` server-side
+    // (docs/backend-api-gaps.md #9), so the pill has to track the toggle —
+    // off means the stall is created paused.
+    const fixture = open();
+
+    expect(fixture.componentInstance['standing']()).toEqual({
+      label: 'Paused',
+      tone: 'muted',
+    });
+
+    fixture.componentInstance['form'].patchValue({ skipApplicationReview: true });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['standing']()).toEqual({
+      label: 'Trading',
+      tone: 'positive',
+    });
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Trading');
+  });
+
+  it('offers no role to choose — the named owner is the only seat', () => {
+    const fixture = open();
+
+    expect(fixture.componentInstance['form'].contains('role')).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Stallholder');
   });
 
   it('offers every market to the autocomplete, and narrows it as you type', () => {
@@ -233,25 +290,39 @@ describe('VendorInvite', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('To dervla@cooleacheese.ie');
     expect(text).toContain('invited Coolea Cheese Co. to MarketDay');
-    expect(text).toContain('we met at the Bantry organisers’ evening');
     expect(text).toContain('Set up your account');
     expect(text).toContain('Link expires');
   });
 
-  it('reads no markets picked as every market, and says so', () => {
+  it('greys out the phone and the note, which nothing carries', () => {
+    // `CreateVendorInput` has no phone field and no endpoint emails the note
+    // (docs/backend-api-gaps.md #9), so neither is collected — a field that
+    // takes what is typed and drops it is the thing to avoid here.
+    const fixture = open();
+
+    expect(field(fixture, 'Phone').disabled).toBe(true);
+    expect(field(fixture, 'Personal note').disabled).toBe(true);
+    expect(field(fixture, 'Business name').disabled).toBe(false);
+    expect(field(fixture, 'Owner’s email').disabled).toBe(false);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('A vendor has no phone number in the API yet');
+    expect(text).toContain('nothing is emailed yet');
+  });
+
+  it('reads no markets picked as every market, and names the owner', () => {
     const fixture = open();
     const component = fixture.componentInstance;
 
-    expect(component['summary']()).toBe('All 7 markets · owner access');
+    // There is no role to choose any more, so the summary's second half says
+    // who owns the business rather than what access they get.
+    expect(component['summary']()).toBe('All 7 markets · owner not named yet');
 
+    fill(fixture);
     component['addMarket']('temple-bar');
     component['addMarket']('bantry-friday');
     fixture.detectChanges();
-    expect(component['summary']()).toBe('2 markets selected · owner access');
-
-    component['form'].patchValue({ role: VendorMemberRole.Staff });
-    fixture.detectChanges();
-    expect(component['summary']()).toBe('2 markets selected · stall access');
+    expect(component['summary']()).toBe('2 markets selected · Dervla Ó Súilleabháin owns it');
   });
 
   it('clearing the market selection is how "all markets" is chosen', () => {
@@ -271,7 +342,7 @@ describe('VendorInvite', () => {
     const component = fixture.componentInstance;
 
     expect(component['selectedMarkets']()).toEqual(['temple-bar']);
-    expect(component['summary']()).toBe('1 market selected · owner access');
+    expect(component['summary']()).toBe('1 market selected · owner not named yet');
     expect(component['marketOptions']().map((market) => market.slug)).not.toContain('temple-bar');
 
     // It is a suggestion, not a lock — the admin can still clear it.
@@ -318,7 +389,6 @@ describe('VendorInvite', () => {
     expect(vendors.sent?.businessName).toBe('Coolea Cheese Co.');
     expect(vendors.sent?.email).toBe('dervla@cooleacheese.ie');
     expect(vendors.sent?.trade).toBe('Cheese & dairy');
-    expect(vendors.sent?.role).toBe(VendorMemberRole.Owner);
     expect(vendors.sent?.marketSlugs).toEqual(['bantry-friday']);
     expect(vendors.sent?.skipApplicationReview).toBe(false);
     expect(navigate).toHaveBeenCalledWith(['/vendors']);

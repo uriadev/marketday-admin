@@ -263,7 +263,9 @@ export class ProductForm {
 
   protected onImagePicked(file: File): void {
     this.uploading.set(true);
-    this.media.upload(file, 'product-image').subscribe({
+    // The vendor is required, not incidental: the presign is keyed by it and an
+    // admin holds no seat the backend could infer one from.
+    this.media.upload(file, 'product-image', this.facade.vendorId() ?? undefined).subscribe({
       next: (uploaded) => {
         this.uploading.set(false);
         this.form.controls.imageUrl.setValue(uploaded.url);

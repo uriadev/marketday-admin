@@ -23,11 +23,13 @@ found while reading the same code, unrelated to what's missing.
    `detail()` folds it in — filtered `{ field: "vendorId", operator: EQUAL }` — so the Staff
    tab (design 1c) and the detail's Staff badge/stat run on real data. The directory list does
    **not** fan out to `adminVendorMembers`, so the face pile there still draws faceless discs
-   and `staff` names stay empty on the list read. What is still missing on
-   `VendorModel` keeps the vendor **write** paths and the richer detail tabs on session-local
-   data — see gaps 6–9 and the `GraphqlVendorRepository` class doc: no per-market
-   fee/standing, no application or document model, and `updateVendor` is owner-only so an
-   admin cannot persist a profile edit.
+   and `staff` names stay empty on the list read. Creating a vendor is a real write too —
+   `createVendor` is `@Roles(ADMIN)` and now seats a named owner, see gap 9. What is still
+   missing on `VendorModel` keeps the _other_ vendor write paths and the richer detail tabs on
+   session-local data — see gaps 6–9 and the `GraphqlVendorRepository` class doc: no
+   per-market fee/standing, no application or document model, and no way to email the owner
+   you just created. `updateVendor` was owner-only too; gap 7 closed that, so the Profile tab
+   now writes through.
 
 3. **No support-message listing, thread, reply, or assignment model.**
    `src/support/support.resolver.ts` has two mutations and **no `@Query` at all** — the inbox is
@@ -46,12 +48,33 @@ found while reading the same code, unrelated to what's missing.
 6. **No vendor audit log.** The closest thing is `OrderStatusEventModel`, which is order-specific.
    Blocks `ActivityRepository`, the Activity tab.
 
-7. **No admin-scoped _vendor_ mutations.** `updateVendor` throws `ForbiddenException`
-   unless the caller _is_ the vendor being edited (`assertOwner`). An admin cannot edit a
-   vendor through the API today. Blocks the Vendors screen's write path — with `adminVendors`
-   now serving the directory read (gap 2), `GraphqlVendorRepository.saveProfile` holds an edit
-   in memory for the session and layers it over the real `vendor(id)` read, the same way
-   `GraphqlProfileRepository` treats its uncovered fields.
+7. ~~**No admin-scoped _vendor_ mutations.**~~ **Closed.** `updateVendor` now branches on the
+   caller's role _before_ the seat lookup: an ADMIN edits the vendor named in `id` and
+   `@Roles(ADMIN)` is the whole gate, while a VENDOR caller still reaches only their own
+   business (`id` is re-checked against `ctx.vendor.id`) — verbatim the treatment the product
+   mutations and `createVendorImageUploadUrl` got. `@Roles` already listed ADMIN before this,
+   but every path ran through `requireContext`, so an admin was refused one line later by a
+   seat they do not hold: the decorator promised an access the method did not give.
+   `GraphqlVendorRepository.saveProfile` calls it, so the Profile tab's write **persists** and
+   maps the stored row back through `toVendorProfile` rather than holding an edit in memory
+   for the session.
+
+   **`UpdateVendorInput` is still narrow** — `name`, `slug`, `description`, `category`,
+   `imageUrl`, `isActive` — so the Profile tab **disables** the registered name, VAT, produce
+   tags, contact block and address, which have no column at all. They show what the record
+   holds and the adapter drops them rather than posting them where nothing would read them;
+   re-enabling one is a one-word change when its column lands. `slug` is deliberately never
+   sent either: the backend never re-derives it from a changed `name`, so a rename keeps the
+   URL the console routes by and every link already shared. `VendorModel.updatedAt` is now
+   selected and drives the tab's "Last edited" line — there is no author column, so the
+   "by …" half of it stays blank.
+
+   ~~`createVendorImageUploadUrl` is `assertOwner`-gated the same way…~~ **Closed.** It is now
+   `@Roles(ADMIN, VENDOR)` and takes an optional `vendorId`, verbatim the treatment the product
+   presign got: an admin names the vendor, a vendor caller's own seat wins and the argument is
+   ignored, and an admin naming none is refused rather than defaulted (the key is
+   `vendors/{vendorId}/…`, the prefix the account purge deletes by). `VendorProfile.vendorId`
+   carries the id from the `vendor(id)` read to the Profile tab, so the photo upload works.
 
    ~~**…or product mutations.**~~ **Closed.** `createProduct`, `updateProduct`, `toggleProduct`
    and `createProductImageUploadUrl` are now `@Roles(VENDOR, ADMIN)`, and `setProductListing` /
@@ -59,10 +82,11 @@ found while reading the same code, unrelated to what's missing.
    `vendorId` argument (`createProduct` / `createProductImageUploadUrl`) or from the product
    being changed, and skips `assertOwner` / `assertMarketInScope` — `@Roles(ADMIN)` is the
    whole gate. `GraphqlProductRepository` runs the Products grid (design 3a) and the product
-   form (design 4a) end-to-end on these. One seam is still open: the console's `MediaRepository`
-   port has no vendor argument, so `createProductImageUploadUrl` from an admin (product-photo
-   upload on design 4a) has no `vendorId` to send and stays non-functional until the media
-   port grows one.
+   form (design 4a) end-to-end on these, product photo included: `MediaRepository.upload` takes
+   an optional `vendorId`, `GraphqlProductRepository` primes the fixture with the id it resolved
+   for the read, and `ProductForm.vendorId` carries it to the form — without it
+   `createProductImageUploadUrl` answers `Specify the vendor this product belongs to.`, since an
+   admin holds no seat the resolver could infer one from.
 
 8. **No `deleteProduct` mutation.** `src/products/products.service.ts` stops at
    `removeListing` (`removeProductListing`) — there is no way to delete a product outright.
@@ -70,13 +94,61 @@ found while reading the same code, unrelated to what's missing.
    toggling it hidden — as gone as the schema allows, but a full reload still shows it as a
    "Not carried" row. A real `deleteProduct` would let that row disappear.
 
-9. **No vendor application/approval concept.** `Market.reviewApplications` is a real NOT NULL
-   column but nothing acts on it — no `approveVendor`/`declineVendor`, no pending/approved/
-   declined state on `Vendor` (only `isActive` and `isAcceptingOrders`). Blocks the "needs a
-   decision" flows on the Markets and Vendors screens, and the vendor-invite flow (design 1n):
-   `GraphqlVendorRepository.invite` adds a row to this session's directory and calls no
-   endpoint. A vendor read from `adminVendors` is therefore only ever `trading` or `paused` —
-   never `pending`/`fee-unpaid`/`invited`.
+9. **No vendor application/approval concept, and no way to invite a vendor.**
+   `Market.reviewApplications` is a real NOT NULL column but nothing acts on it — no
+   `approveVendor`/`declineVendor`, no pending/approved/declined state on `Vendor` (only
+   `isActive` and `isAcceptingOrders`). Blocks the "needs a decision" flows on the Markets and
+   Vendors screens. A vendor read from `adminVendors` is therefore only ever `trading` or
+   `paused` — never `pending`/`fee-unpaid`/`invited`.
+
+   ~~**…and no way to create a vendor, or its owner, as an admin.**~~ **Closed.**
+   `createVendor(input: CreateVendorInput!)` is `@Roles(ADMIN)` and
+   `GraphqlVendorRepository.invite` calls it, so design 1n records the business for real —
+   `name`, `category`, the picked markets (`marketIds`, resolved from slug by a lean
+   `adminMarkets { id slug }` query, since the criteria filters are a no-op; see the bugs
+   below) **and its owner**. The backend derives the slug and suffixes `-2`/`-3` past a
+   collision, so the row comes back through the same `VendorFields` fragment the reads use and
+   is in the directory on the next load.
+
+   Closing it needed two **backend** changes, made here:
+
+   - `CreateVendorInput` grew `ownerEmail` / `ownerName`, and `VendorsService.create` now
+     takes a `VendorOwner` — `{ userId }` for a self-signup, `{ email, fullName }` for an
+     admin acting for someone else. On the admin path it finds that person's account by
+     address (case-insensitively, since nothing upstream normalises `users.email`) or creates
+     a **passwordless** one, then seats them as `OWNER` in the same transaction as the vendor.
+     A passwordless account is an existing, working state — a Google/Apple user has none — and
+     `requestPasswordReset` only diverts to "use the button you signed up with" for an account
+     with a social id, so the new owner gets in through Forgot password.
+   - `VendorsResolver.createVendor` refuses an ADMIN caller that names no owner rather than
+     defaulting to one. Before this, `create` seated the _caller_, which for an admin meant
+     holding a business they do not run and — because `vendor_members.userId` is UNIQUE —
+     getting `BadRequestException('You already belong to a vendor')` on their second create.
+     The role is read from the caller, so re-opening the mutation to self-signup is a change
+     to the `@Roles` line alone.
+
+   One person holds at most one seat, so naming someone who already owns a vendor is refused,
+   naming them: `dervla@… already belongs to a vendor`.
+
+   `CreateVendorInput` also grew `isAcceptingOrders`, which is where design 1n's "skip
+   application review" toggle now lands. There is still no application model to hold "approved
+   yet?", so the flag the schema _does_ have carries it: review required → the stall is created
+   with `isAcceptingOrders: false` and reads `Paused` in the directory until someone turns it
+   on. A real approval model would replace this — the toggle is standing in for one, not
+   describing one.
+
+   **Still open: the invitation itself.** There is no way to _tell_ the new owner. No endpoint
+   emails a would-be owner — `inviteVendorMember` resolves the vendor from the caller
+   (`VendorMembersResolver` is deliberately argument-free, so one owner can never address
+   another vendor's roster) and only ever mints a `STAFF` seat, so an admin cannot use it. So
+   design 1n's phone and personal note are **disabled on the screen** rather than collected and
+   dropped, and the admin has to tell the owner themselves; the screen says so rather than
+   implying a message went out. What would close it: an admin-scoped
+   `inviteVendorOwner(vendorId:, email:)`, or `createVendor` sending a set-your-password mail
+   through `MailSender` the way `VendorInvitesService.invite` already does.
+   `VendorInviteSummary`'s two policy windows would come from the same place; today they are
+   constants in `GraphqlVendorRepository`, and `sentThisMonth` counts only this session's own
+   creates.
 
 10. ~~**`VendorModel` has no `slug`.**~~ **Closed.** `VendorModel.slug` is a real `String!`
     field and `Create`/`UpdateVendorInput` both accept `slug`. `market-mapper.ts`'s

@@ -410,6 +410,13 @@ export class InMemoryProductRepository extends ProductRepository {
    */
   private readonly names = new Map<string, string>();
 
+  /**
+   * Real vendor ids by slug, set by {@link primeBoard} the same way as
+   * {@link names} — {@link form} passes it to the photo upload, which presigns
+   * per vendor.
+   */
+  private readonly ids = new Map<string, string>();
+
   /** Ids handed out this session, so a second "Save and add another" is unique. */
   private nextId = 1;
 
@@ -423,9 +430,15 @@ export class InMemoryProductRepository extends ProductRepository {
    * what it read from the API so the session's writes have a real board to run
    * against. `vendorName` fills {@link form}'s breadcrumb.
    */
-  primeBoard(vendorSlug: string, board: VendorProductBoard, vendorName?: string): void {
+  primeBoard(
+    vendorSlug: string,
+    board: VendorProductBoard,
+    vendorName?: string,
+    vendorId?: string,
+  ): void {
     this.boards.set(vendorSlug, board);
     if (vendorName) this.names.set(vendorSlug, vendorName);
+    if (vendorId) this.ids.set(vendorSlug, vendorId);
   }
 
   /** The board as it stands right now, without the {@link board} round-trip delay. */
@@ -514,9 +527,11 @@ export class InMemoryProductRepository extends ProductRepository {
       this.names.get(vendorSlug) ??
       VENDORS_FIXTURE.find((candidate) => candidate.slug === vendorSlug)?.name ??
       'Vendor';
+    const vendorId = this.ids.get(vendorSlug) ?? null;
     if (productId === null) {
       return of({
         vendorSlug,
+        vendorId,
         vendorName,
         markets: board.markets,
         product: null,
@@ -535,6 +550,7 @@ export class InMemoryProductRepository extends ProductRepository {
     const changes = this.logFor(vendorSlug, product.id);
     return of({
       vendorSlug,
+      vendorId,
       vendorName,
       markets: board.markets,
       product,

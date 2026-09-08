@@ -1,23 +1,27 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
- * The MarketDay glyph — a rounded square in brand green. Presentational only;
- * callers pair it with their own wordmark and heading.
+ * The MarketDay glyph — the woven basket from `public/logo.svg`. Decorative:
+ * every caller pairs it with the wordmark, so the image carries no alt text.
  */
 @Component({
   selector: 'md-brand-mark',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: '',
+  template: `<img src="logo.svg" alt="" [width]="size()" [height]="size()" />`,
   host: {
     '[style.width.px]': 'size()',
     '[style.height.px]': 'size()',
-    '[style.border-radius.px]': 'size() * 0.26',
   },
   styles: `
     :host {
       display: inline-block;
       flex-shrink: 0;
-      background: var(--mat-sys-primary);
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
   `,
 })

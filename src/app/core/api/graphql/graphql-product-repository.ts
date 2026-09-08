@@ -231,15 +231,17 @@ export class GraphqlProductRepository extends ProductRepository {
     if (this.fixture.hasBoard(vendorSlug)) return of(undefined);
     return this.resolveId(vendorSlug).pipe(
       switchMap((vendorId) =>
-        this.client.request<VendorProductsQuery, VendorProductsQueryVariables>(VENDOR_PRODUCTS, {
-          vendorId,
-          criteria: { limit: PRODUCT_LIMIT },
-        }),
+        this.client
+          .request<VendorProductsQuery, VendorProductsQueryVariables>(VENDOR_PRODUCTS, {
+            vendorId,
+            criteria: { limit: PRODUCT_LIMIT },
+          })
+          .pipe(map((data) => ({ data, vendorId }))),
       ),
-      map((data) => {
+      map(({ data, vendorId }) => {
         if (!data.vendor) throw new Error('That vendor could not be found.');
         this.marketIds.set(vendorSlug, marketIdBySlug(data.vendor));
-        this.fixture.primeBoard(vendorSlug, toVendorProductBoard(data), data.vendor.name);
+        this.fixture.primeBoard(vendorSlug, toVendorProductBoard(data), data.vendor.name, vendorId);
       }),
     );
   }

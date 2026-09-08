@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
@@ -13,6 +14,7 @@ import {
   VendorProduct,
   VendorProductBoard,
 } from '../../../core/models/product.model';
+import { ImageUpload } from '../../../shared/components/image-upload/image-upload';
 import { ProductForm } from './product-form';
 
 const VENDOR = 'mcnally-family-farm';
@@ -39,6 +41,7 @@ class StubProductRepository extends ProductRepository {
     }
     return of({
       vendorSlug,
+      vendorId: 'vnd-mcnally',
       vendorName: 'McNally Family Farm',
       markets: this.board_.markets,
       product: product ?? null,
@@ -101,12 +104,17 @@ class StubProductRepository extends ProductRepository {
 }
 
 class StubMediaRepository extends MediaRepository {
-  override upload(file: File): Observable<UploadedImage> {
+  /** What the last upload asked for — the presign is keyed by the vendor. */
+  lastCall: { kind: string; vendorId?: string } | null = null;
+
+  override upload(file: File, kind: string, vendorId?: string): Observable<UploadedImage> {
+    this.lastCall = { kind, vendorId };
     return of({ url: `https://cdn.test/${file.name}`, fileName: file.name, sizeBytes: file.size });
   }
 }
 
 let repo: StubProductRepository;
+let media: StubMediaRepository;
 
 function open(productId?: string, slug = VENDOR) {
   const fixture = TestBed.createComponent(ProductForm);
@@ -139,6 +147,7 @@ function buttonNamed(fixture: { nativeElement: unknown }, label: string): HTMLEl
 
 beforeEach(async () => {
   repo = new StubProductRepository();
+  media = new StubMediaRepository();
   await TestBed.configureTestingModule({
     imports: [ProductForm],
     providers: [
@@ -147,7 +156,7 @@ beforeEach(async () => {
       provideRouter([{ path: '**', children: [] }]),
       provideNoopAnimations(),
       { provide: ProductRepository, useValue: repo },
-      { provide: MediaRepository, useClass: StubMediaRepository },
+      { provide: MediaRepository, useValue: media },
     ],
   }).compileComponents();
 });
@@ -306,6 +315,42 @@ describe('ProductForm · adding a product', () => {
     expect(component.form.getRawValue().name).toBe('');
     // The next product usually goes on the same shelf.
     expect(component.form.getRawValue().category).toBe('VEGETABLE');
+  });
+});
+
+describe('ProductForm · the photo', () => {
+  /** Hands the drop zone a file the way picking one does. */
+  function pick(fixture: ReturnType<typeof open>, name = 'rhubarb.png'): void {
+    const zone = fixture.debugElement.query(By.directive(ImageUpload));
+    zone.componentInstance.selected.emit(new File(['x'], name, { type: 'image/png' }));
+    fixture.detectChanges();
+  }
+
+  it('presigns against the vendor whose product it is', () => {
+    const fixture = open();
+
+    pick(fixture);
+
+    // Without the vendor the backend has nothing to resolve one from — an admin
+    // holds no seat at a vendor — and answers "Specify the vendor this product
+    // belongs to."
+    expect(media.lastCall).toEqual({ kind: 'product-image', vendorId: 'vnd-mcnally' });
+  });
+
+  it('keeps the uploaded URL on the draft it saves', () => {
+    const fixture = open();
+
+    pick(fixture);
+    (
+      fixture.componentInstance as unknown as {
+        form: { patchValue: (value: Record<string, unknown>) => void };
+      }
+    ).form.patchValue({ name: 'Rhubarb', category: 'VEGETABLE', unit: 'BUNCH', price: 3.5 });
+    marketRows(fixture)[0]!.click();
+    fixture.detectChanges();
+    buttonNamed(fixture, 'Add product').click();
+
+    expect(repo.lastDraft?.imageUrl).toBe('https://cdn.test/rhubarb.png');
   });
 });
 
