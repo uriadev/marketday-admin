@@ -21,6 +21,15 @@
   gap: 16px;
 }
 
+/*
+ * The column scrolls, so nothing in it shrinks: a child that clips its own
+ * overflow (the table card) has an automatic minimum size of zero, and would
+ * shorten to the leftover space — hiding rows — instead of overflowing .main.
+ */
+.main > * {
+  flex: none;
+}
+
 .rail {
   inline-size: 320px;
   flex: none;
