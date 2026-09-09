@@ -1,13 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
@@ -36,6 +30,13 @@ import { VendorsStore } from '../vendors-store';
 /** How many market chips a row shows before collapsing the rest into "+N". */
 const MARKET_CHIP_LIMIT = 3;
 
+/**
+ * How long the search waits for the typing to stop. Every keystroke used to
+ * cost a client-side filter over rows already in memory; it now costs a query,
+ * so the pause is what keeps a five-letter search to one read instead of five.
+ */
+const SEARCH_DEBOUNCE_MS = 300;
+
 @Component({
   selector: 'md-vendors',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,7 +61,7 @@ const MARKET_CHIP_LIMIT = 3;
   templateUrl: './vendors.html',
   styleUrl: './vendors.css',
 })
-export class Vendors implements OnInit {
+export class Vendors {
   protected readonly store = inject(VendorsStore);
   protected readonly chrome = inject(ConsoleChrome);
   private readonly router = inject(Router);
@@ -85,33 +86,23 @@ export class Vendors implements OnInit {
     paused: this.paused() === 'true',
   }));
 
-  /** Page position is view state, not something worth putting in a link. */
-  protected readonly pageIndex = signal(0);
-  protected readonly pageSize = signal(25);
-
+  /** Counts the directory, not the page — the filters narrow the table below it. */
   protected readonly heading = computed(() => {
-    const total = this.store.items().length;
+    const total = this.store.vendorCount();
     return `${total} ${total === 1 ? 'vendor' : 'vendors'}`;
   });
 
-  /** The slice of `visible()` the table renders. */
-  protected readonly page = computed(() => {
-    const start = this.pageIndex() * this.pageSize();
-    return this.store.visible().slice(start, start + this.pageSize());
-  });
+  private readonly typed = new Subject<string>();
 
   constructor() {
-    // The URL is the source of truth; the store follows it.
+    // The URL is the source of truth; the store follows it, and reads the page
+    // it needs — including the first one, so there is no `load()` on init to
+    // race this.
     effect(() => this.store.setFilters(this.filters()));
-    // A narrower list can be shorter than the page you were on.
-    effect(() => {
-      this.store.visible();
-      this.pageIndex.set(0);
-    });
-  }
 
-  ngOnInit(): void {
-    this.store.load();
+    this.typed
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((value) => this.setParam({ q: value === '' ? null : value }));
   }
 
   protected setParam(patch: Record<string, string | null>): void {
@@ -134,8 +125,7 @@ export class Vendors implements OnInit {
   }
 
   protected onSearch(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.setParam({ q: value === '' ? null : value });
+    this.typed.next((event.target as HTMLInputElement).value);
   }
 
   protected readonly activeToggles = computed(() =>
@@ -165,9 +155,9 @@ export class Vendors implements OnInit {
     return toggle === 'applications' ? this.store.applicationCount() : null;
   }
 
+  /** A page turn is a read: the rows for it were never fetched. */
   protected onPage(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
+    this.store.setPage(event.pageIndex, event.pageSize);
   }
 
   protected marketChips(vendor: VendorSummary): readonly string[] {

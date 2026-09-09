@@ -11,6 +11,7 @@ import {
 } from '../../../core/api/in-memory/in-memory-vendor-repository';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
   VendorProfile as VendorProfileModel,
@@ -26,8 +27,14 @@ let saved: VendorProfilePatch | null = null;
 let media: StubMediaRepository;
 
 class StubVendorRepository extends VendorRepository {
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** The directory is not what these tests are about — an empty page satisfies
+   *  the port. */
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [],
+      total: 0,
+      facets: { markets: [], applicationCount: 0, vendorCount: 0 },
+    });
   }
   override detail(slug: string): Observable<VendorDetail> {
     if (slug !== MCNALLY_DETAIL.slug) {

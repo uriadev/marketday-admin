@@ -11,8 +11,11 @@ import {
   ListingStatus,
   ProductDraft,
   ProductForm as ProductFormData,
+  ProductListQuery,
   VendorProduct,
   VendorProductBoard,
+  VendorProductBoardPage,
+  boardPage,
 } from '../../../core/models/product.model';
 import { ImageUpload } from '../../../shared/components/image-upload/image-upload';
 import { ProductForm } from './product-form';
@@ -86,19 +89,19 @@ class StubProductRepository extends ProductRepository {
   }
 
   /* Not reachable from this screen. */
-  override board(): Observable<VendorProductBoard> {
-    return of(this.board_);
+  override board(_vendorSlug: string, query: ProductListQuery): Observable<VendorProductBoardPage> {
+    return of(boardPage(this.board_, query));
   }
-  override setStatus(): Observable<VendorProduct> {
+  override setStatus(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('not used here'));
   }
-  override markMarketSoldOut(): Observable<readonly VendorProduct[]> {
+  override markMarketSoldOut(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('not used here'));
   }
-  override resetSoldOut(): Observable<readonly VendorProduct[]> {
+  override resetSoldOut(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('not used here'));
   }
-  override setHidden(): Observable<VendorProduct> {
+  override setHidden(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('not used here'));
   }
 }

@@ -1,4 +1,12 @@
-import { DestroyRef, Signal, WritableSignal, computed, inject, signal } from '@angular/core';
+import {
+  DestroyRef,
+  Signal,
+  WritableSignal,
+  computed,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable } from 'rxjs';
 
@@ -14,7 +22,8 @@ export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
  * Filters are held here but deliberately do **not** trigger a reload: a fixture
  * backend hands back the whole collection and narrows it client-side, while a
  * server-side implementation will call `load()` after `setFilters()`. Each
- * subclass makes that choice explicit.
+ * subclass makes that choice explicit — {@link PagedCollectionStore} is the one
+ * that reloads, because a filter it cannot apply to rows it never fetched.
  */
 export abstract class CollectionStore<T, F extends object = Record<string, never>> {
   private readonly destroyRef = inject(DestroyRef);
@@ -42,17 +51,33 @@ export abstract class CollectionStore<T, F extends object = Record<string, never
   /** The one call a subclass has to provide. */
   protected abstract fetch(filters: F): Observable<readonly T[]>;
 
+  /**
+   * Which load is the current one. A server-paged screen can have two in
+   * flight — click "next" twice, or type while a search is running — and
+   * without this the slower answer would win and put the wrong rows under the
+   * paginator. The token is read back on arrival rather than the request being
+   * cancelled, so a superseded response is dropped rather than mistrusted.
+   */
+  private requestId = 0;
+
   load(): void {
+    const id = ++this.requestId;
     this._status.set('loading');
     this._error.set(null);
-    this.fetch(this._filters())
+    // Untracked because `load()` is called from a component `effect` that
+    // syncs the URL's filters: reading them tracked would make the effect
+    // depend on state it writes, and `setFilters` hands back a new object
+    // every time.
+    this.fetch(untracked(() => this._filters()))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => {
+          if (id !== this.requestId) return;
           this._items.set(items);
           this._status.set('ready');
         },
         error: (cause: unknown) => {
+          if (id !== this.requestId) return;
           this._error.set(cause instanceof Error ? cause.message : 'Something went wrong.');
           this._status.set('error');
         },

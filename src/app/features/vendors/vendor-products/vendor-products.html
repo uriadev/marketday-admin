@@ -90,7 +90,7 @@
       </md-empty-state>
     } @else {
       <div class="table-card">
-        <table mat-table [dataSource]="page()" class="products">
+        <table mat-table [dataSource]="store.items()" class="products">
           <ng-container matColumnDef="product">
             <th mat-header-cell *matHeaderCellDef scope="col">Product</th>
             <td mat-cell *matCellDef="let product">
@@ -191,9 +191,9 @@
         </table>
 
         <mat-paginator
-          [length]="store.visible().length"
-          [pageSize]="pageSize()"
-          [pageIndex]="pageIndex()"
+          [length]="store.total()"
+          [pageSize]="store.pageSize()"
+          [pageIndex]="store.pageIndex()"
           [pageSizeOptions]="[10, 25, 50]"
           (page)="onPage($event)"
           aria-label="Choose a page of products"

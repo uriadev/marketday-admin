@@ -13,6 +13,7 @@ import {
 import { StallPayment, VendorLedger } from '../../../core/models/payment.model';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
   VendorProfile,
@@ -82,8 +83,14 @@ class StubPaymentRepository extends PaymentRepository {
 }
 
 class StubVendorRepository extends VendorRepository {
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** The directory is not what these tests are about — an empty page satisfies
+   *  the port. */
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [],
+      total: 0,
+      facets: { markets: [], applicationCount: 0, vendorCount: 0 },
+    });
   }
   override detail(): Observable<VendorDetail> {
     return of(MCNALLY_DETAIL);

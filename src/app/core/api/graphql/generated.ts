@@ -1219,10 +1219,12 @@ export type VendorProductsQueryVariables = Exact<{
 
 export type VendorProductsQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, isActive: boolean, isAcceptingOrders: boolean, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string }> } | null, products: { __typename?: 'ProductsPage', totalCount: number, items: Array<{ __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> }> } };
 
-export type AdminVendorIdsQueryVariables = Exact<{ [key: string]: never; }>;
+export type AdminVendorIdsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
 
 
-export type AdminVendorIdsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', items: Array<{ __typename?: 'VendorModel', id: string, slug: string }> } };
+export type AdminVendorIdsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string }> } };
 
 export type CreateProductMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
@@ -1288,7 +1290,7 @@ export type AdminVendorsQueryVariables = Exact<{
 }>;
 
 
-export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> } };
+export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> }, directory: { __typename?: 'VendorsPage', totalCount: number } };
 
 export type VendorByIdQueryVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1314,7 +1316,7 @@ export type CreateVendorMutation = { __typename?: 'Mutation', createVendor: { __
 export type MarketIdsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MarketIdsQuery = { __typename?: 'Query', adminMarkets: Array<{ __typename?: 'MarketModel', id: string, slug: string }> };
+export type MarketIdsQuery = { __typename?: 'Query', adminMarkets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string }> };
 
 export type UpdateVendorMutationVariables = Exact<{
   id: Scalars['ID']['input'];

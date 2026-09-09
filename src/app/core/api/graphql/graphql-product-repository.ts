@@ -6,8 +6,10 @@ import {
   ListingStatus,
   ProductDraft,
   ProductForm,
+  ProductListQuery,
   VendorProduct,
   VendorProductBoard,
+  VendorProductBoardPage,
 } from '../../models/product.model';
 import { InMemoryProductRepository } from '../in-memory/in-memory-product-repository';
 import { GraphqlClient } from './graphql-client';
@@ -44,8 +46,17 @@ import {
   VendorProductsQueryVariables,
 } from './generated';
 
-/** Well past any vendor's catalogue size, to clear `ProductsService.DEFAULT_LIMIT`. */
+/**
+ * What the board read asks for first, to clear `ProductsService.DEFAULT_LIMIT`
+ * (a silent `take(20)` when no `criteria` is passed). A guess rather than a
+ * cap: `totalCount` comes back beside the rows, so a bigger catalogue is
+ * re-read at its real size — the grid pages this list in the browser, and it
+ * can only do that honestly if it has all of it.
+ */
 const PRODUCT_LIMIT = 500;
+
+/** The same first ask for the slug → id read, which is capped at 20 without it. */
+const VENDOR_LIMIT = 500;
 
 /**
  * The Products tab (design 3a) against the real API.
@@ -61,8 +72,18 @@ const PRODUCT_LIMIT = 500;
  *
  * A private, unshared `InMemoryProductRepository`, primed from the real read on
  * first access per vendor, holds the board between calls: the port hands back
- * reconstructed `VendorProduct` shapes (one flipped cell, the whole list after
- * a market command) and the fixture already builds them. `lastChange` and the
+ * board *pages* — the rows the grid shows plus the catalogue-wide facets the
+ * rails and header state — and the fixture already builds them.
+ *
+ * That mirror is why this adapter pages in the browser rather than asking
+ * `products(criteria:)` for each page, though the query does support
+ * `limit`/`offset`. The screen's two rails, its header count and its two
+ * "whole market" commands — which fan out one `setProductListing` per carried
+ * product, there being no bulk mutation — all need the catalogue, so it is read
+ * whole exactly once and every page is cut from it. Asking the server for a
+ * page as well would be a second round trip for rows already in hand. See
+ * `docs/backend-api-gaps.md` §14 for what the backend would have to grow before
+ * this could page for real. `lastChange` and the
  * form's "Recent changes" / "saved N minutes ago" have no backend source (#6)
  * and stay empty, or fill from this session's own writes.
  *
@@ -82,9 +103,9 @@ export class GraphqlProductRepository extends ProductRepository {
   /** Per vendor slug: market slug → market id, for the listing mutations. */
   private readonly marketIds = new Map<string, Map<string, string>>();
 
-  override board(vendorSlug: string): Observable<VendorProductBoard> {
+  override board(vendorSlug: string, query: ProductListQuery): Observable<VendorProductBoardPage> {
     // Straight from the primed board — no second `delay()` on top of the read.
-    return this.primed(vendorSlug).pipe(map(() => this.snapshot(vendorSlug)));
+    return this.primed(vendorSlug).pipe(map(() => this.page(vendorSlug, query)));
   }
 
   override form(vendorSlug: string, productId: string | null): Observable<ProductForm> {
@@ -96,17 +117,19 @@ export class GraphqlProductRepository extends ProductRepository {
     productId: string,
     marketSlug: string,
     status: ListingStatus,
-  ): Observable<VendorProduct> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.primed(vendorSlug).pipe(
       switchMap(() => this.setListing(vendorSlug, productId, marketSlug, status === 'available')),
-      switchMap(() => this.fixture.setStatus(vendorSlug, productId, marketSlug, status)),
+      switchMap(() => this.fixture.setStatus(vendorSlug, productId, marketSlug, status, query)),
     );
   }
 
   override markMarketSoldOut(
     vendorSlug: string,
     marketSlug: string,
-  ): Observable<readonly VendorProduct[]> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.primed(vendorSlug).pipe(
       switchMap(() => {
         const carried = this.snapshot(vendorSlug).products.filter(
@@ -116,11 +139,14 @@ export class GraphqlProductRepository extends ProductRepository {
           carried.map((product) => this.setListing(vendorSlug, product.id, marketSlug, false)),
         );
       }),
-      switchMap(() => this.fixture.markMarketSoldOut(vendorSlug, marketSlug)),
+      switchMap(() => this.fixture.markMarketSoldOut(vendorSlug, marketSlug, query)),
     );
   }
 
-  override resetSoldOut(vendorSlug: string): Observable<readonly VendorProduct[]> {
+  override resetSoldOut(
+    vendorSlug: string,
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.primed(vendorSlug).pipe(
       switchMap(() => {
         const writes = this.snapshot(vendorSlug).products.flatMap((product) =>
@@ -130,7 +156,7 @@ export class GraphqlProductRepository extends ProductRepository {
         );
         return this.all(writes);
       }),
-      switchMap(() => this.fixture.resetSoldOut(vendorSlug)),
+      switchMap(() => this.fixture.resetSoldOut(vendorSlug, query)),
     );
   }
 
@@ -138,7 +164,8 @@ export class GraphqlProductRepository extends ProductRepository {
     vendorSlug: string,
     productId: string,
     hidden: boolean,
-  ): Observable<VendorProduct> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.primed(vendorSlug).pipe(
       switchMap(() => {
         const current = this.snapshot(vendorSlug).products.find((row) => row.id === productId);
@@ -150,7 +177,7 @@ export class GraphqlProductRepository extends ProductRepository {
             )
           : of(null);
       }),
-      switchMap(() => this.fixture.setHidden(vendorSlug, productId, hidden)),
+      switchMap(() => this.fixture.setHidden(vendorSlug, productId, hidden, query)),
     );
   }
 
@@ -230,14 +257,7 @@ export class GraphqlProductRepository extends ProductRepository {
   private primed(vendorSlug: string): Observable<void> {
     if (this.fixture.hasBoard(vendorSlug)) return of(undefined);
     return this.resolveId(vendorSlug).pipe(
-      switchMap((vendorId) =>
-        this.client
-          .request<VendorProductsQuery, VendorProductsQueryVariables>(VENDOR_PRODUCTS, {
-            vendorId,
-            criteria: { limit: PRODUCT_LIMIT },
-          })
-          .pipe(map((data) => ({ data, vendorId }))),
-      ),
+      switchMap((vendorId) => this.readBoard(vendorId).pipe(map((data) => ({ data, vendorId })))),
       map(({ data, vendorId }) => {
         if (!data.vendor) throw new Error('That vendor could not be found.');
         this.marketIds.set(vendorSlug, marketIdBySlug(data.vendor));
@@ -246,21 +266,62 @@ export class GraphqlProductRepository extends ProductRepository {
     );
   }
 
+  /**
+   * The vendor and its whole catalogue in one round trip, and a second one only
+   * if the first came back truncated — asked for at exactly the size the first
+   * reported. A partial board would be a lie in every direction at once: the
+   * header would undercount, the rails would miss sold-out stock, and
+   * "Mark everything sold out" would leave the rows it never saw on sale.
+   */
+  private readBoard(vendorId: string, limit = PRODUCT_LIMIT): Observable<VendorProductsQuery> {
+    return this.client
+      .request<VendorProductsQuery, VendorProductsQueryVariables>(VENDOR_PRODUCTS, {
+        vendorId,
+        criteria: { limit },
+      })
+      .pipe(
+        switchMap((data) =>
+          data.products.items.length < data.products.totalCount
+            ? this.readBoard(vendorId, data.products.totalCount)
+            : of(data),
+        ),
+      );
+  }
+
   /** Refills the slug → id map from `adminVendors` when asked for an unknown slug. */
   private resolveId(slug: string): Observable<string> {
     const known = this.idBySlug.get(slug);
     if (known) return of(known);
+    return this.readVendorIds().pipe(
+      map((result) => {
+        for (const vendor of result.adminVendors.items) {
+          this.idBySlug.set(vendor.slug, vendor.id);
+        }
+        const id = this.idBySlug.get(slug);
+        if (!id) throw new Error('That vendor could not be found.');
+        return id;
+      }),
+    );
+  }
+
+  /**
+   * Every vendor's slug and id, for the map above. The read used to send no
+   * `criteria` at all, which left `VendorsService.DEFAULT_LIMIT` capping it at
+   * 20 rows — so the Products tab of the 21st vendor answered "That vendor
+   * could not be found". Asked for whole, and re-asked at `totalCount` if the
+   * first ask was short.
+   */
+  private readVendorIds(limit = VENDOR_LIMIT): Observable<AdminVendorIdsQuery> {
     return this.client
-      .request<AdminVendorIdsQuery, AdminVendorIdsQueryVariables>(ADMIN_VENDOR_IDS, {})
+      .request<AdminVendorIdsQuery, AdminVendorIdsQueryVariables>(ADMIN_VENDOR_IDS, {
+        criteria: { limit },
+      })
       .pipe(
-        map((result) => {
-          for (const vendor of result.adminVendors.items) {
-            this.idBySlug.set(vendor.slug, vendor.id);
-          }
-          const id = this.idBySlug.get(slug);
-          if (!id) throw new Error('That vendor could not be found.');
-          return id;
-        }),
+        switchMap((result) =>
+          result.adminVendors.items.length < result.adminVendors.totalCount
+            ? this.readVendorIds(result.adminVendors.totalCount)
+            : of(result),
+        ),
       );
   }
 
@@ -280,6 +341,13 @@ export class GraphqlProductRepository extends ProductRepository {
     const board = this.fixture.snapshot(vendorSlug);
     if (!board) throw new Error('That product list is no longer loaded.');
     return board;
+  }
+
+  /** The board the mirror holds, cut to the page the grid is showing. */
+  private page(vendorSlug: string, query: ProductListQuery): VendorProductBoardPage {
+    const page = this.fixture.page(vendorSlug, query);
+    if (!page) throw new Error('That product list is no longer loaded.');
+    return page;
   }
 
   private setListing(

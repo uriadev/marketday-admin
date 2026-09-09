@@ -10,6 +10,7 @@ import {
 } from '../../../core/api/in-memory/in-memory-vendor-repository';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
   VendorMemberRole,
@@ -21,8 +22,14 @@ import { VendorDetailFacade } from '../vendor-detail-facade';
 import { VendorStaff } from './vendor-staff';
 
 class StubVendorRepository extends VendorRepository {
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** The directory is not what these tests are about — an empty page satisfies
+   *  the port. */
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [],
+      total: 0,
+      facets: { markets: [], applicationCount: 0, vendorCount: 0 },
+    });
   }
   override detail(slug: string): Observable<VendorDetail> {
     if (slug !== MCNALLY_DETAIL.slug) {
@@ -169,8 +176,14 @@ describe('VendorStaff', () => {
  * on. Rare, but the shape real data can take once an owner leaves.
  */
 class StallholdersOnlyRepository extends VendorRepository {
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** The directory is not what these tests are about — an empty page satisfies
+   *  the port. */
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [],
+      total: 0,
+      facets: { markets: [], applicationCount: 0, vendorCount: 0 },
+    });
   }
   override detail(): Observable<VendorDetail> {
     return of({

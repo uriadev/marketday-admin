@@ -1,3 +1,5 @@
+import { Page, PageRequest, pageOf } from './page.model';
+
 /**
  * What a product is sold as. Mirrors the backend's `ProductUnit`
  * (`../backend/src/products/enums/product-unit.enum.ts`, exposed as the
@@ -194,6 +196,149 @@ export function sentenceList(parts: readonly string[]): string {
   if (parts.length <= 1) return parts[0] ?? '';
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Paging the board (design 3a)
+──────────────────────────────────────────────────────────────────────────── */
+
+/** What the grid asks its repository for: one page of the catalogue, narrowed. */
+export interface ProductListQuery {
+  filters: ProductFilters;
+  page: PageRequest;
+}
+
+/**
+ * The facts the screen states about the **catalogue** rather than about the
+ * rows on screen: the header's count, the category menu, and the two rails.
+ *
+ * They travel with the page because a page cannot produce them — "3 sold out
+ * today" and "11 of 12 carried products available" are restatements of every
+ * listing this vendor has, not of the ten rows the grid happens to show. The
+ * repository holds the board, so it is the one that can still say them.
+ */
+export interface ProductBoardFacets {
+  /** Every category this vendor actually sells, for the "All categories" menu. */
+  categories: readonly ProductCategory[];
+  /** The "Sold out right now" rail — one entry per product, not per listing. */
+  soldOut: readonly SoldOutEntry[];
+  /** Products in the catalogue before any filter. */
+  productCount: number;
+  /** One line per market for "Mark everything sold out". */
+  stock: readonly MarketStock[];
+}
+
+/** One page of a vendor's board: the grid's rows, plus everything around them. */
+export interface VendorProductBoardPage extends Page<VendorProduct> {
+  vendorSlug: string;
+  markets: readonly ProductMarket[];
+  lastChange: ProductChange | null;
+  facets: ProductBoardFacets;
+}
+
+/** Market slugs a product is sold out at, in column order. */
+export function soldOutAt(
+  product: VendorProduct,
+  markets: readonly ProductMarket[],
+): readonly string[] {
+  return markets
+    .map((market) => market.slug)
+    .filter((slug) => product.listings[slug] === 'sold-out');
+}
+
+/**
+ * Whether one product survives the grid's filters — the chip row and the two
+ * menus narrowing together. Written once so both repositories narrow the same
+ * way, and so "Not carried everywhere" keeps meaning "at fewer markets than
+ * this vendor trades at" rather than "at fewer than some other number".
+ */
+export function matchesProductFilters(
+  product: VendorProduct,
+  filters: ProductFilters,
+  markets: readonly ProductMarket[],
+): boolean {
+  const { q, category, view } = filters;
+  if (category !== null && product.category !== category) return false;
+  if (view === 'soldOut' && soldOutAt(product, markets).length === 0) return false;
+  if (view === 'hidden' && !product.hidden) return false;
+  if (view === 'partial' && Object.keys(product.listings).length >= markets.length) return false;
+
+  const needle = q.trim().toLowerCase();
+  if (needle === '') return true;
+  return product.name.toLowerCase().includes(needle) || product.meta.toLowerCase().includes(needle);
+}
+
+/** The header line, the category menu and the two rails, from the whole board. */
+export function productBoardFacets(
+  products: readonly VendorProduct[],
+  markets: readonly ProductMarket[],
+): ProductBoardFacets {
+  const soldOut = products
+    .map((product) => ({ product, marketSlugs: soldOutAt(product, markets) }))
+    .filter((entry) => entry.marketSlugs.length > 0)
+    .map(({ product, marketSlugs }) => ({
+      product,
+      marketSlugs,
+      where: sentenceList(
+        marketSlugs.map((slug) => markets.find((market) => market.slug === slug)?.label ?? slug),
+      ),
+    }));
+
+  const stock = markets.map((market) => {
+    const carried = products.filter((product) => market.slug in product.listings);
+    const available = carried.filter(
+      (product) => product.listings[market.slug] === 'available',
+    ).length;
+    return {
+      market,
+      carried: carried.length,
+      available,
+      state: market.paused
+        ? 'Paused — nothing on the shopper view'
+        : `${available} of ${carried.length} carried ${
+            carried.length === 1 ? 'product' : 'products'
+          } available`,
+    };
+  });
+
+  return {
+    categories: [...new Set(products.map((product) => product.category))].sort((a, b) =>
+      a.localeCompare(b),
+    ),
+    soldOut,
+    productCount: products.length,
+    stock,
+  };
+}
+
+/**
+ * One page of a board, narrowed and counted — the answer every
+ * `ProductRepository` gives, whether it holds the catalogue in a fixture or
+ * read it from the API. The facets are always the whole board; only `items`
+ * and `total` follow the filters.
+ */
+export function boardPage(
+  board: VendorProductBoard,
+  query: ProductListQuery,
+): VendorProductBoardPage {
+  const matched = board.products.filter((product) =>
+    matchesProductFilters(product, query.filters, board.markets),
+  );
+  return {
+    ...pageOf(matched, query.page),
+    vendorSlug: board.vendorSlug,
+    markets: board.markets,
+    lastChange: board.lastChange,
+    facets: productBoardFacets(board.products, board.markets),
+  };
+}
+
+/** What the grid shows before its first load lands. */
+export const EMPTY_PRODUCT_FACETS: ProductBoardFacets = {
+  categories: [],
+  soldOut: [],
+  productCount: 0,
+  stock: [],
+};
 
 /**
  * The line under a product's name, composed from the two structured values

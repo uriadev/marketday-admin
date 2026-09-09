@@ -8,8 +8,10 @@ import {
   ListingStatus,
   ProductDraft,
   ProductForm,
+  ProductListQuery,
   VendorProduct,
-  VendorProductBoard,
+  VendorProductBoardPage,
+  boardPage,
 } from '../../../core/models/product.model';
 import { VendorProducts } from './vendor-products';
 import { VendorProductsStore } from '../vendor-products-store';
@@ -21,11 +23,15 @@ import { VendorProductsStore } from '../vendor-products-store';
 class StubProductRepository extends ProductRepository {
   private board_ = buildProductBoard('mcnally-family-farm')!;
 
-  override board(vendorSlug: string): Observable<VendorProductBoard> {
+  /** Every query it was asked, so a test can assert the page the grid wanted. */
+  readonly queries: ProductListQuery[] = [];
+
+  override board(vendorSlug: string, query: ProductListQuery): Observable<VendorProductBoardPage> {
+    this.queries.push(query);
     if (vendorSlug !== 'mcnally-family-farm') {
       return throwError(() => new Error(`No vendor matches “${vendorSlug}”.`));
     }
-    return of(this.board_);
+    return of(boardPage(this.board_, query));
   }
 
   override setStatus(
@@ -33,48 +39,50 @@ class StubProductRepository extends ProductRepository {
     productId: string,
     marketSlug: string,
     status: ListingStatus,
-  ): Observable<VendorProduct> {
-    const products = this.write((product) =>
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    this.write((product) =>
       product.id === productId && marketSlug in product.listings
         ? { ...product, listings: { ...product.listings, [marketSlug]: status } }
         : product,
     );
-    return of(products.find((product) => product.id === productId)!);
+    return of(boardPage(this.board_, query));
   }
 
   override markMarketSoldOut(
     _vendorSlug: string,
     marketSlug: string,
-  ): Observable<readonly VendorProduct[]> {
-    return of(
-      this.write((product) =>
-        marketSlug in product.listings
-          ? { ...product, listings: { ...product.listings, [marketSlug]: 'sold-out' as const } }
-          : product,
-      ),
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    this.write((product) =>
+      marketSlug in product.listings
+        ? { ...product, listings: { ...product.listings, [marketSlug]: 'sold-out' as const } }
+        : product,
     );
+    return of(boardPage(this.board_, query));
   }
 
-  override resetSoldOut(): Observable<readonly VendorProduct[]> {
-    return of(
-      this.write((product) => ({
-        ...product,
-        listings: Object.fromEntries(
-          Object.keys(product.listings).map((slug) => [slug, 'available' as const]),
-        ),
-      })),
-    );
+  override resetSoldOut(
+    _vendorSlug: string,
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    this.write((product) => ({
+      ...product,
+      listings: Object.fromEntries(
+        Object.keys(product.listings).map((slug) => [slug, 'available' as const]),
+      ),
+    }));
+    return of(boardPage(this.board_, query));
   }
 
   override setHidden(
     _vendorSlug: string,
     productId: string,
     hidden: boolean,
-  ): Observable<VendorProduct> {
-    const products = this.write((product) =>
-      product.id === productId ? { ...product, hidden } : product,
-    );
-    return of(products.find((product) => product.id === productId)!);
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    this.write((product) => (product.id === productId ? { ...product, hidden } : product));
+    return of(boardPage(this.board_, query));
   }
 
   /* The form's own screen has its own spec; the grid only needs these to exist. */
@@ -320,6 +328,73 @@ describe('VendorProducts', () => {
     expect(text(fixture)).toContain('1 – 10 of 14');
   });
 
+  it('asks the repository for the page it is showing', () => {
+    const fixture = open();
+    const repo = TestBed.inject(ProductRepository) as StubProductRepository;
+    const store = TestBed.inject(VendorProductsStore);
+
+    store.setPage(1, 10);
+    fixture.detectChanges();
+
+    expect(repo.queries.at(-1)?.page).toEqual({ index: 1, size: 10 });
+    expect(rows(fixture).length).toBe(4);
+    expect(text(fixture)).toContain('11 – 14 of 14');
+
+    // A page size is a new request too, not a re-slice of what is in hand.
+    store.setPage(0, 25);
+    fixture.detectChanges();
+    expect(repo.queries.at(-1)?.page).toEqual({ index: 0, size: 25 });
+    expect(rows(fixture).length).toBe(14);
+  });
+
+  it('goes back to the first page when the filters change', () => {
+    const fixture = open();
+    const repo = TestBed.inject(ProductRepository) as StubProductRepository;
+    const store = TestBed.inject(VendorProductsStore);
+
+    store.setPage(1, 10);
+    store.setFilters({ view: 'partial' });
+    fixture.detectChanges();
+
+    expect(repo.queries.at(-1)?.page).toEqual({ index: 0, size: 10 });
+    expect(rows(fixture).length).toBe(8);
+  });
+
+  it('keeps the header and the rails describing the catalogue, not the page', () => {
+    const fixture = open();
+    const store = TestBed.inject(VendorProductsStore);
+
+    // One hidden product, so the grid is a single row — everything around it
+    // still describes all fourteen.
+    store.setFilters({ view: 'hidden' });
+    fixture.detectChanges();
+
+    expect(rows(fixture).length).toBe(1);
+    expect(text(fixture)).toContain('14 products · 3 sold out today');
+
+    const rail = (fixture.nativeElement as HTMLElement).querySelector('aside') as HTMLElement;
+    expect(rail.textContent).toContain('Rhubarb');
+    expect(rail.textContent).toContain('10 of 12 carried products available');
+  });
+
+  it('restates the rails from the answer to a command, not from the page', () => {
+    const fixture = open();
+    const store = TestBed.inject(VendorProductsStore);
+    const rail = (fixture.nativeElement as HTMLElement).querySelector('aside') as HTMLElement;
+
+    // Page two holds none of the sold-out products; a flip there still moves
+    // the rail, because the repository restates it with every command.
+    store.setPage(1, 10);
+    fixture.detectChanges();
+
+    const leeks = rowFor(fixture, 'Baby leeks');
+    (leeks.querySelectorAll('td')[1]?.querySelector('button.cell') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(text(fixture)).toContain('14 products · 4 sold out today');
+    expect(rail.textContent).toContain('Baby leeks');
+  });
+
   it('shows the last change, wherever it came from', () => {
     const fixture = open();
     expect(text(fixture)).toContain('Bríd McNally marked Rhubarb sold out at Temple Bar');
@@ -335,19 +410,19 @@ describe('VendorProducts', () => {
 
 /** A vendor slug nothing matches — the tab has to say so, not sit blank. */
 class MissingVendorRepository extends ProductRepository {
-  override board(): Observable<VendorProductBoard> {
+  override board(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('No vendor matches “nobody”.'));
   }
-  override setStatus(): Observable<VendorProduct> {
+  override setStatus(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('gone'));
   }
-  override markMarketSoldOut(): Observable<readonly VendorProduct[]> {
+  override markMarketSoldOut(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('gone'));
   }
-  override resetSoldOut(): Observable<readonly VendorProduct[]> {
+  override resetSoldOut(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('gone'));
   }
-  override setHidden(): Observable<VendorProduct> {
+  override setHidden(): Observable<VendorProductBoardPage> {
     return throwError(() => new Error('gone'));
   }
   override form(): Observable<ProductForm> {

@@ -3,7 +3,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { GraphqlVendorRepository } from './graphql-vendor-repository';
 import { VendorRepository } from '../ports/vendor-repository';
-import { VendorInvite, VendorProfilePatch } from '../../models/vendor.model';
+import {
+  EMPTY_VENDOR_FILTERS,
+  VendorDirectoryPage,
+  VendorFilters,
+  VendorInvite,
+  VendorListQuery,
+  VendorProfilePatch,
+} from '../../models/vendor.model';
 import { environment } from '../../../../environments/environment';
 
 /** What the form hands the port, with the fields each test cares about set. */
@@ -101,10 +108,53 @@ function expectPost(operation: string) {
   return { request, variables: body.variables };
 }
 
+/**
+ * The one pending post carrying `operation`. `list()` has two in flight — the
+ * page and the market index it caches for the market menu — so they cannot be
+ * told apart by `expectOne(url)` the way every other call can.
+ */
+function expectOperation(operation: string) {
+  const matches = http.match((request) =>
+    ((request.body as { query?: string }).query ?? '').includes(operation),
+  );
+  expect(matches.length).toBe(1);
+  const request = matches[0]!;
+  const body = request.request.body as { variables: Record<string, unknown> };
+  return { request, variables: body.variables };
+}
+
 /** The slug → id lookup every vendor-scoped call makes first. */
 function resolveSlug() {
   expectPost('query AdminVendors').request.flush({
-    data: { adminVendors: { totalCount: 1, items: [MCNALLY] } },
+    data: { adminVendors: { totalCount: 1, items: [MCNALLY] }, directory: { totalCount: 1 } },
+  });
+}
+
+/** What the directory asks for, with the page and filters a test cares about. */
+function listQuery(
+  filters: Partial<VendorFilters> = {},
+  page = { index: 0, size: 25 },
+): VendorListQuery {
+  return { filters: { ...EMPTY_VENDOR_FILTERS, ...filters }, page };
+}
+
+/** The market index `list()` reads once and caches for the market menu. */
+function flushMarkets(
+  markets: { id: string; slug: string; name: string }[] = [
+    { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar' },
+    { id: 'mkt-1', slug: 'howth', name: 'Howth' },
+  ],
+) {
+  expectOperation('query MarketIds').request.flush({ data: { adminMarkets: markets } });
+}
+
+/** One page of `adminVendors`, and the directory count beside it. */
+function flushVendors(items: unknown[], totalCount = items.length, directoryTotal = 30) {
+  expectOperation('query AdminVendors').request.flush({
+    data: {
+      adminVendors: { totalCount, items },
+      directory: { totalCount: directoryTotal },
+    },
   });
 }
 
@@ -369,8 +419,9 @@ describe('GraphqlVendorRepository.saveProfile', () => {
   });
 
   it('reuses the id the directory read already resolved', () => {
-    repository.list().subscribe();
-    resolveSlug();
+    repository.list(listQuery()).subscribe();
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
 
     repository.saveProfile('mcnally-family-farm', patch()).subscribe();
 
@@ -392,5 +443,159 @@ describe('GraphqlVendorRepository.saveProfile', () => {
 
     expectPost('query VendorById').request.flush({ data: { vendor: MCNALLY } });
     expect(reloaded?.tradingName).toBe('McNally Family Farm');
+  });
+});
+
+/** A `VendorModel` row as `VendorFields` selects it, with the markets a test needs. */
+function row(name: string, markets: string[] = []) {
+  return {
+    ...MCNALLY,
+    id: `vnd-${name}`,
+    slug: name,
+    name,
+    markets: markets.map((market) => ({
+      id: `mkt-${market}`,
+      slug: market.toLowerCase().replace(/ /g, '-'),
+      name: market,
+      city: 'Dublin',
+      schedule: null,
+    })),
+  };
+}
+
+describe('GraphqlVendorRepository.list', () => {
+  it('asks for the page it is showing, ordered so successive offsets line up', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery({}, { index: 2, size: 10 })).subscribe((result) => (page = result));
+
+    const posted = expectOperation('query AdminVendors');
+    expect(posted.variables['criteria']).toEqual({
+      filters: [],
+      orderBy: 'name',
+      orderDir: 'ASC',
+      limit: 10,
+      offset: 20,
+    });
+    posted.request.flush({
+      data: { adminVendors: { totalCount: 84, items: [MCNALLY] }, directory: { totalCount: 84 } },
+    });
+    flushMarkets();
+
+    expect(page?.items.map((vendor) => vendor.slug)).toEqual(['mcnally-family-farm']);
+    // The paginator's length is the count behind the filters, not the page.
+    expect(page?.total).toBe(84);
+    expect(page?.facets.vendorCount).toBe(84);
+  });
+
+  it('pushes the search and the paused toggle down as criteria filters', () => {
+    repository.list(listQuery({ q: '  kish  ', paused: true })).subscribe();
+
+    const posted = expectOperation('query AdminVendors');
+    expect(posted.variables['criteria']).toEqual({
+      filters: [
+        { field: 'name', operator: 'CONTAINS', value: 'kish' },
+        { field: 'isAcceptingOrders', operator: 'EQUAL', value: false },
+      ],
+      orderBy: 'name',
+      orderDir: 'ASC',
+      limit: 25,
+      offset: 0,
+    });
+    posted.request.flush({
+      data: { adminVendors: { totalCount: 1, items: [MCNALLY] }, directory: { totalCount: 30 } },
+    });
+    flushMarkets();
+  });
+
+  it('reads the directory whole when a filter has no column, and cuts the page here', () => {
+    // `market` and `multiMarket` ask about the vendor_markets relation, which
+    // no CriteriaInput filter can reach.
+    let page: VendorDirectoryPage | undefined;
+    repository
+      .list(listQuery({ multiMarket: true }, { index: 1, size: 1 }))
+      .subscribe((result) => (page = result));
+
+    const posted = expectOperation('query AdminVendors');
+    // No offset: the rows have to be here before they can be narrowed.
+    expect(posted.variables['criteria']).toEqual({
+      filters: [],
+      orderBy: 'name',
+      orderDir: 'ASC',
+      limit: 500,
+    });
+    posted.request.flush({
+      data: {
+        adminVendors: {
+          totalCount: 3,
+          items: [
+            row('one-market', ['Howth']),
+            row('two-markets', ['Howth', 'Temple Bar']),
+            row('three-markets', ['Howth', 'Temple Bar', 'Marlay Park']),
+          ],
+        },
+        directory: { totalCount: 30 },
+      },
+    });
+    flushMarkets();
+
+    // Two of the three matched; this is the second page of one.
+    expect(page?.items.map((vendor) => vendor.slug)).toEqual(['three-markets']);
+    expect(page?.total).toBe(2);
+    // The header still counts the directory rather than the match.
+    expect(page?.facets.vendorCount).toBe(30);
+  });
+
+  it('re-reads at the real size rather than narrowing a truncated list', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery({ market: 'Howth' })).subscribe((result) => (page = result));
+
+    expectOperation('query AdminVendors').request.flush({
+      data: {
+        // More vendors than the first read asked for.
+        adminVendors: { totalCount: 900, items: [row('at-howth', ['Howth'])] },
+        directory: { totalCount: 900 },
+      },
+    });
+
+    const again = expectOperation('query AdminVendors');
+    expect(again.variables['criteria']).toMatchObject({ limit: 900 });
+    again.request.flush({
+      data: {
+        adminVendors: {
+          totalCount: 900,
+          items: [row('at-howth', ['Howth']), row('elsewhere', ['Bantry'])],
+        },
+        directory: { totalCount: 900 },
+      },
+    });
+    flushMarkets();
+
+    expect(page?.items.map((vendor) => vendor.slug)).toEqual(['at-howth']);
+    expect(page?.total).toBe(1);
+  });
+
+  it('offers every market to the menu, not only the ones on the page', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery()).subscribe((result) => (page = result));
+
+    flushVendors([MCNALLY]);
+    flushMarkets();
+
+    expect(page?.facets.markets).toEqual(['Howth', 'Temple Bar']);
+    // No application model server-side, so the chip's badge stays off.
+    expect(page?.facets.applicationCount).toBe(0);
+  });
+
+  it('reads the market index once and keeps it for the next page', () => {
+    repository.list(listQuery()).subscribe();
+    flushVendors([MCNALLY]);
+    flushMarkets();
+
+    repository.list(listQuery({}, { index: 1, size: 25 })).subscribe();
+    // Only the page is re-read; `http.verify()` in afterEach catches a second
+    // MarketIds post.
+    expectOperation('query AdminVendors').request.flush({
+      data: { adminVendors: { totalCount: 30, items: [MCNALLY] }, directory: { totalCount: 30 } },
+    });
   });
 });

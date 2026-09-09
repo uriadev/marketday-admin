@@ -177,16 +177,75 @@ found while reading the same code, unrelated to what's missing.
       exists, production must serve console and API from **one origin** — leave
       `MARKETDAY_API_URL` unset at build time and `graphqlUrl` stays the relative `/graphql`.
 
+## Paging and filtering
+
+13. **The vendor directory can only push half its filters down.** `adminVendors` pages for
+    real — `limit`/`offset` and `totalCount` are honoured, and the console asks for the page it
+    is showing — but `VendorsService.FILTERABLE_FIELDS` is `name`, `category`, `isActive`,
+    `isAcceptingOrders`, `createdAt`, so of design 1a's filters only the search (as
+    `name CONTAINS`) and "Paused" (as `isAcceptingOrders = false`) can travel in a
+    `CriteriaInput`:
+
+    - **Market** and **At 2+ markets** ask about the `vendor_markets` relation.
+      `TypeOrmCriteriaConverter` can filter on a joined alias, but `VendorsService.filter`
+      passes it no `relations` map, and "belongs to two or more markets" is a `HAVING COUNT`
+      no filter list can spell. Allowing `markets.marketId` (with `relations`) would close the
+      first; the second needs a field of its own — a `marketCount` select, or a
+      `minMarkets` argument.
+    - **Applications** and **Fee unpaid** have no model at all (#5, #9), so they match nothing
+      whatever the query says.
+
+    Until then `GraphqlVendorRepository.list` reads the directory whole and narrows those four
+    in the browser (re-reading at `totalCount` if the first read was truncated), which is
+    correct but is the one query on this screen that does not scale. The search is also
+    narrower against the API than against the fixtures — names only, where the console's own
+    search reads the trade line, the market chips and the staff names — because `name` is the
+    only text column allowed and a paged screen cannot search rows it never fetched. A
+    `search`-vector-backed filter, or `description`/`category` in `FILTERABLE_FIELDS`, would
+    widen it.
+
+14. **The products grid cannot page against the API, and it is not only about `products`.**
+    `products(vendorId:, criteria:)` pages perfectly well — `limit`/`offset`, `totalCount`, and
+    filters on `name`, `price`, `unit`, `category`, `isAvailable` — so the grid's search, its
+    category menu and "Hidden from shoppers" could all be server-side. What keeps the whole
+    catalogue client-side is everything _around_ the grid (design 3a):
+
+    - **The two chips that ask about listings.** "Sold out somewhere" and "Not carried
+      everywhere" are questions about the `product_market_listings` relation, which is not in
+      `ProductsService.FILTERABLE_FIELDS` and has no `relations` map to reach through — the same
+      shape as #13's Market filter.
+    - **The rails and the header.** "3 sold out today", "Sold out right now" and
+      "11 of 12 carried products available" are aggregates over every listing this vendor has.
+      Nothing server-side computes them, so a page cannot carry them.
+    - **The two bulk commands.** "Mark everything sold out at this market" and "Reset sold-out
+      flags" fan out one `setProductListing` per carried product, because there is no mutation
+      that takes a market (or a vendor) and does it in one statement. A console that only
+      fetched a page could only act on a page.
+
+    So `GraphqlProductRepository` reads the catalogue once (`criteria: { limit: 500 }`, re-read
+    at `totalCount` when that was short) and `ProductRepository` pages it in the adapter: the
+    port takes a `ProductListQuery` and answers with a `VendorProductBoardPage`, so the day the
+    backend grows the three things above, only that adapter changes. What would close it: a
+    listing filter (or `soldOut` / `carriedAt` arguments on `products`), a stock-summary query
+    per vendor, and `setVendorMarketListings`-style bulk mutations.
+
 ## Bugs found while reading (not missing features)
 
-- **Every `CriteriaInput` filter is a silent no-op.** `FilterInput.value` in
-  `src/common/criteria/inputs/criteria.input.ts` has no `@Allow()`/`@IsDefined()`, and
-  `main.ts` installs `new ValidationPipe({ whitelist: true, transform: true })`, which strips
-  `value` before the resolver ever sees it. `CONTAINS` becomes `ILIKE '%undefined%'` (0 rows);
-  `NOT_CONTAINS` becomes `NOT ILIKE '%undefined%'` (**every row**). `typeorm-criteria.converter.spec.ts`
-  passes because it bypasses the pipe. One-line fix (`@Allow()` on `value`). This is why the
-  admin console sends no server-side filters via `CriteriaInput` and keeps `CollectionStore`'s
-  client-side narrowing exactly as it was under fixtures.
+- ~~**Every `CriteriaInput` filter is a silent no-op.**~~ **Fixed.** `FilterInput.value` now
+  carries `@Allow()`, so `main.ts`'s `ValidationPipe({ whitelist: true })` no longer strips it
+  before the resolver sees it. Server-side filters work, and the vendor directory sends them
+  (see #13); every other list screen still narrows client-side because it still fits in one
+  read.
+
+- **A missing `criteria` is a silent 20-row cap, and it reads as an empty result.**
+  `VendorsService` and `ProductsService` both `take(DEFAULT_LIMIT)` when no `criteria` arrives,
+  which is defensible — but nothing in the response says the answer was truncated except a
+  `totalCount` a caller has to think to compare. It cost this console three real bugs: the
+  vendor directory showed 20 vendors of any number, the Products tab's slug → id map never saw
+  the 21st vendor (so that vendor's tab answered "That vendor could not be found"), and a
+  catalogue over the read's own limit would have been silently short. All three are fixed
+  client-side by asking for a size and re-asking at `totalCount`; a `hasMore` field, or a
+  documented maximum, would make the trap visible instead.
 
 - **`generateOccurrences` is `@Public()`.** It sits between two `@Roles(ADMIN)` mutations
   (`updateMarket`, and `createMarket`/`createMarketImageUploadUrl` above it) in

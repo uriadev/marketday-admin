@@ -7,10 +7,13 @@ import {
   ProductChange,
   ProductDraft,
   ProductForm,
+  ProductListQuery,
   ProductMarket,
   ProductUnit,
   VendorProduct,
   VendorProductBoard,
+  VendorProductBoardPage,
+  boardPage,
   productMeta,
   sentenceList,
 } from '../../models/product.model';
@@ -457,13 +460,23 @@ export class InMemoryProductRepository extends ProductRepository {
     this.boards.set(vendorSlug, { ...board, products });
   }
 
-  override board(vendorSlug: string): Observable<VendorProductBoard> {
+  override board(vendorSlug: string, query: ProductListQuery): Observable<VendorProductBoardPage> {
     const board = this.boards.get(vendorSlug) ?? buildProductBoard(vendorSlug);
     if (!board) {
       return throwError(() => new Error(`No vendor matches “${vendorSlug}”.`)).pipe(delay(300));
     }
     this.boards.set(vendorSlug, board);
-    return of(board).pipe(delay(300));
+    return of(boardPage(board, query)).pipe(delay(300));
+  }
+
+  /**
+   * The current page of a board already in hand, without {@link board}'s
+   * round-trip delay — what every command answers with, and what
+   * `GraphqlProductRepository` hands back once its own read has landed.
+   */
+  page(vendorSlug: string, query: ProductListQuery): VendorProductBoardPage | undefined {
+    const board = this.boards.get(vendorSlug);
+    return board ? boardPage(board, query) : undefined;
   }
 
   override setStatus(
@@ -471,7 +484,8 @@ export class InMemoryProductRepository extends ProductRepository {
     productId: string,
     marketSlug: string,
     status: ListingStatus,
-  ): Observable<VendorProduct> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.writeOne(
       vendorSlug,
       (product) => {
@@ -481,38 +495,52 @@ export class InMemoryProductRepository extends ProductRepository {
         return { ...product, listings: { ...product.listings, [marketSlug]: status } };
       },
       productId,
+      query,
     );
   }
 
   override markMarketSoldOut(
     vendorSlug: string,
     marketSlug: string,
-  ): Observable<readonly VendorProduct[]> {
-    return this.updateAll(vendorSlug, (product) =>
-      marketSlug in product.listings
-        ? { ...product, listings: { ...product.listings, [marketSlug]: 'sold-out' as const } }
-        : product,
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    return this.updateAll(
+      vendorSlug,
+      (product) =>
+        marketSlug in product.listings
+          ? { ...product, listings: { ...product.listings, [marketSlug]: 'sold-out' as const } }
+          : product,
+      query,
     );
   }
 
-  override resetSoldOut(vendorSlug: string): Observable<readonly VendorProduct[]> {
-    return this.updateAll(vendorSlug, (product) => ({
-      ...product,
-      listings: Object.fromEntries(
-        Object.keys(product.listings).map((slug) => [slug, 'available' as const]),
-      ),
-    }));
+  override resetSoldOut(
+    vendorSlug: string,
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
+    return this.updateAll(
+      vendorSlug,
+      (product) => ({
+        ...product,
+        listings: Object.fromEntries(
+          Object.keys(product.listings).map((slug) => [slug, 'available' as const]),
+        ),
+      }),
+      query,
+    );
   }
 
   override setHidden(
     vendorSlug: string,
     productId: string,
     hidden: boolean,
-  ): Observable<VendorProduct> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     return this.writeOne(
       vendorSlug,
       (product) => (product.id === productId ? { ...product, hidden } : product),
       productId,
+      query,
     );
   }
 
@@ -655,12 +683,14 @@ export class InMemoryProductRepository extends ProductRepository {
   private updateAll(
     vendorSlug: string,
     map: (product: VendorProduct) => VendorProduct,
-  ): Observable<readonly VendorProduct[]> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     const board = this.boards.get(vendorSlug);
     if (!board) return this.gone();
     const products = board.products.map(map);
-    this.boards.set(vendorSlug, { ...board, products });
-    return of(products).pipe(delay(200));
+    const written = { ...board, products };
+    this.boards.set(vendorSlug, written);
+    return of(boardPage(written, query)).pipe(delay(200));
   }
 
   /** Rewrites every product, and hands back the one the caller asked about. */
@@ -668,14 +698,15 @@ export class InMemoryProductRepository extends ProductRepository {
     vendorSlug: string,
     map: (product: VendorProduct) => VendorProduct,
     productId: string,
-  ): Observable<VendorProduct> {
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage> {
     const board = this.boards.get(vendorSlug);
     if (!board) return this.gone();
     const products = board.products.map(map);
-    const updated = products.find((product) => product.id === productId);
-    if (!updated) return this.gone();
-    this.boards.set(vendorSlug, { ...board, products });
-    return of(updated).pipe(delay(200));
+    if (!products.some((product) => product.id === productId)) return this.gone();
+    const written = { ...board, products };
+    this.boards.set(vendorSlug, written);
+    return of(boardPage(written, query)).pipe(delay(200));
   }
 
   private gone<T>(): Observable<T> {

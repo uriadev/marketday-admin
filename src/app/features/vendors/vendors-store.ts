@@ -1,41 +1,60 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
-import { CollectionStore } from '../../core/state/collection-store';
-import { EMPTY_VENDOR_FILTERS, VendorFilters, VendorSummary } from '../../core/models/vendor.model';
+import { PagedCollectionStore } from '../../core/state/paged-collection-store';
+import { PageRequest } from '../../core/models/page.model';
+import {
+  EMPTY_VENDOR_FILTERS,
+  VendorDirectoryFacets,
+  VendorDirectoryPage,
+  VendorFilters,
+  VendorSummary,
+  hasVendorFilters,
+} from '../../core/models/vendor.model';
 
 /**
  * The vendor directory (design 1a). Provided at the route, so it dies with the
  * screen.
  *
- * Like the markets directory, the fixture backend hands over the whole list and
- * this narrows it client-side: `items()` is every vendor — which is what the
- * header counts report — and `visible()` is what the table pages through.
+ * Paged by the backend rather than in the browser: `items()` is the page on
+ * screen, `total()` the rows behind the filters, and every page turn, page-size
+ * change and filter change is a fresh read (`PagedCollectionStore`). The
+ * directory-wide lines the header and the market menu show cannot come from a
+ * page, so the repository hands them over with it — {@link markets},
+ * {@link applicationCount} and {@link vendorCount} are that, not aggregates of
+ * the rows on screen.
  */
 @Injectable()
-export class VendorsStore extends CollectionStore<VendorSummary, VendorFilters> {
+export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilters> {
   private readonly repo = inject(VendorRepository);
+
+  private readonly _facets = signal<VendorDirectoryFacets>({
+    markets: [],
+    applicationCount: 0,
+    vendorCount: 0,
+  });
 
   constructor() {
     super(EMPTY_VENDOR_FILTERS);
   }
 
-  protected override fetch(): Observable<readonly VendorSummary[]> {
-    return this.repo.list();
+  protected override fetchPage(
+    filters: VendorFilters,
+    page: PageRequest,
+  ): Observable<VendorDirectoryPage> {
+    return this.repo.list({ filters, page }).pipe(tap((result) => this._facets.set(result.facets)));
   }
 
   /** Every market anyone trades at, for the "Market: any" menu. */
-  readonly markets = computed(() =>
-    [...new Set(this.items().flatMap((vendor) => vendor.markets))].sort((a, b) =>
-      a.localeCompare(b),
-    ),
-  );
+  readonly markets = computed(() => this._facets().markets);
 
   /** Applications waiting on a decision — a new vendor, or a new market for an
    *  existing one. Both show as an amber chip in the Markets column. */
-  readonly applicationCount = computed(
-    () => this.items().filter((vendor) => vendor.appliedLabel !== null).length,
-  );
+  readonly applicationCount = computed(() => this._facets().applicationCount);
+
+  /** Vendors on the platform, whatever the filters narrow the table to. */
+  readonly vendorCount = computed(() => this._facets().vendorCount);
 
   readonly tradingMarketCount = computed(() => this.markets().length);
 
@@ -54,38 +73,14 @@ export class VendorsStore extends CollectionStore<VendorSummary, VendorFilters> 
     return parts.join(' · ');
   });
 
-  readonly hasActiveFilters = computed(() => {
-    const { q, market, applications, multiMarket, feeUnpaid, paused } = this.filters();
-    return q.trim() !== '' || market !== null || applications || multiMarket || feeUnpaid || paused;
-  });
+  readonly hasActiveFilters = computed(() => hasVendorFilters(this.filters()));
 
   /**
-   * The rows the table shows. The four toggles narrow together (a vendor must
-   * satisfy every one that is on), which is what makes "Applications" plus
-   * "At 2+ markets" mean "existing multi-market vendors who want another".
+   * Nothing matched, but the directory is not empty — the state that offers a
+   * way out rather than an "invite your first vendor" pitch. Read from the
+   * totals because the rows to compare are on a page that was never fetched.
    */
-  readonly visible = computed(() => {
-    const { q, market, applications, multiMarket, feeUnpaid, paused } = this.filters();
-    const needle = q.trim().toLowerCase();
-
-    return this.items().filter((vendor) => {
-      if (market !== null && !vendor.markets.includes(market)) return false;
-      if (applications && vendor.appliedLabel === null) return false;
-      if (multiMarket && vendor.markets.length < 2) return false;
-      if (feeUnpaid && vendor.standing !== 'fee-unpaid') return false;
-      if (paused && vendor.standing !== 'paused') return false;
-      if (needle === '') return true;
-      return (
-        vendor.name.toLowerCase().includes(needle) ||
-        vendor.meta.toLowerCase().includes(needle) ||
-        vendor.markets.some((label) => label.toLowerCase().includes(needle)) ||
-        // The design's placeholder promises staff search, so honour it.
-        vendor.staff.some((name) => name.toLowerCase().includes(needle))
-      );
-    });
-  });
-
   readonly isFilteredEmpty = computed(
-    () => !this.isLoading() && this.visible().length === 0 && this.items().length > 0,
+    () => !this.isLoading() && this.total() === 0 && this.vendorCount() > 0,
   );
 }

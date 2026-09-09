@@ -61,10 +61,15 @@ export const VENDOR_PRODUCTS = gql`
 /**
  * Slug → id for the grid: the console routes vendors by slug, and neither
  * `vendor` nor `products` nor `createProduct` takes one. `@Roles(ADMIN)`.
+ *
+ * `criteria` is not optional in practice — without it `VendorsService` applies
+ * its silent `take(20)` and the map never sees the 21st vendor. `totalCount`
+ * comes back so the adapter can tell a short answer from a whole one.
  */
 export const ADMIN_VENDOR_IDS = gql`
-  query AdminVendorIds {
-    adminVendors {
+  query AdminVendorIds($criteria: CriteriaInput) {
+    adminVendors(criteria: $criteria) {
+      totalCount
       items {
         id
         slug

@@ -4,8 +4,10 @@ import { delay } from 'rxjs/operators';
 import {
   VendorBadge,
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite,
   VendorInviteSummary,
+  VendorListQuery,
   VendorMemberRole,
   VendorMembership,
   VendorProfile,
@@ -14,7 +16,9 @@ import {
   VendorStaffNote,
   VendorStanding,
   VendorSummary,
+  matchesVendorFilters,
 } from '../../models/vendor.model';
+import { pageOf } from '../../models/page.model';
 import { VendorRepository } from '../ports/vendor-repository';
 import { MARKETS_FIXTURE, MARKET_LABELS, slugForLabel } from './market-fixture';
 
@@ -757,8 +761,26 @@ export class InMemoryVendorRepository extends VendorRepository {
    */
   private readonly invited = new Map<string, VendorSummary>();
 
-  override list(): Observable<readonly VendorSummary[]> {
-    return of([...VENDORS_FIXTURE, ...this.invited.values()]).pipe(delay(300));
+  /**
+   * The fixture holds the whole directory, so every filter is honoured here
+   * and the page is cut from what matched — the same answer a server-paged
+   * backend gives, arrived at the only way a fixture can. The facets are the
+   * one thing that describes the *un*filtered directory: the header's count,
+   * the markets the menu offers, and the applications still waiting.
+   */
+  override list(query: VendorListQuery): Observable<VendorDirectoryPage> {
+    const all = [...VENDORS_FIXTURE, ...this.invited.values()];
+    const matched = all.filter((vendor) => matchesVendorFilters(vendor, query.filters));
+    return of({
+      ...pageOf(matched, query.page),
+      facets: {
+        markets: [...new Set(all.flatMap((vendor) => vendor.markets))].sort((a, b) =>
+          a.localeCompare(b),
+        ),
+        applicationCount: all.filter((vendor) => vendor.appliedLabel !== null).length,
+        vendorCount: all.length,
+      },
+    }).pipe(delay(300));
   }
 
   override detail(slug: string): Observable<VendorDetail> {

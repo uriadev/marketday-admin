@@ -30,6 +30,7 @@ import {
 } from '../../../core/models/market.model';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
   VendorProfile,
@@ -94,8 +95,14 @@ class StubVendorRepository extends VendorRepository {
   refuse = false;
   addedSoFar = 14;
 
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** The directory is not what these tests are about — an empty page satisfies
+   *  the port. */
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [],
+      total: 0,
+      facets: { markets: [], applicationCount: 0, vendorCount: 0 },
+    });
   }
   override detail(): Observable<VendorDetail> {
     return of(MCNALLY_DETAIL);

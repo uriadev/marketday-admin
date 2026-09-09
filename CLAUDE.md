@@ -14,7 +14,10 @@ dialog), Users, Support inbox and Account.
 Data is a **hybrid**: Auth, Markets, Profile, Media, Vendors and Products are wired to
 `../backend`'s real GraphQL API (`core/api/graphql/`) — the ports the schema genuinely covers
 for an admin. Vendors is partial: `adminVendors` + `vendor(id)` back the directory list, the
-detail shell and the Profile tab's read, `updateVendor` (widened server-side to take an ADMIN
+detail shell and the Profile tab's read — the directory **pages server-side** (`limit`/`offset`
+/`totalCount`, with the search and the Paused toggle sent as `CriteriaInput` filters), and
+falls back to reading the directory whole only for the filters `adminVendors` cannot express:
+Market, At 2+ markets, Applications, Fee unpaid (`docs/backend-api-gaps.md` §13) — `updateVendor` (widened server-side to take an ADMIN
 branch before its owner-only seat lookup) backs that tab's save, and `createVendor`
 (`@Roles(ADMIN)`) makes the invite screen (design 1n) create the business for real — name,
 trade, the picked markets, and an owner: the contact name and email seat that person as the
@@ -27,7 +30,12 @@ disables them and the adapter drops them. Products runs end-to-end — `products
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`
 server-side) for every write; `GraphqlProductRepository` keeps a private
 `InMemoryProductRepository` primed from the real read to reconstruct the shapes the port hands
-back, and `remove()` unlists everywhere and hides since there is no `deleteProduct`. The other
+back, and `remove()` unlists everywhere and hides since there is no `deleteProduct`. The
+products grid pages in that adapter rather than against the API — the catalogue is read once
+(and re-read at `totalCount` if the first ask was short) because design 3a's rails, header and
+two bulk commands all need it whole (`docs/backend-api-gaps.md` §14) — but the port is the same
+`Page`-shaped one the vendor directory uses, so only the adapter changes if the backend grows
+listing filters and aggregates. The other
 five ports (Users/Accounts, Payments, Activity, Support, Dashboard) still run on the
 `InMemory*Repository` fixtures under `core/api/in-memory/`, bound in
 `core/api/api.providers.ts`. See `docs/backend-api-gaps.md` for exactly what's missing
@@ -138,7 +146,15 @@ selector is `md-*`.
   `core/auth/token-store.ts`, separate from `AuthStore` — see "Running against the real
   backend" above.
 - No state library (no NgRx). Server data → feature `CollectionStore<T,F>` subclass provided
-  at the route; session → `AuthStore`; ephemeral UI → component `signal()`.
+  at the route; session → `AuthStore`; ephemeral UI → component `signal()`. A screen whose
+  backend pages extends **`PagedCollectionStore<T,F>`** instead (`core/state/`): `items()` is
+  one page, `total()` the rows behind the filters, and `setPage()` / `setFilters()` each go
+  back to the repository — the port takes a `PageRequest` and answers with a `Page<T>`
+  (`core/models/page.model.ts`). `VendorsStore` and `VendorProductsStore` are the two so far;
+  whether the page comes from the server (vendors) or is cut by the adapter from what it holds
+  (products) is the repository's business, not the store's. A screen whose header or rails
+  describe the whole collection reads them from facets the repository sends beside the page —
+  a page cannot restate a total it does not contain.
 
 ## Styling
 

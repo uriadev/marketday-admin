@@ -1,34 +1,43 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { ProductRepository } from '../../core/api/ports/product-repository';
-import { CollectionStore } from '../../core/state/collection-store';
+import { PagedCollectionStore } from '../../core/state/paged-collection-store';
+import { PageRequest } from '../../core/models/page.model';
 import {
+  EMPTY_PRODUCT_FACETS,
   EMPTY_PRODUCT_FILTERS,
   ListingStatus,
-  MarketStock,
+  ProductBoardFacets,
   ProductChange,
   ProductFilters,
+  ProductListQuery,
   ProductMarket,
-  SoldOutEntry,
   VendorProduct,
-  sentenceList,
+  VendorProductBoardPage,
+  soldOutAt,
 } from '../../core/models/product.model';
+
+/** The design's grid — a page you can take in without scrolling the table. */
+export const PRODUCT_PAGE_SIZE = 10;
 
 /**
  * A vendor's products and where each one is sold (design 3a). Provided at the
  * `products` route, so it dies with the tab.
  *
- * The two rails are **derived** from the grid rather than fetched beside it:
- * "sold out right now" and each market's tally are restatements of the same
- * listings, so flipping a cell moves all three at once and none of them can
- * drift.
+ * `items()` is one page of the catalogue, so the two rails cannot be derived
+ * from it any more — "sold out right now" and each market's tally are
+ * restatements of *every* listing this vendor has, and most of them are not on
+ * screen. They arrive as facets beside the page instead, and every command
+ * answers with a fresh page and facets together, so flipping a cell still moves
+ * all three at once and none of them can drift.
  */
 @Injectable()
-export class VendorProductsStore extends CollectionStore<VendorProduct, ProductFilters> {
+export class VendorProductsStore extends PagedCollectionStore<VendorProduct, ProductFilters> {
   private readonly repo = inject(ProductRepository);
 
   private readonly slug = signal('');
   private readonly _markets = signal<readonly ProductMarket[]>([]);
+  private readonly _facets = signal<ProductBoardFacets>(EMPTY_PRODUCT_FACETS);
   private readonly _lastChange = signal<ProductChange | null>(null);
   /** Set while a command is in flight, so the screen can stop taking clicks. */
   private readonly _busy = signal(false);
@@ -40,106 +49,82 @@ export class VendorProductsStore extends CollectionStore<VendorProduct, ProductF
   readonly busy = this._busy.asReadonly();
 
   constructor() {
-    super(EMPTY_PRODUCT_FILTERS);
+    super(EMPTY_PRODUCT_FILTERS, PRODUCT_PAGE_SIZE);
   }
 
-  protected override fetch(): Observable<readonly VendorProduct[]> {
-    return this.repo.board(this.slug()).pipe(
+  protected override fetchPage(
+    filters: ProductFilters,
+    page: PageRequest,
+  ): Observable<VendorProductBoardPage> {
+    return this.repo.board(this.slug(), { filters, page }).pipe(
       tap((board) => {
-        this._markets.set(board.markets);
+        this.absorb(board);
+        // Only a load takes the board's own "last change": after a command it
+        // is this session's sentence, written by `record` before the write went
+        // out, and the server's copy is older than what just happened.
         this._lastChange.set(board.lastChange);
       }),
-      map((board) => board.products),
     );
   }
 
-  /** The tab knows the vendor; the store is told once and then reloads itself. */
-  loadFor(slug: string): void {
+  /**
+   * Which vendor's board this is. Does **not** load: the tab sets the vendor
+   * and the filters in one effect, and `setFilters` is what goes to the
+   * repository — two loads for one navigation would be one wasted read and a
+   * race to settle it. A different vendor starts at the first page.
+   */
+  setVendor(slug: string): void {
+    if (this.slug() === slug) return;
     this.slug.set(slug);
-    this.load();
+  }
+
+  /** The query the commands below have to answer with — the page on screen. */
+  private get query(): ProductListQuery {
+    return {
+      filters: this.filters(),
+      page: { index: this.pageIndex(), size: this.pageSize() },
+    };
+  }
+
+  /** Columns and rails from one answer, so the grid and the rails agree. */
+  private absorb(board: VendorProductBoardPage): void {
+    this._markets.set(board.markets);
+    this._facets.set(board.facets);
   }
 
   /* ── Selectors ─────────────────────────────────────────────────────────── */
 
   /** Every category this vendor actually sells, for the "All categories" menu. */
-  readonly categories = computed(() =>
-    [...new Set(this.items().map((product) => product.category))].sort((a, b) =>
-      a.localeCompare(b),
-    ),
-  );
+  readonly categories = computed(() => this._facets().categories);
 
-  readonly soldOutCount = computed(
-    () => this.items().filter((product) => this.soldOutSlugs(product).length > 0).length,
-  );
+  /** Products in the catalogue, whatever the filters narrow the grid to. */
+  readonly productCount = computed(() => this._facets().productCount);
+
+  readonly soldOutCount = computed(() => this._facets().soldOut.length);
 
   /** "14 products · 3 sold out today". */
   readonly summary = computed(() => {
-    const total = this.items().length;
+    const total = this.productCount();
     const soldOut = this.soldOutCount();
     const parts = [`${total} ${total === 1 ? 'product' : 'products'}`];
     if (soldOut > 0) parts.push(`${soldOut} sold out today`);
     return parts.join(' · ');
   });
 
-  /** The rail, newest concern first — one entry per product, not per listing. */
-  readonly soldOutNow = computed<readonly SoldOutEntry[]>(() =>
-    this.items()
-      .filter((product) => this.soldOutSlugs(product).length > 0)
-      .map((product) => {
-        const marketSlugs = this.soldOutSlugs(product);
-        return {
-          product,
-          marketSlugs,
-          where: sentenceList(marketSlugs.map((slug) => this.marketLabel(slug))),
-        };
-      }),
-  );
+  /** The rail — one entry per product, not per listing, across the catalogue. */
+  readonly soldOutNow = computed(() => this._facets().soldOut);
 
   /** One line per market for "Mark everything sold out". */
-  readonly marketStock = computed<readonly MarketStock[]>(() =>
-    this.markets().map((market) => {
-      const carried = this.items().filter((product) => market.slug in product.listings);
-      const available = carried.filter(
-        (product) => product.listings[market.slug] === 'available',
-      ).length;
-      return {
-        market,
-        carried: carried.length,
-        available,
-        state: market.paused
-          ? 'Paused — nothing on the shopper view'
-          : `${available} of ${carried.length} carried ${
-              carried.length === 1 ? 'product' : 'products'
-            } available`,
-      };
-    }),
-  );
+  readonly marketStock = computed(() => this._facets().stock);
 
   readonly hasActiveFilters = computed(() => {
     const { q, category, view } = this.filters();
     return q.trim() !== '' || category !== null || view !== 'all';
   });
 
-  /** The rows the grid shows — the chip row and the two menus, narrowing together. */
-  readonly visible = computed(() => {
-    const { q, category, view } = this.filters();
-    const needle = q.trim().toLowerCase();
-    const marketCount = this.markets().length;
-
-    return this.items().filter((product) => {
-      if (category !== null && product.category !== category) return false;
-      if (view === 'soldOut' && this.soldOutSlugs(product).length === 0) return false;
-      if (view === 'hidden' && !product.hidden) return false;
-      if (view === 'partial' && Object.keys(product.listings).length >= marketCount) return false;
-      if (needle === '') return true;
-      return (
-        product.name.toLowerCase().includes(needle) || product.meta.toLowerCase().includes(needle)
-      );
-    });
-  });
-
+  /** Nothing matched, but this vendor does sell something. */
   readonly isFilteredEmpty = computed(
-    () => !this.isLoading() && this.visible().length === 0 && this.items().length > 0,
+    () => !this.isLoading() && this.total() === 0 && this.productCount() > 0,
   );
 
   /* ── Commands ──────────────────────────────────────────────────────────── */
@@ -161,25 +146,24 @@ export class VendorProductsStore extends CollectionStore<VendorProduct, ProductF
     this.record(
       `You marked ${product.name} ${status === 'sold-out' ? 'sold out' : 'available'} at ${this.marketLabel(marketSlug)}`,
     );
-    this.run(this.repo.setStatus(this.slug(), product.id, marketSlug, status), previous);
+    this.run(
+      this.repo.setStatus(this.slug(), product.id, marketSlug, status, this.query),
+      previous,
+    );
   }
 
   /** Takes this vendor's whole list off one market's shopper view. */
   markMarketSoldOut(market: ProductMarket): void {
     const previous = this.items();
     this.record(`You marked everything sold out at ${market.label}`);
-    this.run(this.repo.markMarketSoldOut(this.slug(), market.slug), previous, (products) =>
-      this.replaceAll(products),
-    );
+    this.run(this.repo.markMarketSoldOut(this.slug(), market.slug, this.query), previous);
   }
 
   /** What midnight does on its own, done early. */
   resetSoldOut(): void {
     const previous = this.items();
     this.record('You cleared every sold-out flag');
-    this.run(this.repo.resetSoldOut(this.slug()), previous, (products) =>
-      this.replaceAll(products),
-    );
+    this.run(this.repo.resetSoldOut(this.slug(), this.query), previous);
   }
 
   setHidden(product: VendorProduct, hidden: boolean): void {
@@ -188,16 +172,14 @@ export class VendorProductsStore extends CollectionStore<VendorProduct, ProductF
     this.record(
       `You ${hidden ? 'hid' : 'restored'} ${product.name} ${hidden ? 'from' : 'to'} the shopper view`,
     );
-    this.run(this.repo.setHidden(this.slug(), product.id, hidden), previous);
+    this.run(this.repo.setHidden(this.slug(), product.id, hidden, this.query), previous);
   }
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
 
   /** Market slugs this product is sold out at, in column order. */
   soldOutSlugs(product: VendorProduct): readonly string[] {
-    return this.markets()
-      .map((market) => market.slug)
-      .filter((slug) => product.listings[slug] === 'sold-out');
+    return soldOutAt(product, this.markets());
   }
 
   marketLabel(slug: string): string {
@@ -205,18 +187,21 @@ export class VendorProductsStore extends CollectionStore<VendorProduct, ProductF
   }
 
   /**
-   * Runs a command, rolling the optimistic write back if it fails. The rails
-   * and the header are computed, so there is nothing else to undo.
+   * Runs a command and takes the board page it answers with — the rows, the
+   * rails and the tallies in one consistent snapshot, so an optimistic cell
+   * flip is confirmed by the same read that restates the rail rather than by a
+   * second one. A failure rolls the optimistic write back; `lastChange` is
+   * restored with it, since it announced something that did not happen.
    */
-  private run<T>(
-    command: Observable<T>,
+  private run(
+    command: Observable<VendorProductBoardPage>,
     previous: readonly VendorProduct[],
-    onSuccess?: (result: T) => void,
   ): void {
     this._busy.set(true);
     command.subscribe({
-      next: (result) => {
-        onSuccess?.(result);
+      next: (board) => {
+        this.replaceAll(board.items);
+        this.absorb(board);
         this._busy.set(false);
       },
       error: () => {

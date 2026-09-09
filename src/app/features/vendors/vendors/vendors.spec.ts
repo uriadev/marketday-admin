@@ -10,19 +10,35 @@ import {
 } from '../../../core/api/in-memory/in-memory-vendor-repository';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
+  VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
+  matchesVendorFilters,
 } from '../../../core/models/vendor.model';
+import { pageOf } from '../../../core/models/page.model';
 import { ConsoleChrome } from '../../../layouts/console-layout/console-chrome';
 import { Vendors } from './vendors';
 import { VendorsStore } from '../vendors-store';
 
 class StubVendorRepository extends VendorRepository {
-  override list(): Observable<readonly VendorSummary[]> {
-    return of(VENDORS_FIXTURE);
+  /** Pages the fixture the way `adminVendors` does — the screen only ever
+   *  holds the page it asked for. */
+  override list(query: VendorListQuery): Observable<VendorDirectoryPage> {
+    const matched = VENDORS_FIXTURE.filter((vendor) => matchesVendorFilters(vendor, query.filters));
+    return of({
+      ...pageOf(matched, query.page),
+      facets: {
+        markets: [...new Set(VENDORS_FIXTURE.flatMap((vendor) => vendor.markets))].sort((a, b) =>
+          a.localeCompare(b),
+        ),
+        applicationCount: VENDORS_FIXTURE.filter((vendor) => vendor.appliedLabel !== null).length,
+        vendorCount: VENDORS_FIXTURE.length,
+      },
+    });
   }
   override detail(): Observable<VendorDetail> {
     return of(MCNALLY_DETAIL);

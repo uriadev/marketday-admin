@@ -36,7 +36,23 @@ const VENDOR_FIELDS = gql`
   }
 `;
 
-/** The admin directory list (design 1a) — `@Roles(ADMIN)`, every vendor on the platform. */
+/**
+ * The admin directory list (design 1a) — `@Roles(ADMIN)`, every vendor on the
+ * platform, one page at a time.
+ *
+ * `CriteriaInput` carries the whole request: `limit`/`offset` for the page,
+ * `orderBy` so the pages are a stable cut of a sorted list rather than
+ * whatever order Postgres felt like, and the filters `VendorsService`'s
+ * `FILTERABLE_FIELDS` allows (`name`, `category`, `isActive`,
+ * `isAcceptingOrders`, `createdAt`). `totalCount` is the count *behind* those
+ * filters, which is what the paginator's length must be.
+ *
+ * The `directory` alias is the same query asked a second question in the same
+ * round trip: how many vendors there are before any filter — the header's
+ * count and, with `markets` from `MARKET_IDS`, all the console needs to keep
+ * describing the whole directory while showing one page of it. `limit: 1`
+ * because only the count is selected.
+ */
 export const ADMIN_VENDORS = gql`
   ${VENDOR_FIELDS}
   query AdminVendors($criteria: CriteriaInput) {
@@ -45,6 +61,9 @@ export const ADMIN_VENDORS = gql`
       items {
         ...VendorFields
       }
+    }
+    directory: adminVendors(criteria: { limit: 1 }) {
+      totalCount
     }
   }
 `;
@@ -113,11 +132,15 @@ export const CREATE_VENDOR = gql`
 `;
 
 /**
- * Slug → id for the markets an invitee may apply to. `CreateVendorInput` takes
- * `marketIds`, the console picks markets by slug, and the criteria filters are
- * a silent no-op server-side (`docs/backend-api-gaps.md`, bugs), so the whole
- * admin list comes back and is matched here — deliberately a two-field
- * projection rather than a reuse of `operations/market.ts`'s fat
+ * The market index the vendor screens need, in one cached read: slug → id for
+ * the markets an invitee may apply to (`CreateVendorInput` takes `marketIds`
+ * and the console picks markets by slug), and the names the directory's
+ * "Market: any" menu offers.
+ *
+ * The menu cannot be built from the vendors any more — a page of them knows
+ * only its own markets — so it is built from the markets themselves, which
+ * also means it offers a market no vendor has joined yet. Deliberately a
+ * three-field projection rather than a reuse of `operations/market.ts`'s fat
  * `MarketFields`, since nothing else on a market is wanted.
  */
 export const MARKET_IDS = gql`
@@ -125,6 +148,7 @@ export const MARKET_IDS = gql`
     adminMarkets {
       id
       slug
+      name
     }
   }
 `;

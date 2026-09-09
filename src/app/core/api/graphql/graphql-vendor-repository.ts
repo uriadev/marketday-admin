@@ -1,15 +1,20 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, forkJoin, of, throwError } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { catchError, map, switchMap } from 'rxjs/operators';
 import { VendorRepository } from '../ports/vendor-repository';
 import {
   VendorDetail,
+  VendorDirectoryPage,
+  VendorFilters,
   VendorInvite,
   VendorInviteSummary,
+  VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
+  matchesVendorFilters,
 } from '../../models/vendor.model';
+import { pageOf } from '../../models/page.model';
 import { GraphqlClient } from './graphql-client';
 import {
   ADMIN_VENDORS,
@@ -33,8 +38,11 @@ import {
   AdminVendorsQueryVariables,
   CreateVendorMutation,
   CreateVendorMutationVariables,
+  CriteriaInput,
+  FilterInput,
   FilterOperator,
   MarketIdsQuery,
+  OrderDirection,
   UpdateVendorMutation,
   UpdateVendorMutationVariables,
   VendorByIdQuery,
@@ -45,6 +53,76 @@ import {
 const INVITE_POLICY = { linkValidDays: 14, reminderAfterDays: 5 };
 
 /**
+ * The first ask of a read that has to see the whole directory. It is a guess,
+ * not a cap: `totalCount` comes back with the rows, so a directory larger than
+ * this is re-read at its real size rather than silently narrowed from a
+ * truncated list. Generous enough that the second trip is the rare case.
+ */
+const FULL_READ_LIMIT = 500;
+
+/**
+ * The filters `adminVendors` cannot express, so the only way to honour one is
+ * to read the directory and narrow it here.
+ *
+ * `market` and `multiMarket` ask about the `vendor_markets` relation, which is
+ * not among `VendorsService.FILTERABLE_FIELDS` and has no join to reach from a
+ * `CriteriaInput` filter; `applications` and `feeUnpaid` ask about models the
+ * backend does not have at all (`docs/backend-api-gaps.md` #5, #9), so they
+ * match nothing here however they are asked — which is itself the honest
+ * answer, and worth one read to give exactly.
+ */
+function needsFullRead(filters: VendorFilters): boolean {
+  return (
+    filters.market !== null || filters.multiMarket || filters.applications || filters.feeUnpaid
+  );
+}
+
+/**
+ * The half of the directory's filters `CriteriaInput` *can* carry.
+ *
+ * The search is `name ILIKE %q%` and nothing else: the console's own search
+ * also reads the trade line, the market chips and the staff names, but a
+ * server-paged screen cannot search rows it never fetched, and `name` is the
+ * only text column `VendorsService` allows. Narrower than the fixtures, and
+ * said so on the screen rather than papered over here.
+ *
+ * `paused` is `isAcceptingOrders = false` — the toggle a vendor flips when the
+ * stall sells out. `vendor-mapper.ts` also reads a tombstoned vendor
+ * (`isActive: false`) as paused, and no `CriteriaInput` filter can spell that
+ * OR, so a deleted business stays out of this list. That is the better answer
+ * anyway: nobody filters a directory looking for shut-down stalls.
+ */
+function pushDown(filters: VendorFilters): FilterInput[] {
+  const pushed: FilterInput[] = [];
+  const needle = filters.q.trim();
+  if (needle !== '') {
+    pushed.push({ field: 'name', operator: FilterOperator.Contains, value: needle });
+  }
+  if (filters.paused) {
+    pushed.push({ field: 'isAcceptingOrders', operator: FilterOperator.Equal, value: false });
+  }
+  return pushed;
+}
+
+/**
+ * What is left for this adapter to apply to the rows it read — the filters
+ * {@link pushDown} could not send, with the ones it did neutralised so they are
+ * not applied twice under different rules. Without that, a search would match
+ * on name server-side and on name-or-market-or-staff here, and the same needle
+ * would mean two things depending on which other filter happened to be on.
+ */
+function clientSide(filters: VendorFilters): VendorFilters {
+  return { ...filters, q: '', paused: false };
+}
+
+/** One `adminVendors` answer: the rows, the filtered count, the directory's. */
+interface VendorRows {
+  items: readonly VendorSummary[];
+  totalCount: number;
+  directoryTotal: number;
+}
+
+/**
  * `adminVendors` (`@Roles(ADMIN)`, closes `docs/backend-api-gaps.md` #2) and
  * `vendor(id)` are the whole of the vendor surface the schema covers, and both
  * return the thin `VendorModel` — a `memberCount` but no per-market fees,
@@ -53,6 +131,15 @@ const INVITE_POLICY = { linkValidDays: 14, reminderAfterDays: 5 };
  * for the Staff tab (design 1c); the directory does not fan out to it. So
  * `list()`, `detail()` and the Profile tab are wired to the API (thin but
  * honest, the way `GraphqlMarketRepository` is).
+ *
+ * `list()` pages **server-side**: `limit`/`offset` and `totalCount` on
+ * `adminVendors` are real, so the console asks for the page it is showing
+ * instead of the whole directory — which it never received anyway, since an
+ * absent `criteria` leaves `VendorsService.DEFAULT_LIMIT` capping the answer at
+ * 20 rows. What the console cannot push down it still honours, by reading the
+ * directory once and narrowing here — see {@link needsFullRead}. Either way it
+ * is the same `VendorDirectoryPage`, so the screen above cannot tell which
+ * happened.
  *
  * `saveProfile` persists: `updateVendor` now takes an ADMIN branch that acts on
  * the vendor named in `id` before the owner-only seat lookup runs (gap #7's
@@ -94,11 +181,67 @@ export class GraphqlVendorRepository extends VendorRepository {
   private readonly idBySlug = new Map<string, string>();
   /** The same slug → id problem for markets, which `createVendor` takes by id. */
   private readonly marketIdBySlug = new Map<string, string>();
+  /** Market names for the directory's market menu, filled by the same read. */
+  private marketNamesCache: readonly string[] | null = null;
   /** Vendors this session created, for `inviteSummary`'s running count. */
   private createdThisSession = 0;
 
-  override list(): Observable<readonly VendorSummary[]> {
-    return this.fetchAdminVendors().pipe(map((vendors) => vendors.map(toVendorSummary)));
+  /**
+   * One page of the directory (design 1a), and the facts the header keeps
+   * describing the whole of it with.
+   *
+   * Two routes to the same answer. When every filter that is on can be spelled
+   * as a `CriteriaInput` filter, the server slices: `limit`/`offset` for the
+   * page, `orderBy: name` so successive offsets cut a stable list rather than
+   * whatever order the planner returned, and `totalCount` for the paginator.
+   * When one cannot ({@link needsFullRead}), the rows have to be here to be
+   * narrowed, so the directory is read whole — still with whatever *could* be
+   * pushed down, so the read is as small as the API allows — and the page is
+   * cut from what matched.
+   *
+   * `vendorCount` is the `directory` alias rather than `totalCount`, because
+   * the header counts the directory and `totalCount` counts the filter.
+   * `applicationCount` is 0: there is no application model server-side (gap
+   * #9), so no row can be waiting on a decision and the chip's badge stays off
+   * rather than showing a number the backend cannot mean.
+   */
+  override list(query: VendorListQuery): Observable<VendorDirectoryPage> {
+    const { filters, page } = query;
+    const criteria: CriteriaInput = {
+      filters: pushDown(filters),
+      orderBy: 'name',
+      orderDir: OrderDirection.Asc,
+    };
+    const rows = needsFullRead(filters)
+      ? this.readAll(criteria).pipe(
+          map((result) => ({
+            ...result,
+            items: result.items.filter((vendor) =>
+              matchesVendorFilters(vendor, clientSide(filters)),
+            ),
+            paged: false,
+          })),
+        )
+      : this.readPage({ ...criteria, limit: page.size, offset: page.index * page.size }).pipe(
+          map((result) => ({ ...result, paged: true })),
+        );
+
+    return forkJoin({
+      rows,
+      // The menu is a convenience; the table is the screen. A market list that
+      // will not load leaves "Market: any" with nothing to offer rather than
+      // taking the directory down with it, and is retried on the next page.
+      markets: this.marketNames().pipe(catchError(() => of<readonly string[]>([]))),
+    }).pipe(
+      map(({ rows: result, markets }) => ({
+        // A server-sliced answer is already the page; a narrowed one is the
+        // whole match and gets cut here.
+        ...(result.paged
+          ? { items: result.items, total: result.totalCount }
+          : pageOf(result.items, page)),
+        facets: { markets, applicationCount: 0, vendorCount: result.directoryTotal },
+      })),
+    );
   }
 
   override detail(slug: string): Observable<VendorDetail> {
@@ -226,17 +369,70 @@ export class GraphqlVendorRepository extends VendorRepository {
     );
   }
 
-  private fetchAdminVendors(): Observable<readonly GqlVendor[]> {
+  /**
+   * One `adminVendors` round trip, mapped to summaries and with the slug → id
+   * map topped up from whatever came back. `totalCount` is the count behind
+   * `criteria`'s filters; `directoryTotal` is the whole directory, from the
+   * `directory` alias in the same document.
+   */
+  private readPage(criteria: CriteriaInput): Observable<VendorRows> {
     return this.client
-      .request<AdminVendorsQuery, AdminVendorsQueryVariables>(ADMIN_VENDORS, {})
+      .request<AdminVendorsQuery, AdminVendorsQueryVariables>(ADMIN_VENDORS, { criteria })
       .pipe(
         map((result) => {
           for (const vendor of result.adminVendors.items) {
             this.idBySlug.set(vendor.slug, vendor.id);
           }
-          return result.adminVendors.items;
+          return {
+            items: result.adminVendors.items.map(toVendorSummary),
+            totalCount: result.adminVendors.totalCount,
+            directoryTotal: result.directory.totalCount,
+          };
         }),
       );
+  }
+
+  /**
+   * Every row matching `criteria`, for the reads that cannot be paged — a
+   * filter the API cannot express, and the slug → id lookup, which has to be
+   * able to find any vendor rather than the first {@link FULL_READ_LIMIT} of
+   * them.
+   *
+   * The second trip fires only when the first was truncated, and asks for
+   * exactly the count the first reported. Narrowing a truncated list would
+   * quietly drop vendors that match, which is the one thing this fallback
+   * exists to avoid.
+   */
+  private readAll(criteria: CriteriaInput): Observable<VendorRows> {
+    return this.readPage({ ...criteria, limit: FULL_READ_LIMIT }).pipe(
+      switchMap((result) =>
+        result.items.length < result.totalCount
+          ? this.readPage({ ...criteria, limit: result.totalCount })
+          : of(result),
+      ),
+    );
+  }
+
+  /**
+   * The market names the directory's "Market: any" menu offers, cached for the
+   * session alongside the slug → id map the invite screen needs — one read
+   * fills both. A market added while the console is open is missing from the
+   * menu until the next visit, which is the trade for not re-reading the market
+   * list on every page turn.
+   */
+  private marketNames(): Observable<readonly string[]> {
+    if (this.marketNamesCache) return of(this.marketNamesCache);
+    return this.client.request<MarketIdsQuery>(MARKET_IDS).pipe(
+      map((result) => {
+        for (const market of result.adminMarkets) {
+          this.marketIdBySlug.set(market.slug, market.id);
+        }
+        this.marketNamesCache = result.adminMarkets
+          .map((market) => market.name)
+          .sort((a, b) => a.localeCompare(b));
+        return this.marketNamesCache;
+      }),
+    );
   }
 
   private fetchVendor(id: string): Observable<GqlVendor> {
@@ -285,15 +481,7 @@ export class GraphqlVendorRepository extends VendorRepository {
   private resolveMarketIds(slugs: readonly string[]): Observable<string[]> {
     if (slugs.length === 0) return of([]);
     const known = slugs.every((slug) => this.marketIdBySlug.has(slug));
-    const filled = known
-      ? of(undefined)
-      : this.client.request<MarketIdsQuery>(MARKET_IDS).pipe(
-          map((result) => {
-            for (const market of result.adminMarkets) {
-              this.marketIdBySlug.set(market.slug, market.id);
-            }
-          }),
-        );
+    const filled: Observable<unknown> = known ? of(undefined) : this.marketNames();
     return filled.pipe(
       map(() =>
         slugs.map((slug) => {
@@ -309,7 +497,7 @@ export class GraphqlVendorRepository extends VendorRepository {
   private resolveId(slug: string): Observable<string> {
     const known = this.idBySlug.get(slug);
     if (known) return of(known);
-    return this.fetchAdminVendors().pipe(
+    return this.readAll({}).pipe(
       map(() => {
         const id = this.idBySlug.get(slug);
         if (!id) throw new Error('That vendor could not be found.');

@@ -3,8 +3,9 @@ import {
   ListingStatus,
   ProductDraft,
   ProductForm,
+  ProductListQuery,
   VendorProduct,
-  VendorProductBoard,
+  VendorProductBoardPage,
 } from '../../models/product.model';
 
 /**
@@ -20,32 +21,54 @@ import {
  * is not carried at: that is a listing to create, not a status to flip.
  */
 export abstract class ProductRepository {
-  /** Rejects with an error when no vendor matches `vendorSlug`. */
-  abstract board(vendorSlug: string): Observable<VendorProductBoard>;
+  /**
+   * One page of the grid, with the markets that are its columns and the
+   * catalogue-wide facets around it. Rejects when no vendor matches
+   * `vendorSlug`.
+   *
+   * The query is the whole request — filters and page together — for the same
+   * reason `VendorRepository.list` takes one: narrowing a page that was already
+   * cut would filter the screen rather than the catalogue.
+   */
+  abstract board(vendorSlug: string, query: ProductListQuery): Observable<VendorProductBoardPage>;
 
-  /** One cell of the grid — `setProductListing(isAvailable:)` on the backend. */
+  /**
+   * One cell of the grid — `setProductListing(isAvailable:)` on the backend.
+   *
+   * Every command below answers with the board page `query` names rather than
+   * with the rows it changed. Flipping one cell moves the rails and the market
+   * tallies with it, and those describe the catalogue: only the repository can
+   * restate them, so it hands back a page and its facets in one consistent
+   * snapshot instead of leaving the caller to patch a total it cannot see.
+   */
   abstract setStatus(
     vendorSlug: string,
     productId: string,
     marketSlug: string,
     status: ListingStatus,
-  ): Observable<VendorProduct>;
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage>;
 
   /** Takes the whole list off one market's shopper view — a day that finished early. */
   abstract markMarketSoldOut(
     vendorSlug: string,
     marketSlug: string,
-  ): Observable<readonly VendorProduct[]>;
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage>;
 
   /** Puts every sold-out listing back to available, as midnight does on its own. */
-  abstract resetSoldOut(vendorSlug: string): Observable<readonly VendorProduct[]>;
+  abstract resetSoldOut(
+    vendorSlug: string,
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage>;
 
   /** Hides or shows a product at every market at once — `toggleProduct`. */
   abstract setHidden(
     vendorSlug: string,
     productId: string,
     hidden: boolean,
-  ): Observable<VendorProduct>;
+    query: ProductListQuery,
+  ): Observable<VendorProductBoardPage>;
 
   /**
    * What the product form opens with (design 4a). `productId` is `null` for

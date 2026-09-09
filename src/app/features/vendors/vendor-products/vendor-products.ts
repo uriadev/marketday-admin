@@ -1,12 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
@@ -33,8 +28,12 @@ import {
 import { Notifications } from '../../../core/notifications/notifications';
 import { VendorProductsStore } from '../vendor-products-store';
 
-/** The design's grid — a page you can take in without scrolling the table. */
-const PAGE_SIZE = 10;
+/**
+ * How long the search waits for the typing to stop. Every keystroke is a fresh
+ * page from the repository now, so the pause is what keeps a five-letter search
+ * to one read instead of five.
+ */
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * The Products tab of a vendor (design 3a): one row per product, one column per
@@ -89,10 +88,6 @@ export class VendorProducts {
     view: this.asView(this.view()),
   }));
 
-  /** Page position is view state, not something worth putting in a link. */
-  protected readonly pageIndex = signal(0);
-  protected readonly pageSize = signal(PAGE_SIZE);
-
   /** Product, then one column per market, then the row menu. */
   protected readonly columns = computed(() => [
     'product',
@@ -100,20 +95,20 @@ export class VendorProducts {
     'actions',
   ]);
 
-  protected readonly page = computed(() => {
-    const start = this.pageIndex() * this.pageSize();
-    return this.store.visible().slice(start, start + this.pageSize());
-  });
+  private readonly typed = new Subject<string>();
 
   constructor() {
-    effect(() => this.store.loadFor(this.slug()));
-    // The URL is the source of truth; the store follows it.
-    effect(() => this.store.setFilters(this.filters()));
-    // A narrower list can be shorter than the page you were on.
+    // The URL is the source of truth — the vendor from the route, the filters
+    // from the query params — and the store follows it, reading the page it
+    // needs. One effect for both, so a navigation is one read.
     effect(() => {
-      this.store.visible();
-      this.pageIndex.set(0);
+      this.store.setVendor(this.slug());
+      this.store.setFilters(this.filters());
     });
+
+    this.typed
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((value) => this.setParam({ q: value === '' ? null : value }));
   }
 
   protected columnOf(market: ProductMarket): string {
@@ -135,8 +130,7 @@ export class VendorProducts {
   }
 
   protected onSearch(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.setParam({ q: value === '' ? null : value });
+    this.typed.next((event.target as HTMLInputElement).value);
   }
 
   protected setView(value: ProductView | null): void {
@@ -153,9 +147,9 @@ export class VendorProducts {
     return chosen === null ? 'All categories' : PRODUCT_CATEGORY_LABELS[chosen];
   });
 
+  /** A page turn is a read: the rows for it were never fetched. */
   protected onPage(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
+    this.store.setPage(event.pageIndex, event.pageSize);
   }
 
   /* ── Cells ─────────────────────────────────────────────────────────────── */

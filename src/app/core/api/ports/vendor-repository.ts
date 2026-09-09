@@ -1,8 +1,10 @@
 import { Observable } from 'rxjs';
 import {
   VendorDetail,
+  VendorDirectoryPage,
   VendorInvite,
   VendorInviteSummary,
+  VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
@@ -17,7 +19,19 @@ import {
  * directory answer "who trades at two or more markets" without a join per row.
  */
 export abstract class VendorRepository {
-  abstract list(): Observable<readonly VendorSummary[]>;
+  /**
+   * One page of the directory, narrowed and counted.
+   *
+   * Filters travel with the page rather than being applied to the answer: the
+   * caller holds one page and could only narrow that, which would filter the
+   * screen instead of the directory. How much of the query reaches the server
+   * is each implementation's business — the fixtures narrow everything they
+   * hold, `GraphqlVendorRepository` pushes down what `adminVendors` can express
+   * and reads the collection when a filter needs it — but the answer is the
+   * same shape either way: the page, the total behind the filters, and the
+   * directory-wide facets the header and market menu read.
+   */
+  abstract list(query: VendorListQuery): Observable<VendorDirectoryPage>;
   /** Rejects with an error when no vendor matches `slug`. */
   abstract detail(slug: string): Observable<VendorDetail>;
 

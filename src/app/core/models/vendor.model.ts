@@ -1,3 +1,5 @@
+import { Page, PageRequest } from './page.model';
+
 /**
  * What a member of a vendor's team may do. Mirrors the backend's
  * `VendorMemberRole` (`../backend/src/common/enums/vendor-member-role.enum.ts`):
@@ -74,6 +76,72 @@ export const EMPTY_VENDOR_FILTERS: VendorFilters = {
   feeUnpaid: false,
   paused: false,
 };
+
+/**
+ * What the directory asks its repository for: one page of rows, narrowed.
+ *
+ * Filters and paging travel together because they cannot be applied apart —
+ * narrowing after the server sliced would filter one page rather than the
+ * directory, which is exactly the bug this shape exists to prevent.
+ */
+export interface VendorListQuery {
+  filters: VendorFilters;
+  page: PageRequest;
+}
+
+/**
+ * Directory-wide facts a single page cannot carry. The header line and the
+ * "Market: any" menu describe the whole directory rather than the rows on
+ * screen, so the repository — the only party that can still see all of it —
+ * hands them back alongside the page.
+ */
+export interface VendorDirectoryFacets {
+  /** Every market the directory can be narrowed to, for the market menu. */
+  markets: readonly string[];
+  /** Applications waiting on a decision, across the whole directory. */
+  applicationCount: number;
+  /** Vendors on the platform before any filter — the header's count. */
+  vendorCount: number;
+}
+
+export interface VendorDirectoryPage extends Page<VendorSummary> {
+  facets: VendorDirectoryFacets;
+}
+
+/**
+ * Whether one row survives the directory filters, written once so every
+ * repository narrows the same way — the fixtures over their whole collection,
+ * and `GraphqlVendorRepository` over the rows it had to read because
+ * `adminVendors` cannot express the filter (see its `list`).
+ *
+ * The four toggles narrow together (a vendor must satisfy every one that is
+ * on), which is what makes "Applications" plus "At 2+ markets" mean "existing
+ * multi-market vendors who want another".
+ */
+export function matchesVendorFilters(vendor: VendorSummary, filters: VendorFilters): boolean {
+  const { q, market, applications, multiMarket, feeUnpaid, paused } = filters;
+  if (market !== null && !vendor.markets.includes(market)) return false;
+  if (applications && vendor.appliedLabel === null) return false;
+  if (multiMarket && vendor.markets.length < 2) return false;
+  if (feeUnpaid && vendor.standing !== 'fee-unpaid') return false;
+  if (paused && vendor.standing !== 'paused') return false;
+
+  const needle = q.trim().toLowerCase();
+  if (needle === '') return true;
+  return (
+    vendor.name.toLowerCase().includes(needle) ||
+    vendor.meta.toLowerCase().includes(needle) ||
+    vendor.markets.some((label) => label.toLowerCase().includes(needle)) ||
+    // The design's placeholder promises staff search, so honour it.
+    vendor.staff.some((name) => name.toLowerCase().includes(needle))
+  );
+}
+
+/** Whether any filter is on — the "Clear filters" button, and the empty state. */
+export function hasVendorFilters(filters: VendorFilters): boolean {
+  const { q, market, applications, multiMarket, feeUnpaid, paused } = filters;
+  return q.trim() !== '' || market !== null || applications || multiMarket || feeUnpaid || paused;
+}
 
 /** The toggle chips above the directory table, in the design's order. */
 export type VendorToggle = 'applications' | 'multiMarket' | 'feeUnpaid' | 'paused';
