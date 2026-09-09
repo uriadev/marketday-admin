@@ -106,6 +106,8 @@ Package manager is **pnpm** (pinned via `packageManager`, pnpm@11.5.0) — not n
 - Install: `pnpm install`
 - Dev server: `pnpm start` (`ng serve`, http://localhost:4200)
 - Production build: `pnpm run build` (SSR build → `dist/marketday-admin/`)
+- Static build for Vercel: `pnpm run build:vercel` (`production,vercel` — `outputMode: static`,
+  no server bundle → `dist/marketday-admin/browser/index.html`)
 - Watch build (dev config): `pnpm run watch`
 - Serve the SSR build: `pnpm run serve:ssr:marketday-admin` (`node dist/marketday-admin/server/server.mjs`, listens on `PORT`, default 4000)
 - All unit tests: `pnpm test` (`ng test` → `@angular/build:unit-test` builder, Vitest + jsdom)

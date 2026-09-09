@@ -64,6 +64,12 @@
                   "with": "src/environments/environment.development.ts"
                 }
               ]
+            },
+            "vercel": {
+              "outputMode": "static",
+              "server": false,
+              "ssr": false,
+              "prerender": false
             }
           },
           "defaultConfiguration": "production"
