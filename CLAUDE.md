@@ -11,7 +11,7 @@ flow (`/login`, `/login/verify`, `/forgot-password`) and a console shell over Ov
 Markets (list / manage / add-market wizard), Vendors (directory / detail tabs / application
 dialog), Users, Support inbox and Account.
 
-Data is a **hybrid**: Auth, Markets, Profile, Media, Vendors and Products are wired to
+Data is a **hybrid**: Auth, Passkeys, Markets, Profile, Media, Vendors, Products and Users are wired to
 `../backend`'s real GraphQL API (`core/api/graphql/`) — the ports the schema genuinely covers
 for an admin. Vendors is partial: `adminVendors` + `vendor(id)` back the directory list, the
 detail shell and the Profile tab's read — the directory **pages server-side** (`limit`/`offset`
@@ -35,8 +35,14 @@ products grid pages in that adapter rather than against the API — the catalogu
 (and re-read at `totalCount` if the first ask was short) because design 3a's rails, header and
 two bulk commands all need it whole (`docs/backend-api-gaps.md` §14) — but the port is the same
 `Page`-shaped one the vendor directory uses, so only the adapter changes if the backend grows
-listing filters and aggregates. The other
-five ports (Users/Accounts, Payments, Activity, Support, Dashboard) still run on the
+listing filters and aggregates. Users runs end-to-end on `adminUsers` (server-side paging, every
+filter pushed down, the header's and menus' counts as aliases in the same document) and
+`suspendUser` / `restoreUser`, all `@Roles(ADMIN)` and added server-side for this screen — a
+suspension signs the account out and is enforced at `AuthService.issueTokens` and `JwtStrategy`;
+"Send password reset" is the public `requestPasswordReset`. Organiser / support agent have no
+column behind them (every `ADMIN` reads as a platform admin), and Change role, Invite team
+member and Export stay disabled (`docs/backend-api-gaps.md` §1). The other
+four ports (Payments, Activity, Support, Dashboard) still run on the
 `InMemory*Repository` fixtures under `core/api/in-memory/`, bound in
 `core/api/api.providers.ts`. See `docs/backend-api-gaps.md` for exactly what's missing
 server-side and why each port landed where it did.
@@ -50,7 +56,7 @@ Two documents outside this repo drive the work:
   Google Maps adapter under `core/maps/`.
 - **`../backend`** (package `marketday-api`) — the API this console calls: NestJS + GraphQL
   (Apollo over Fastify), TypeORM / PostgreSQL / PostGIS, JWT + Google OAuth.
-  `core/api/ports/*` are abstract-class ports; `core/api/graphql/*` implements the six the
+  `core/api/ports/*` are abstract-class ports; `core/api/graphql/*` implements the eight the
   schema covers (Vendors partially), `core/api/in-memory/*` the rest — see
   `core/api/api.providers.ts` for the `useClass` bindings. `core/models/*.model.ts` mirrors
   the backend enums.
@@ -74,7 +80,17 @@ MARKETDAY_API_URL=http://localhost:PORT MARKETDAY_API_KEY=… pnpm start   # dif
 The access/refresh token pair lives in `core/auth/token-store.ts` (not `AuthStore`, to avoid a
 DI cycle through the interceptor); `core/auth/auth-interceptor.ts` attaches the bearer token to
 GraphQL calls only — never to the presigned-upload `PUT`s, which go straight to R2/LocalStack —
-and refreshes once, single-flight, on an unauthenticated response.
+and refreshes once, single-flight, on an unauthenticated response. The sign-in calls (`login`
+and both halves of a passkey sign-in) are marked with its `SIGN_IN` context instead: they carry
+no bearer, and their 401 is the answer ("Invalid credentials", "Invalid passkey") rather than an
+expired session to refresh.
+
+**Passkeys** are checked by the backend against the origin the browser signs into every
+response, so its `WEBAUTHN_ORIGINS` must list the console's origin and `WEBAUTHN_RP_ID` must be
+that origin's domain — in dev the defaults, `http://localhost:4200` and `localhost`, which the
+proxy makes true. Browsers only expose WebAuthn in a secure context: open dev at
+`localhost:4200`, not a LAN IP. In Chrome, DevTools → WebAuthn → "Enable virtual authenticator
+environment" (ctap2, resident keys, user verification) stands in for Touch ID.
 
 Types for every operation under `core/api/graphql/operations/*.ts` are generated from the
 checked-in `schema.gql` via `pnpm gql:generate` (`codegen.ts`) into
@@ -146,14 +162,20 @@ selector is `md-*`.
   `000000`); the real `GraphqlAuthRepository` completes in one step and rejects non-`ADMIN`
   roles, so `/login/verify` stays routed but unreached against it. JWTs live in
   `core/auth/token-store.ts`, separate from `AuthStore` — see "Running against the real
-  backend" above.
+  backend" above. **Passkeys** sit beside the password, never replacing it: `/login` has a
+  "Sign in with a passkey" button and offers passkeys in the email field's autofill
+  (`autocomplete="username webauthn"`), both through `AuthStore.signInWithPasskey`;
+  Settings → Security (`features/account/security`) adds, renames and removes them through
+  `PasskeyRepository`. `core/auth/webauthn.ts` is the one seam over `navigator.credentials`
+  (`@simplewebauthn/browser`, lazy-loaded, never on the server); a dismissed prompt is a
+  `PasskeyCancelledError`, which the UI stays quiet about.
 - No state library (no NgRx). Server data → feature `CollectionStore<T,F>` subclass provided
   at the route; session → `AuthStore`; ephemeral UI → component `signal()`. A screen whose
   backend pages extends **`PagedCollectionStore<T,F>`** instead (`core/state/`): `items()` is
   one page, `total()` the rows behind the filters, and `setPage()` / `setFilters()` each go
   back to the repository — the port takes a `PageRequest` and answers with a `Page<T>`
-  (`core/models/page.model.ts`). `VendorsStore` and `VendorProductsStore` are the two so far;
-  whether the page comes from the server (vendors) or is cut by the adapter from what it holds
+  (`core/models/page.model.ts`). `VendorsStore`, `VendorProductsStore` and `AccountsStore` are
+  the three so far; whether the page comes from the server (vendors, accounts) or is cut by the adapter from what it holds
   (products) is the repository's business, not the store's. A screen whose header or rails
   describe the whole collection reads them from facets the repository sends beside the page —
   a page cannot restate a total it does not contain.

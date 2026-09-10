@@ -1,8 +1,14 @@
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpContext,
+  HttpErrorResponse,
+  provideHttpClient,
+  withInterceptors,
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../../environments/environment';
-import { authInterceptor } from './auth-interceptor';
+import { SIGN_IN, authInterceptor } from './auth-interceptor';
 import { SessionExpiry } from './session-expiry';
 import { SESSION_STORAGE } from './session-storage';
 import { TokenStore } from './token-store';
@@ -94,6 +100,38 @@ describe('authInterceptor', () => {
 
     expect(expire).toHaveBeenCalledTimes(1);
     expect((error as Error).message).toBe(SESSION_EXPIRED);
+  });
+
+  it("hands a sign-in call's rejection back as its answer, not as an expired session", () => {
+    // A stale pair from an earlier session must neither ride along nor be refreshed.
+    tokens.set('access-old', 'refresh-1');
+    const signIn = { context: new HttpContext().set(SIGN_IN, true) };
+    let error: unknown;
+    http
+      .post(GQL, { query: 'mutation PasskeyAuth' }, signIn)
+      .subscribe({ error: (e) => (error = e) });
+
+    const req = httpMock.expectOne(GQL);
+    expect(req.request.headers.has('Authorization')).toBe(false);
+    // How the backend actually answers a refused passkey: a real 401 with the
+    // exception's message on `originalError`.
+    req.flush(
+      {
+        errors: [
+          {
+            message: 'Invalid passkey',
+            extensions: { code: 'UNAUTHENTICATED', originalError: { statusCode: 401 } },
+          },
+        ],
+      },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+
+    // No refresh was attempted (verify() would catch a second request).
+    expect(expire).not.toHaveBeenCalled();
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect((error as HttpErrorResponse).status).toBe(401);
+    expect(tokens.refreshToken()).toBe('refresh-1');
   });
 
   it('sends x-api-key on GraphQL calls when the build injected one', () => {

@@ -33,7 +33,7 @@ export class Account {
 
   protected readonly links: SettingsLink[] = [
     { icon: 'person', label: 'Profile', route: 'profile' },
-    { icon: 'lock', label: 'Security' },
+    { icon: 'lock', label: 'Security', route: 'security' },
     { icon: 'notifications', label: 'Notifications' },
     { icon: 'group', label: 'Team members' },
     { icon: 'credit_card', label: 'Billing' },

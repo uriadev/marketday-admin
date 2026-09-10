@@ -42,6 +42,13 @@ export interface GraphQlResponseBody<T> {
 
 const AUTH_CODES = new Set(['UNAUTHENTICATED', 'UNAUTHORIZED']);
 const FORBIDDEN_CODES = new Set(['FORBIDDEN']);
+/**
+ * Nest's own wording for a refusal with nothing more to say: `RolesGuard`'s
+ * "Forbidden resource", and a bare `new ForbiddenException()`'s "Forbidden".
+ * Those become one human sentence; a `ForbiddenException` thrown with its own
+ * message ("This account has been suspended.") is already one, and is shown.
+ */
+const GENERIC_FORBIDDEN = new Set(['Forbidden resource', 'Forbidden']);
 
 /** True when the caller's token is missing, invalid, or expired. */
 export function isUnauthenticated(errors: readonly GraphQlErrorShape[]): boolean {
@@ -52,13 +59,19 @@ export function isUnauthenticated(errors: readonly GraphQlErrorShape[]): boolean
 
 /** The human sentence a fixture repository would have rejected with. */
 function humanize(error: GraphQlErrorShape): string {
-  if (FORBIDDEN_CODES.has(error.extensions?.code ?? '') || error.message === 'Forbidden resource') {
+  const original = error.extensions?.originalError?.message;
+  const specific =
+    Array.isArray(original) && original.length > 0
+      ? original.join(' ')
+      : typeof original === 'string' && original.length > 0
+        ? original
+        : error.message;
+  const forbidden =
+    FORBIDDEN_CODES.has(error.extensions?.code ?? '') || GENERIC_FORBIDDEN.has(error.message);
+  if (forbidden && GENERIC_FORBIDDEN.has(specific)) {
     return 'You do not have permission to do that.';
   }
-  const original = error.extensions?.originalError?.message;
-  if (Array.isArray(original) && original.length > 0) return original.join(' ');
-  if (typeof original === 'string' && original.length > 0) return original;
-  return error.message;
+  return specific;
 }
 
 /** Turns a populated `errors` array into the one `Error` a facade expects. */

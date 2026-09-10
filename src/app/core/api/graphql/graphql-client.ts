@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -21,12 +21,18 @@ import { GraphQlResponseBody, mapHttpError, toDomainError } from './graphql-erro
 export class GraphqlClient {
   private readonly http = inject(HttpClient);
 
+  /** `context` is for {@link authInterceptor}'s markers — `SIGN_IN` on the sign-in calls. */
   request<TData, TVariables extends object = Record<string, never>>(
     document: string,
     variables?: TVariables,
+    context?: HttpContext,
   ): Observable<TData> {
     return this.http
-      .post<GraphQlResponseBody<TData>>(environment.api.graphqlUrl, { query: document, variables })
+      .post<GraphQlResponseBody<TData>>(
+        environment.api.graphqlUrl,
+        { query: document, variables },
+        { context },
+      )
       .pipe(
         map((response) => unwrap(response)),
         catchError((err: unknown) => {

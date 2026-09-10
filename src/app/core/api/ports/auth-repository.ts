@@ -33,6 +33,19 @@ export abstract class AuthRepository {
   /** Step 2, only reached on a `'challenge'` outcome: exchange the code for the user. */
   abstract verifyCode(email: string, code: string): Observable<AdminUser>;
 
+  /**
+   * Sign in with a passkey. Usernameless — the passkey itself says whose
+   * account it is, so no email is asked for. Errors with `PasskeyCancelledError`
+   * (`core/auth/webauthn.ts`) when the person dismisses the prompt.
+   *
+   * With `autofill`, no prompt opens: passkeys are offered among the email
+   * field's autofill suggestions, and this emits once one is picked. That is
+   * an offer rather than a request, so when it cannot be made — or is withdrawn
+   * because the prompt was opened instead — it completes without emitting;
+   * only a passkey that was picked and then refused errors.
+   */
+  abstract signInWithPasskey(options?: { autofill?: boolean }): Observable<AdminUser>;
+
   /** Invalidates the session server-side. Local state is `AuthStore`'s job. */
   abstract signOut(): Observable<void>;
 }

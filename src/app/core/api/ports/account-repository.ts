@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { Account } from '../../models/account.model';
+import { Account, AccountDirectoryPage, AccountListQuery } from '../../models/account.model';
 
 /**
  * Port for every account that can sign in to anything MarketDay runs (design
@@ -11,11 +11,24 @@ import { Account } from '../../models/account.model';
  * what gets written to the audit log and what an appeal is answered from.
  */
 export abstract class AccountRepository {
-  abstract list(): Observable<readonly Account[]>;
+  /**
+   * One page of the list, narrowed and counted, with the platform-wide counts
+   * the header and the menus read. Filters travel with the page rather than
+   * being applied to the answer — the caller holds one page and could only
+   * narrow that — and how much of the query reaches the server is each
+   * implementation's business.
+   */
+  abstract list(query: AccountListQuery): Observable<AccountDirectoryPage>;
 
   /** Closes an account and records `reason` against it. */
   abstract suspend(id: string, reason: string): Observable<Account>;
 
   /** Re-opens a suspended account, restoring the name and email it hid. */
   abstract restore(id: string): Observable<Account>;
+
+  /**
+   * Emails the account a password-reset code. For an `invited` account —
+   * created on someone's behalf and never signed in — this is how they get in.
+   */
+  abstract sendPasswordReset(email: string): Observable<void>;
 }

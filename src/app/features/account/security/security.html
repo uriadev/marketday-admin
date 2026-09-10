@@ -1,0 +1,89 @@
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading your passkeys" />
+}
+
+<div class="scroller">
+  <div class="column">
+    <section class="section">
+      <div>
+        <h3 class="m-0 text-body-large font-bold text-on-surface">Passkeys</h3>
+        <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
+          Sign in with your fingerprint, face or screen lock instead of typing a password. Your
+          password keeps working.
+        </p>
+      </div>
+
+      @if (facade.hasError()) {
+        <div
+          class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+          role="alert"
+        >
+          <mat-icon class="text-error">error</mat-icon>
+          <span class="flex-1">{{ facade.error() }}</span>
+          <button matButton type="button" (click)="facade.load()">Retry</button>
+        </div>
+      }
+
+      @if (facade.isReady()) {
+        @if (facade.passkeys().length) {
+          <mat-list class="passkeys">
+            @for (passkey of facade.passkeys(); track passkey.id) {
+              <mat-list-item>
+                <mat-icon matListItemIcon>passkey</mat-icon>
+                <span matListItemTitle
+                  >{{ passkey.name
+                  }}<md-status-pill class="ms-2" [tone]="passkey.synced ? 'positive' : 'muted'">
+                    {{ passkey.synced ? 'Synced' : 'This device' }}
+                  </md-status-pill>
+                </span>
+                <span matListItemLine>{{ history(passkey) }}</span>
+                <button
+                  matIconButton
+                  matListItemMeta
+                  type="button"
+                  [matMenuTriggerFor]="actions"
+                  [attr.aria-label]="'Actions for ' + passkey.name"
+                >
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #actions="matMenu" xPosition="before">
+                  <button mat-menu-item type="button" (click)="rename(passkey)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Rename</span>
+                  </button>
+                  <button mat-menu-item type="button" (click)="remove(passkey)">
+                    <mat-icon>delete</mat-icon>
+                    <span>Remove</span>
+                  </button>
+                </mat-menu>
+              </mat-list-item>
+            }
+          </mat-list>
+        } @else {
+          <md-empty-state
+            icon="passkey"
+            headline="No passkeys yet"
+            body="Add one on this device, or use your phone to make one there."
+          />
+        }
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            matButton="filled"
+            type="button"
+            [disabled]="!supported || facade.isAdding()"
+            (click)="add()"
+          >
+            <mat-icon>add</mat-icon>
+            {{ facade.isAdding() ? 'Waiting for your device…' : 'Add a passkey' }}
+          </button>
+          @if (!supported) {
+            <span class="text-label-large text-on-surface-variant">
+              This browser can’t make passkeys.
+            </span>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>

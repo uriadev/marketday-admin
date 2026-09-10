@@ -6,18 +6,20 @@ import { DashboardRepository } from './ports/dashboard-repository';
 import { MarketRepository } from './ports/market-repository';
 import { VendorRepository } from './ports/vendor-repository';
 import { MediaRepository } from './ports/media-repository';
+import { PasskeyRepository } from './ports/passkey-repository';
 import { PaymentRepository } from './ports/payment-repository';
 import { ProductRepository } from './ports/product-repository';
 import { ProfileRepository } from './ports/profile-repository';
 import { SupportRepository } from './ports/support-repository';
-import { InMemoryAccountRepository } from './in-memory/in-memory-account-repository';
 import { InMemoryActivityRepository } from './in-memory/in-memory-activity-repository';
 import { InMemoryDashboardRepository } from './in-memory/in-memory-dashboard-repository';
 import { InMemoryPaymentRepository } from './in-memory/in-memory-payment-repository';
 import { InMemorySupportRepository } from './in-memory/in-memory-support-repository';
+import { GraphqlAccountRepository } from './graphql/graphql-account-repository';
 import { GraphqlAuthRepository } from './graphql/graphql-auth-repository';
 import { GraphqlMarketRepository } from './graphql/graphql-market-repository';
 import { GraphqlMediaRepository } from './graphql/graphql-media-repository';
+import { GraphqlPasskeyRepository } from './graphql/graphql-passkey-repository';
 import { GraphqlProductRepository } from './graphql/graphql-product-repository';
 import { GraphqlProfileRepository } from './graphql/graphql-profile-repository';
 import { GraphqlVendorRepository } from './graphql/graphql-vendor-repository';
@@ -26,27 +28,32 @@ import { GraphqlVendorRepository } from './graphql/graphql-vendor-repository';
  * Binds every repository port to its implementation. `../../../../docs/ARCHITECTURE.md`
  * §8 describes the swap as a change to these `useClass` lines and nothing above
  * `core/` — in practice it is a **hybrid**: `schema.gql` covers Auth, Markets,
- * Profile, Media, Vendors and Products, so those six are wired to
- * `core/api/graphql/`. `adminVendors` closed `docs/backend-api-gaps.md` #2 and
+ * Profile, Media, Vendors, Products and Users, so those seven are wired to
+ * `core/api/graphql/`. `adminUsers` plus `suspendUser`/`restoreUser` closed
+ * `docs/backend-api-gaps.md` #1, so the Users screen lists, pages, suspends
+ * and restores for real. `adminVendors` closed #2 and
  * a `slug` field closed #10; `createVendor` (`@Roles(ADMIN)`) makes the invite
  * screen's create real, owner and all (#9), and `updateVendor` grew an ADMIN
  * branch so the Profile tab's save persists too (#7). Only the *invitation*
  * itself is still unwired (`GraphqlVendorRepository` documents which and why).
  * Products' write mutations were widened to `@Roles(VENDOR, ADMIN)` server-side
  * (#7 as well), so `GraphqlProductRepository` runs the grid and the form
- * end-to-end; only `deleteProduct` is still missing (#8). The remaining five
+ * end-to-end; only `deleteProduct` is still missing (#8). Passkeys are the
+ * backend's own (`PasskeyResolver`) and have no fixture: a passkey only exists
+ * as a key pair a real backend verified. The remaining four
  * ports have no admin-facing backend surface yet — see
  * `docs/backend-api-gaps.md` — and stay on their `InMemory*Repository` fixture
  * until they do.
  */
 export const API_PROVIDERS: Provider[] = [
-  { provide: AccountRepository, useClass: InMemoryAccountRepository },
+  { provide: AccountRepository, useClass: GraphqlAccountRepository },
   { provide: ActivityRepository, useClass: InMemoryActivityRepository },
   { provide: AuthRepository, useClass: GraphqlAuthRepository },
   { provide: DashboardRepository, useClass: InMemoryDashboardRepository },
   { provide: MarketRepository, useClass: GraphqlMarketRepository },
   { provide: VendorRepository, useClass: GraphqlVendorRepository },
   { provide: MediaRepository, useClass: GraphqlMediaRepository },
+  { provide: PasskeyRepository, useClass: GraphqlPasskeyRepository },
   { provide: PaymentRepository, useClass: InMemoryPaymentRepository },
   { provide: ProductRepository, useClass: GraphqlProductRepository },
   { provide: ProfileRepository, useClass: GraphqlProfileRepository },

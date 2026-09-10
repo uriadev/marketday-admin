@@ -24,6 +24,35 @@ export type AccountDeletionLinkInput = {
   token: Scalars['String']['input'];
 };
 
+export type AdminUserModel = {
+  __typename?: 'AdminUserModel';
+  avatarUrl: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  email: Scalars['String']['output'];
+  fullName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  lastSeenAt: Maybe<Scalars['DateTime']['output']>;
+  role: UserRole;
+  status: AdminUserStatus;
+  suspendedAt: Maybe<Scalars['DateTime']['output']>;
+  suspendedByName: Maybe<Scalars['String']['output']>;
+  suspensionReason: Maybe<Scalars['String']['output']>;
+  vendor: Maybe<VendorModel>;
+  vendorRole: Maybe<VendorMemberRole>;
+};
+
+export enum AdminUserStatus {
+  Active = 'ACTIVE',
+  Invited = 'INVITED',
+  Suspended = 'SUSPENDED'
+}
+
+export type AdminUsersPage = {
+  __typename?: 'AdminUsersPage';
+  items: Array<AdminUserModel>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type AppleAuthInput = {
   fullName?: InputMaybe<Scalars['String']['input']>;
   identityToken: Scalars['String']['input'];
@@ -248,6 +277,7 @@ export type Mutation = {
   createVendor: VendorModel;
   createVendorImageUploadUrl: VendorImageUploadUrlModel;
   deleteAccount: Scalars['Boolean']['output'];
+  deletePasskey: Scalars['Boolean']['output'];
   generateOccurrences: MarketModel;
   googleAuth: AuthResponse;
   inviteVendorMember: Scalars['Boolean']['output'];
@@ -257,15 +287,20 @@ export type Mutation = {
   logout: Scalars['Boolean']['output'];
   markAllNotificationsRead: Scalars['Boolean']['output'];
   markNotificationRead: Scalars['Boolean']['output'];
+  passkeyAuth: AuthResponse;
+  passkeyAuthenticationOptions: PasskeyOptions;
+  passkeyRegistrationOptions: PasskeyOptions;
   refreshToken: AuthResponse;
   register: AuthResponse;
   registerPushToken: Scalars['Boolean']['output'];
   removeProductListing: Scalars['Boolean']['output'];
   removeVendorMember: Scalars['Boolean']['output'];
+  renamePasskey: PasskeyModel;
   requestAccountDeletionCode: Scalars['Boolean']['output'];
   requestAccountDeletionLink: Scalars['Boolean']['output'];
   requestPasswordReset: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
+  restoreUser: AdminUserModel;
   revokeVendorInvite: Scalars['Boolean']['output'];
   setMarketFavorite: Scalars['Boolean']['output'];
   setProductFavorite: Scalars['Boolean']['output'];
@@ -275,6 +310,7 @@ export type Mutation = {
   setVendorFavorite: Scalars['Boolean']['output'];
   submitContactMessage: Scalars['Boolean']['output'];
   submitSupportMessage: SupportMessageModel;
+  suspendUser: AdminUserModel;
   toggleProduct: ProductModel;
   updateMarket: MarketModel;
   updateMe: UserModel;
@@ -282,6 +318,7 @@ export type Mutation = {
   updateProduct: ProductModel;
   updateVendor: VendorModel;
   updateVendorMember: VendorMemberModel;
+  verifyPasskeyRegistration: PasskeyModel;
   verifyPasswordResetCode: Scalars['Boolean']['output'];
 };
 
@@ -370,6 +407,11 @@ export type MutationDeleteAccountArgs = {
 };
 
 
+export type MutationDeletePasskeyArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationGenerateOccurrencesArgs = {
   id: Scalars['ID']['input'];
 };
@@ -405,6 +447,11 @@ export type MutationMarkNotificationReadArgs = {
 };
 
 
+export type MutationPasskeyAuthArgs = {
+  input: PasskeyAuthInput;
+};
+
+
 export type MutationRefreshTokenArgs = {
   input: RefreshTokenInput;
 };
@@ -431,6 +478,11 @@ export type MutationRemoveVendorMemberArgs = {
 };
 
 
+export type MutationRenamePasskeyArgs = {
+  input: RenamePasskeyInput;
+};
+
+
 export type MutationRequestAccountDeletionLinkArgs = {
   input: RequestAccountDeletionLinkInput;
 };
@@ -443,6 +495,11 @@ export type MutationRequestPasswordResetArgs = {
 
 export type MutationResetPasswordArgs = {
   input: ResetPasswordInput;
+};
+
+
+export type MutationRestoreUserArgs = {
+  userId: Scalars['ID']['input'];
 };
 
 
@@ -494,6 +551,11 @@ export type MutationSubmitSupportMessageArgs = {
 };
 
 
+export type MutationSuspendUserArgs = {
+  input: SuspendUserInput;
+};
+
+
 export type MutationToggleProductArgs = {
   id: Scalars['ID']['input'];
 };
@@ -530,6 +592,11 @@ export type MutationUpdateVendorArgs = {
 
 export type MutationUpdateVendorMemberArgs = {
   input: UpdateVendorMemberInput;
+};
+
+
+export type MutationVerifyPasskeyRegistrationArgs = {
+  input: VerifyPasskeyRegistrationInput;
 };
 
 
@@ -628,6 +695,26 @@ export type OrderStatusEventModel = {
   toStatus: OrderStatus;
 };
 
+export type PasskeyAuthInput = {
+  challengeId: Scalars['ID']['input'];
+  response: Scalars['JSON']['input'];
+};
+
+export type PasskeyModel = {
+  __typename?: 'PasskeyModel';
+  backedUp: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  lastUsedAt: Maybe<Scalars['DateTime']['output']>;
+  name: Scalars['String']['output'];
+};
+
+export type PasskeyOptions = {
+  __typename?: 'PasskeyOptions';
+  challengeId: Scalars['ID']['output'];
+  options: Scalars['JSON']['output'];
+};
+
 export enum ProductCategory {
   BakedGoods = 'BAKED_GOODS',
   Beverages = 'BEVERAGES',
@@ -705,6 +792,7 @@ export type Query = {
   __typename?: 'Query';
   accountDeletionLinkValid: Scalars['Boolean']['output'];
   adminMarkets: Array<MarketModel>;
+  adminUsers: AdminUsersPage;
   adminVendorMembers: VendorMembersPage;
   adminVendors: VendorsPage;
   /** Find 5 nearby markets */
@@ -722,6 +810,7 @@ export type Query = {
   myFavoriteVendors: Array<VendorModel>;
   myNotifications: NotificationsPage;
   myOrders: Array<OrderModel>;
+  myPasskeys: Array<PasskeyModel>;
   orderByToken: Maybe<OrderModel>;
   orderStatusHistory: Array<OrderStatusEventModel>;
   ordersByTokens: Array<OrderModel>;
@@ -745,6 +834,13 @@ export type QueryAccountDeletionLinkValidArgs = {
 
 export type QueryAdminMarketsArgs = {
   criteria?: InputMaybe<CriteriaInput>;
+};
+
+
+export type QueryAdminUsersArgs = {
+  criteria?: InputMaybe<CriteriaInput>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<AdminUserStatus>;
 };
 
 
@@ -859,6 +955,11 @@ export type RegisterInput = {
   password: Scalars['String']['input'];
 };
 
+export type RenamePasskeyInput = {
+  id: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+};
+
 export type RequestAccountDeletionLinkInput = {
   email: Scalars['String']['input'];
 };
@@ -938,6 +1039,11 @@ export type SupportMessageModel = {
   subject: Scalars['String']['output'];
 };
 
+export type SuspendUserInput = {
+  reason: Scalars['String']['input'];
+  userId: Scalars['ID']['input'];
+};
+
 export type UpdateMarketInput = {
   address?: InputMaybe<Scalars['String']['input']>;
   bannerImageUrl?: InputMaybe<Scalars['String']['input']>;
@@ -989,7 +1095,6 @@ export type UpdateVendorInput = {
   imageUrl?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
-  slug?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateVendorMemberInput = {
@@ -1103,10 +1208,41 @@ export type VendorsPage = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type VerifyPasskeyRegistrationInput = {
+  challengeId: Scalars['ID']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  response: Scalars['JSON']['input'];
+};
+
 export type VerifyPasswordResetCodeInput = {
   code: Scalars['String']['input'];
   email: Scalars['String']['input'];
 };
+
+export type AdminUserFieldsFragment = { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null };
+
+export type AdminUsersQueryVariables = Exact<{
+  search?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<AdminUserStatus>;
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
+
+
+export type AdminUsersQuery = { __typename?: 'Query', adminUsers: { __typename?: 'AdminUsersPage', totalCount: number, items: Array<{ __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null }> }, everyone: { __typename?: 'AdminUsersPage', totalCount: number }, shoppers: { __typename?: 'AdminUsersPage', totalCount: number }, vendorStaff: { __typename?: 'AdminUsersPage', totalCount: number }, admins: { __typename?: 'AdminUsersPage', totalCount: number }, suspended: { __typename?: 'AdminUsersPage', totalCount: number }, invited: { __typename?: 'AdminUsersPage', totalCount: number } };
+
+export type SuspendUserMutationVariables = Exact<{
+  input: SuspendUserInput;
+}>;
+
+
+export type SuspendUserMutation = { __typename?: 'Mutation', suspendUser: { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null } };
+
+export type RestoreUserMutationVariables = Exact<{
+  userId: Scalars['ID']['input'];
+}>;
+
+
+export type RestoreUserMutation = { __typename?: 'Mutation', restoreUser: { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null } };
 
 export type LoginMutationVariables = Exact<{
   input: LoginInput;
@@ -1114,6 +1250,18 @@ export type LoginMutationVariables = Exact<{
 
 
 export type LoginMutation = { __typename?: 'Mutation', login: { __typename?: 'AuthResponse', accessToken: string, refreshToken: string, user: { __typename?: 'UserModel', id: string, fullName: string, email: string, role: UserRole } } };
+
+export type PasskeyAuthenticationOptionsMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PasskeyAuthenticationOptionsMutation = { __typename?: 'Mutation', passkeyAuthenticationOptions: { __typename?: 'PasskeyOptions', challengeId: string, options: unknown } };
+
+export type PasskeyAuthMutationVariables = Exact<{
+  input: PasskeyAuthInput;
+}>;
+
+
+export type PasskeyAuthMutation = { __typename?: 'Mutation', passkeyAuth: { __typename?: 'AuthResponse', accessToken: string, refreshToken: string, user: { __typename?: 'UserModel', id: string, fullName: string, email: string, role: UserRole } } };
 
 export type RefreshSessionMutationVariables = Exact<{
   input: RefreshTokenInput;
@@ -1208,6 +1356,39 @@ export type CreateAvatarUploadUrlMutationVariables = Exact<{
 
 
 export type CreateAvatarUploadUrlMutation = { __typename?: 'Mutation', createAvatarUploadUrl: { __typename?: 'AvatarUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
+
+export type PasskeyFieldsFragment = { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null };
+
+export type MyPasskeysQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MyPasskeysQuery = { __typename?: 'Query', myPasskeys: Array<{ __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null }> };
+
+export type PasskeyRegistrationOptionsMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PasskeyRegistrationOptionsMutation = { __typename?: 'Mutation', passkeyRegistrationOptions: { __typename?: 'PasskeyOptions', challengeId: string, options: unknown } };
+
+export type VerifyPasskeyRegistrationMutationVariables = Exact<{
+  input: VerifyPasskeyRegistrationInput;
+}>;
+
+
+export type VerifyPasskeyRegistrationMutation = { __typename?: 'Mutation', verifyPasskeyRegistration: { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null } };
+
+export type RenamePasskeyMutationVariables = Exact<{
+  input: RenamePasskeyInput;
+}>;
+
+
+export type RenamePasskeyMutation = { __typename?: 'Mutation', renamePasskey: { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null } };
+
+export type DeletePasskeyMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DeletePasskeyMutation = { __typename?: 'Mutation', deletePasskey: boolean };
 
 export type ProductFieldsFragment = { __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> };
 

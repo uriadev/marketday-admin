@@ -149,7 +149,7 @@
     }
 
     <div class="table-card">
-      <table mat-table [dataSource]="page()" class="accounts">
+      <table mat-table [dataSource]="store.items()" class="accounts">
         <ng-container matColumnDef="select">
           <th mat-header-cell *matHeaderCellDef scope="col">
             <mat-checkbox
@@ -242,7 +242,14 @@
                 </a>
               }
               <button mat-menu-item type="button" disabled>Change role</button>
-              <button mat-menu-item type="button" disabled>Send password reset</button>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy() || account.status === 'suspended'"
+                (click)="sendPasswordReset(account)"
+              >
+                Send password reset
+              </button>
               @if (account.status === 'suspended') {
                 <button
                   mat-menu-item
@@ -275,9 +282,9 @@
       </table>
 
       <mat-paginator
-        [length]="store.visible().length"
-        [pageSize]="pageSize()"
-        [pageIndex]="pageIndex()"
+        [length]="store.total()"
+        [pageSize]="store.pageSize()"
+        [pageIndex]="store.pageIndex()"
         [pageSizeOptions]="[25, 50, 100]"
         (page)="onPage($event)"
         aria-label="Choose a page of accounts"

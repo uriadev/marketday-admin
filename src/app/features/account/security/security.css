@@ -1,0 +1,33 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 28px 32px;
+}
+
+/* One column, as Profile draws it — settings are read top to bottom. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-inline-size: 760px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.passkeys {
+  padding: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+}

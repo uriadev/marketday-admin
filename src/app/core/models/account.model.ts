@@ -1,3 +1,5 @@
+import { Page, PageRequest } from './page.model';
+
 /**
  * What the backend records against a login. Mirrors the `UserRole` GraphQL enum
  * (`../backend/src/common/enums/user-role.enum.ts`) — three values, no more.
@@ -13,10 +15,11 @@ export enum UserRole {
  *
  * A `BUYER` is a shopper and a `VENDOR` is vendor staff, one for one. `ADMIN`
  * splits three ways here: someone who runs a market, someone who answers
- * support, and the platform team. Note for the GraphQL swap: nothing
- * server-side records which market an admin organises, so that split is a
- * console distinction with **no column behind it** yet — the adapter derives it
- * from what the account is attached to, exactly as the fixture does.
+ * support, and the platform team. Nothing server-side records which market an
+ * admin organises or who answers support, so that split is a console
+ * distinction with **no column behind it** yet: the fixture draws all three,
+ * while `GraphqlAccountRepository` reads every `ADMIN` as `admin` and the other
+ * two match nothing (`docs/backend-api-gaps.md` #1).
  */
 export type AccountRole = 'shopper' | 'vendor-staff' | 'organiser' | 'support' | 'admin';
 
@@ -67,10 +70,8 @@ export interface Account {
   attached: string;
   /** Router link for `attached`, or `null` when there is nothing to open. */
   attachedLink: readonly string[] | null;
-  /** "18m ago". */
+  /** "18m ago", or "Never" for an account that has not signed in. */
   lastActive: string;
-  /** Sorts the table without parsing `lastActive`. Smaller is more recent. */
-  lastActiveRank: number;
   /** "14 March 2021". */
   signedUp: string;
   signedUpBucket: SignUpBucket;
@@ -103,3 +104,59 @@ export const EMPTY_ACCOUNT_FILTERS: AccountFilters = {
   status: null,
   signedUp: 'any',
 };
+
+/** What the Users screen asks the repository for: one page, narrowed. */
+export interface AccountListQuery {
+  filters: AccountFilters;
+  page: PageRequest;
+}
+
+/**
+ * Platform-wide counts a single page cannot carry. The header and the Role and
+ * Status menus describe every account rather than the rows on screen, so the
+ * repository — the only party that can still see all of them — hands them
+ * back beside the page. None of them moves with the filters.
+ */
+export interface AccountDirectoryFacets {
+  /** Every account on the platform — the header's count. */
+  accountCount: number;
+  roleCounts: Record<AccountRole, number>;
+  statusCounts: Record<AccountStatus, number>;
+}
+
+export const EMPTY_ACCOUNT_FACETS: AccountDirectoryFacets = {
+  accountCount: 0,
+  roleCounts: { shopper: 0, 'vendor-staff': 0, organiser: 0, support: 0, admin: 0 },
+  statusCounts: { active: 0, invited: 0, suspended: 0 },
+};
+
+export interface AccountDirectoryPage extends Page<Account> {
+  facets: AccountDirectoryFacets;
+}
+
+/**
+ * Whether one account survives the list filters, written once so every
+ * repository that narrows in the browser narrows the same way. The menus
+ * narrow together, so "Vendor staff" plus "Suspended" means exactly that.
+ * "This year" includes the last 30 days, the way the menu reads.
+ */
+export function matchesAccountFilters(account: Account, filters: AccountFilters): boolean {
+  const { q, role, status, signedUp } = filters;
+  if (role !== null && account.role !== role) return false;
+  if (status !== null && account.status !== status) return false;
+  if (signedUp === 'last30' && account.signedUpBucket !== 'last30') return false;
+  if (signedUp === 'thisYear' && account.signedUpBucket === 'earlier') return false;
+  if (signedUp === 'earlier' && account.signedUpBucket !== 'earlier') return false;
+
+  const needle = q.trim().toLowerCase();
+  if (needle === '') return true;
+  // The design's placeholder promises name or email, and nothing else.
+  return (
+    account.name.toLowerCase().includes(needle) || account.email.toLowerCase().includes(needle)
+  );
+}
+
+export function hasAccountFilters(filters: AccountFilters): boolean {
+  const { q, role, status, signedUp } = filters;
+  return q.trim() !== '' || role !== null || status !== null || signedUp !== 'any';
+}

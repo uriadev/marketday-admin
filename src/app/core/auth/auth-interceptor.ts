@@ -28,6 +28,15 @@ import { TokenStore } from './token-store';
 export const SKIP_REFRESH = new HttpContextToken<boolean>(() => false);
 
 /**
+ * Marks a sign-in call — `login`, or either half of a passkey sign-in. It is
+ * made to *get* a session, so an unauthorised answer is the answer (a wrong
+ * password, a passkey the backend does not know) and goes back to the sign-in
+ * screen as such. Treated like any other call, it would find no refresh token,
+ * fire {@link SessionExpiry} and surface as "Your session has expired".
+ */
+export const SIGN_IN = new HttpContextToken<boolean>(() => false);
+
+/**
  * Coalesces concurrent refreshes into one in-flight request. Module-level
  * because a functional interceptor has no instance of its own to hold it on;
  * cleared once the call settles, so the next expired token starts a fresh one.
@@ -57,6 +66,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   if (!isGraphQlRequest(req)) {
     return next(req);
+  }
+
+  // No bearer: whatever session this device had is not what a sign-in is for.
+  if (req.context.get(SIGN_IN)) {
+    return next(attach(req, null));
   }
 
   const isRefreshCall = req.context.get(SKIP_REFRESH);

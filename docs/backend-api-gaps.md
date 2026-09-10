@@ -8,10 +8,50 @@ found while reading the same code, unrelated to what's missing.
 
 ## Missing queries and mutations
 
-1. **No `adminUsers` (or equivalent) query.** `me: UserProfileModel!` is the only user query in
-   the schema. `setRole(userId, role)` is `@Roles(ADMIN)` and functional, but nothing in the API
-   can tell an admin what a `userId` is — there is no way to list users or look one up. Blocks
-   `AccountRepository`, the Users screen.
+1. ~~**No `adminUsers` (or equivalent) query.**~~ **Closed.** `me` used to be the only user query,
+   and `User` had no notion of suspension or of when someone was last active. Closing it took
+   **backend** changes, made here:
+
+   - `adminUsers(search: String, status: AdminUserStatus, criteria: CriteriaInput): AdminUsersPage!`
+     (`@Roles(ADMIN)`, `UsersResolver`) lists every account, one page at a time, as the admin-only
+     `AdminUserModel` rather than more fields on `UserModel` (which is what `me` and
+     `AuthResponse.user` hand the account holder). `search` matches name **or** email and `status`
+     is derived — both are arguments of their own because a `CriteriaInput` filter can neither OR
+     two columns nor test `IS NULL`. `criteria` carries the page, `role` and the `createdAt`
+     window; `FILTERABLE_FIELDS` is `role`, `email`, `fullName`, `createdAt`, `lastSeenAt` and
+     nothing credential-shaped. The default order is most recently active first, never-seen last,
+     `id` as the tiebreak.
+   - `AdminUserStatus` is `SUSPENDED` (an admin set `suspendedAt`), `INVITED` (no password, no
+     Google id, no Apple id — the passwordless owner `createVendor` seats, who gets in through
+     Forgot password), else `ACTIVE`.
+   - `users.lastSeenAt` (migration `AddUserSuspension`) is stamped by `AuthService.issueTokens` —
+     every sign-in and every refresh — so "Last active" is accurate to one access-token lifetime
+     for anyone using the app. No backfill: an account reads "Never" until its next refresh.
+   - `suspendUser(input: { userId, reason })` / `restoreUser(userId)` (`@Roles(ADMIN)`) set and
+     clear `suspendedAt` / `suspensionReason` / `suspendedById`. A suspension clears the refresh
+     and push tokens; `issueTokens` then refuses new tokens with a 403 "This account has been
+     suspended." (only after the credential checks out), and `JwtStrategy` rejects the live access
+     tokens on their next request. An admin cannot suspend themselves, and a second admin
+     suspending the same account is told rather than overwriting the first one's reason.
+
+   `GraphqlAccountRepository` pushes every filter down and reads the header's and menus' counts as
+   aliases in the same document, so the screen pages server-side like the vendor directory.
+   "Send password reset" is wired too, to the public `requestPasswordReset` the Forgot password
+   screen already uses — for an `INVITED` owner it is how they get in.
+
+   **Still open on this screen:**
+
+   - **Organiser and support agent have no column.** Nothing server-side records which admins run
+     a market or answer support, so every `ADMIN` reads as a platform admin and those two Role
+     menu entries match nothing (the call still goes out, because the counts must).
+   - **"Invite team member"** has no endpoint: nothing lets an admin create another admin's
+     account, or invite one.
+   - **"Change role" is unwired on purpose.** `setRole(userId, role)` exists and is
+     `@Roles(ADMIN)`, but it has sharp edges that want their own design first: demoting a seated
+     `VENDOR` to `BUYER` locks them out of their vendor dashboard (the vendor resolvers gate on the
+     role, not the seat), and promoting to `ADMIN` is a privilege grant with no audit trail.
+   - **Export CSV** has no endpoint, and there is no audit log to write suspensions to beyond the
+     reason and author the row itself keeps (#6).
 
 2. ~~**No global vendor list.**~~ **Closed.** `adminVendors(criteria: CriteriaInput): VendorsPage!`
    (`@Roles(ADMIN)`, `src/vendors/vendors.resolver.ts`) lists every vendor on the platform,

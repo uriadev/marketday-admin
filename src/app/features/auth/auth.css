@@ -42,6 +42,22 @@
   block-size: 48px;
 }
 
+/* "or", between the password form and the passkey button. */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
 .auth-link {
   align-self: center;
   font: var(--mat-sys-label-large);

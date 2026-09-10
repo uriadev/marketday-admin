@@ -55,9 +55,7 @@ export class AuthStore {
     return this.repo.signIn(email, password).pipe(
       tap((outcome) => {
         if (outcome.kind === 'signed-in') {
-          this._user.set(outcome.user);
-          this._challenge.set(null);
-          this.persist(outcome.user);
+          this.startSession(outcome.user);
         } else {
           this._challenge.set(outcome.challenge);
         }
@@ -68,13 +66,16 @@ export class AuthStore {
   /** Step 2 of sign-in: trade the code for the authenticated user. */
   verifyCode(code: string): Observable<AdminUser> {
     const email = this._challenge()?.email ?? '';
-    return this.repo.verifyCode(email, code).pipe(
-      tap((user) => {
-        this._user.set(user);
-        this._challenge.set(null);
-        this.persist(user);
-      }),
-    );
+    return this.repo.verifyCode(email, code).pipe(tap((user) => this.startSession(user)));
+  }
+
+  /**
+   * Sign in with a passkey — see {@link AuthRepository.signInWithPasskey} for
+   * what `autofill` changes. Never challenges: the passkey's own biometric or
+   * PIN check is the second factor.
+   */
+  signInWithPasskey(options?: { autofill?: boolean }): Observable<AdminUser> {
+    return this.repo.signInWithPasskey(options).pipe(tap((user) => this.startSession(user)));
   }
 
   signOut(): void {
@@ -101,7 +102,9 @@ export class AuthStore {
     void this.router.navigateByUrl('/login');
   }
 
-  private persist(user: AdminUser): void {
+  private startSession(user: AdminUser): void {
+    this._user.set(user);
+    this._challenge.set(null);
     this.storage?.setItem(USER_KEY, JSON.stringify(user));
   }
 

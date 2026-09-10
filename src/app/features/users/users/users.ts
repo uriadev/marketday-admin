@@ -1,14 +1,16 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  OnInit,
   computed,
   effect,
   inject,
   input,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
@@ -44,6 +46,9 @@ import {
   SuspendAccountDialogData,
 } from '../suspend-account-dialog/suspend-account-dialog';
 
+/** Long enough to let a name be typed, short enough not to feel like lag. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 /**
  * Everyone with an account, in one table (design 1i).
  *
@@ -75,7 +80,7 @@ import {
   templateUrl: './users.html',
   styleUrl: './users.css',
 })
-export class Users implements OnInit {
+export class Users {
   /** Filters arrive as query params (§7); an absent one binds as `undefined`. */
   readonly q = input<string>();
   readonly role = input<string>();
@@ -110,30 +115,28 @@ export class Users implements OnInit {
     signedUp: this.asSignUp(this.signedUp()),
   }));
 
-  /** Page position and selection are view state, not something to link to. */
-  protected readonly pageIndex = signal(0);
-  protected readonly pageSize = signal(25);
+  /** Selection is view state, not something to link to. */
   private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
 
-  protected readonly page = computed(() => {
-    const start = this.pageIndex() * this.pageSize();
-    return this.store.visible().slice(start, start + this.pageSize());
-  });
+  /** Keystrokes, before the debounce turns them into a query param. */
+  private readonly typed = new Subject<string>();
 
   constructor() {
-    // The URL is the source of truth; the store follows it.
+    // The URL is the source of truth; the store follows it, and reads the page
+    // it needs — including the first one, so there is no `load()` on init to
+    // race this.
     effect(() => this.store.setFilters(this.filters()));
-    // A narrower list can be shorter than the page you were on, and a row you
-    // picked can drop out of view — a hidden selection is a trap.
+    // A new page — turned, narrowed or re-read — is new rows, and a picked row
+    // that is no longer on screen is a hidden selection, which is a trap.
     effect(() => {
-      this.store.visible();
-      this.pageIndex.set(0);
+      this.store.items();
       this.selectedIds.set(new Set());
     });
-  }
 
-  ngOnInit(): void {
-    this.store.load();
+    // Every keystroke would otherwise be a round trip.
+    this.typed
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((value) => this.setParam({ q: value === '' ? null : value }));
   }
 
   /* ── Filters ───────────────────────────────────────────────────────────── */
@@ -151,8 +154,7 @@ export class Users implements OnInit {
   }
 
   protected onSearch(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.setParam({ q: value === '' ? null : value });
+    this.typed.next((event.target as HTMLInputElement).value);
   }
 
   protected setRole(role: AccountRole | null): void {
@@ -184,9 +186,7 @@ export class Users implements OnInit {
   });
 
   protected onPage(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
-    this.selectedIds.set(new Set());
+    this.store.setPage(event.pageIndex, event.pageSize);
   }
 
   /* ── Selection ─────────────────────────────────────────────────────────── */
@@ -194,11 +194,11 @@ export class Users implements OnInit {
   /** Selection covers the page on screen, never rows you cannot see. */
   protected readonly selected = computed(() => {
     const ids = this.selectedIds();
-    return this.page().filter((account) => ids.has(account.id));
+    return this.store.items().filter((account) => ids.has(account.id));
   });
 
   protected readonly allOnPageSelected = computed(
-    () => this.page().length > 0 && this.selected().length === this.page().length,
+    () => this.store.items().length > 0 && this.selected().length === this.store.items().length,
   );
 
   protected readonly someOnPageSelected = computed(
@@ -219,7 +219,9 @@ export class Users implements OnInit {
 
   protected togglePage(): void {
     const all = this.allOnPageSelected();
-    this.selectedIds.set(all ? new Set() : new Set(this.page().map((account) => account.id)));
+    this.selectedIds.set(
+      all ? new Set() : new Set(this.store.items().map((account) => account.id)),
+    );
   }
 
   protected clearSelection(): void {
@@ -260,19 +262,30 @@ export class Users implements OnInit {
       .afterClosed()
       .subscribe((reason) => {
         if (!reason) return;
-        this.store.suspend(accounts, reason);
         this.clearSelection();
-        this.notifications.success(
-          accounts.length === 1
-            ? `${accounts[0]!.name} is suspended.`
-            : `${accounts.length} accounts are suspended.`,
-        );
+        this.store.suspend(accounts, reason, (suspended) => {
+          if (suspended.length === 0) return;
+          // Named from the row as it was: the one that came back is redacted.
+          const name = accounts.find((account) => account.id === suspended[0]!.id)?.name;
+          this.notifications.success(
+            suspended.length === 1 && name
+              ? `${name} is suspended.`
+              : `${suspended.length} accounts are suspended.`,
+          );
+        });
       });
   }
 
   protected restore(account: Account): void {
-    this.store.restore(account);
-    this.notifications.success('The account is open again.');
+    this.store.restore(account, (restored) => {
+      if (restored.length > 0) this.notifications.success('The account is open again.');
+    });
+  }
+
+  protected sendPasswordReset(account: Account): void {
+    this.store.sendPasswordReset(account, () =>
+      this.notifications.success(`Password reset sent to ${account.email}.`),
+    );
   }
 
   /* ── Query-param parsing ───────────────────────────────────────────────── */

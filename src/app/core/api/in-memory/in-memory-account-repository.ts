@@ -1,7 +1,19 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
-import { Account, AccountRole, SignUpBucket, UserRole } from '../../models/account.model';
+import {
+  ACCOUNT_ROLES,
+  ACCOUNT_STATUSES,
+  Account,
+  AccountDirectoryPage,
+  AccountListQuery,
+  AccountRole,
+  AccountStatus,
+  SignUpBucket,
+  UserRole,
+  matchesAccountFilters,
+} from '../../models/account.model';
+import { pageOf } from '../../models/page.model';
 import { AccountRepository } from '../ports/account-repository';
 import { SUPPORT_AGENTS } from './in-memory-support-repository';
 import { VENDORS_FIXTURE } from './in-memory-vendor-repository';
@@ -73,12 +85,21 @@ type Seed = {
  */
 export const SUSPENDED_IDENTITIES = new Map<string, { name: string; email: string }>();
 
+/**
+ * How recently each account was active, smaller being more recent — what the
+ * list is ordered by. Kept beside the rows rather than on them: ordering is
+ * the repository's business (the API orders by `lastSeenAt` server-side), so
+ * the `Account` a screen renders carries no sort key of its own.
+ */
+const ACTIVITY_RANK = new Map<string, number>();
+
 function toAccount(seed: Seed, index: number): Account {
   const suspended = seed.suspendedNote !== undefined;
   const [bucket, signedUp] = SIGN_UP_YEARS[seed.spread % SIGN_UP_YEARS.length]!;
   const rank = seed.spread % ACTIVITY.length;
   const id = `acc-${3000 + index}`;
   if (suspended) SUSPENDED_IDENTITIES.set(id, { name: seed.name, email: seed.email });
+  ACTIVITY_RANK.set(id, rank);
   return {
     id,
     // A suspended account stops being a name in a list and becomes a number.
@@ -89,7 +110,6 @@ function toAccount(seed: Seed, index: number): Account {
     attached: seed.attached,
     attachedLink: suspended ? null : (seed.attachedLink ?? null),
     lastActive: ACTIVITY[rank]!,
-    lastActiveRank: rank,
     signedUp,
     signedUpBucket: bucket,
     status: suspended ? 'suspended' : 'active',
@@ -307,6 +327,40 @@ function buildAccounts(): Account[] {
 
 export const ACCOUNTS_FIXTURE: readonly Account[] = buildAccounts();
 
+function countBy<K extends string>(
+  keys: readonly K[],
+  accounts: readonly Account[],
+  keyOf: (account: Account) => K,
+): Record<K, number> {
+  const counts = Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, number>;
+  for (const account of accounts) counts[keyOf(account)] += 1;
+  return counts;
+}
+
+/**
+ * One page of `accounts`, the way the Users screen asks for it: narrowed by
+ * {@link matchesAccountFilters}, most recently active first, cut to the page,
+ * and counted across the whole list for the header and menus. Exported so
+ * tests can stand a synchronous repository on exactly what this one answers.
+ */
+export function accountDirectoryPage(
+  accounts: readonly Account[],
+  query: AccountListQuery,
+): AccountDirectoryPage {
+  const rank = (account: Account) => ACTIVITY_RANK.get(account.id) ?? Number.MAX_SAFE_INTEGER;
+  const matching = accounts
+    .filter((account) => matchesAccountFilters(account, query.filters))
+    .sort((a, b) => rank(a) - rank(b));
+  return {
+    ...pageOf(matching, query.page),
+    facets: {
+      accountCount: accounts.length,
+      roleCounts: countBy<AccountRole>(ACCOUNT_ROLES, accounts, (account) => account.role),
+      statusCounts: countBy<AccountStatus>(ACCOUNT_STATUSES, accounts, (account) => account.status),
+    },
+  };
+}
+
 @Injectable()
 export class InMemoryAccountRepository extends AccountRepository {
   /**
@@ -321,8 +375,8 @@ export class InMemoryAccountRepository extends AccountRepository {
   /** What a suspended account hid, seeded with the fixture's own suspensions. */
   private readonly hidden = new Map<string, { name: string; email: string }>(SUSPENDED_IDENTITIES);
 
-  override list(): Observable<readonly Account[]> {
-    return of([...this.accounts.values()]).pipe(delay(300));
+  override list(query: AccountListQuery): Observable<AccountDirectoryPage> {
+    return of(accountDirectoryPage([...this.accounts.values()], query)).pipe(delay(300));
   }
 
   override suspend(id: string, reason: string): Observable<Account> {
@@ -366,6 +420,11 @@ export class InMemoryAccountRepository extends AccountRepository {
     this.accounts.set(id, restored);
     this.hidden.delete(id);
     return of(restored).pipe(delay(200));
+  }
+
+  /** Nothing to send from a fixture; the round trip is the whole behaviour. */
+  override sendPasswordReset(): Observable<void> {
+    return of(undefined).pipe(delay(200));
   }
 
   private gone<T>(): Observable<T> {

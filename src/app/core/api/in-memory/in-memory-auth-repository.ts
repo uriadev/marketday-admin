@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
+import { EMPTY, Observable, of, throwError } from 'rxjs';
 import { delay, mergeMap } from 'rxjs/operators';
 import { AdminUser } from '../../models/admin-user.model';
 import { AuthRepository, SignInOutcome } from '../ports/auth-repository';
@@ -47,6 +47,15 @@ export class InMemoryAuthRepository extends AuthRepository {
       return fail('That code has expired or is incorrect.');
     }
     return of(FIXTURE_USER).pipe(delay(LATENCY_MS));
+  }
+
+  /**
+   * A passkey is a key pair on a real authenticator, verified by the backend
+   * that stored its public half — there is nothing a fixture could stand in
+   * for. An autofill offer is simply never made.
+   */
+  override signInWithPasskey({ autofill = false } = {}): Observable<AdminUser> {
+    return autofill ? EMPTY : fail('Passkeys need the real backend.');
   }
 
   override signOut(): Observable<void> {
