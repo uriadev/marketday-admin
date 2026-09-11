@@ -115,6 +115,13 @@ header, so it must be named in `allowedHeaders`); without it, serve console and 
 origin and leave `MARKETDAY_API_URL` unset so `graphqlUrl` stays relative. See
 `docs/backend-api-gaps.md` §12.
 
+**Google Maps** takes its browser key from `MARKETDAY_GOOGLE_MAPS_API_KEY`, in dev and
+production alike: `start`, `watch`, `build` and `build:vercel` all forward it with `--define`
+into `googleMaps.apiKey` in both environment files, so no key is committed. Unset, the key is
+empty and `core/maps/` stays inert — the location picker degrades rather than breaks. It ships
+in the bundle too, so restrict it by HTTP referrer and API (Maps JavaScript API, Places API
+(New), Geocoding API) in the Cloud console, and set it in Vercel's project environment.
+
 ## Commands
 
 Package manager is **pnpm** (pinned via `packageManager`, pnpm@11.5.0) — not npm/yarn.

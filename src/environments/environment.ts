@@ -3,21 +3,24 @@
  * swaps in `environment.development.ts` via `fileReplacements` in
  * `angular.json`.
  *
- * `googleMaps.apiKey` is deliberately empty here — a deploy supplies its own
- * referrer-restricted key. An empty key is not a failure state: the maps loader
- * stays inert and the location picker falls back to a panel that explains the
- * map is unavailable, so the wizard still works without one.
+ * `googleMaps.apiKey` comes from `MARKETDAY_GOOGLE_MAPS_API_KEY`, so each deploy
+ * supplies its own referrer-restricted key. A build without one gets an empty
+ * key, which is not a failure state: the maps loader stays inert and the
+ * location picker falls back to a panel that explains the map is unavailable,
+ * so the wizard still works without one.
  */
 
 declare const MARKETDAY_API_URL: string;
 declare const MARKETDAY_API_KEY: string;
+declare const MARKETDAY_GOOGLE_MAPS_API_KEY: string;
 
 /**
  * Substituted at build time by `ng build --define` — see the `build` script in
- * `package.json`, which forwards the same two environment variables the dev
- * proxy reads:
+ * `package.json`, which forwards these from the environment (the first two are
+ * the same ones the dev proxy reads):
  *
- *   MARKETDAY_API_URL=https://api.marketday.ie MARKETDAY_API_KEY=… pnpm run build
+ *   MARKETDAY_API_URL=https://api.marketday.ie MARKETDAY_API_KEY=… \
+ *   MARKETDAY_GOOGLE_MAPS_API_KEY=… pnpm run build
  *
  * `--define` only replaces identifiers it was given a value for, so a bare
  * `ng build` would leave these as free variables and throw `ReferenceError` in
@@ -27,6 +30,8 @@ declare const MARKETDAY_API_KEY: string;
  */
 const apiOrigin = typeof MARKETDAY_API_URL === 'string' ? MARKETDAY_API_URL : '';
 const apiKey = typeof MARKETDAY_API_KEY === 'string' ? MARKETDAY_API_KEY : '';
+const mapsApiKey =
+  typeof MARKETDAY_GOOGLE_MAPS_API_KEY === 'string' ? MARKETDAY_GOOGLE_MAPS_API_KEY : '';
 
 export const environment = {
   production: true,
@@ -49,9 +54,9 @@ export const environment = {
     key: apiKey,
   },
   googleMaps: {
-    apiKey: '',
+    apiKey: mapsApiKey,
     /** Advanced markers need a map ID; replace with a Cloud-styled one. */
-    mapId: 'DEMO_MAP_ID',
+    mapId: '8450e3356f22279d2d854e4f',
     region: 'IE',
     language: 'en-IE',
     /** Roughly the centre of Ireland, for a map with no pin on it yet. */
