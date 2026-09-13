@@ -51,18 +51,17 @@ import { VendorInviteFacade } from '../vendor-invite-facade';
  * and created — without a password — if they do not. There is no role to pick,
  * because there is only one seat to give.
  *
- * "Skip application review" lands as well, on the vendor's `isAcceptingOrders`
- * flag: off, the stall is created paused, and the rail's pill says so before
- * the admin commits.
- *
- * What is still missing is the message. No invitation endpoint exists
- * (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone field,
- * so neither the note nor the phone number has anywhere to go; the new owner
- * gets in through Forgot password. Both fields are therefore **disabled** —
- * they stay on the screen, since this is the shape the form takes the day the
- * endpoint lands, but nothing is collected that would be silently dropped. The
- * rail says as much rather than letting the preview imply a message left the
- * building.
+ * What is still missing is the message, and the review. No invitation endpoint
+ * exists (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone
+ * field, so neither the note nor the phone number has anywhere to go; the new
+ * owner gets in through Forgot password. Nor is there an approval model:
+ * "Skip application review" used to ride on the vendor-wide
+ * `isAcceptingOrders`, which the backend replaced with per-market order
+ * windows whose pause clears itself after one market day — nothing that can
+ * hold "not approved yet". All three are therefore **disabled** — they stay on
+ * the screen, since this is the shape the form takes the day the endpoints
+ * land, but nothing is collected that would be silently dropped. The rail says
+ * as much rather than letting the preview imply a message left the building.
  */
 @Component({
   selector: 'md-vendor-invite',
@@ -97,10 +96,11 @@ export class VendorInvite implements OnInit {
   protected readonly trades = VENDOR_TRADES;
 
   /**
-   * `phone` and `note` are disabled: `createVendor` takes neither, and nothing
-   * emails the note (`docs/backend-api-gaps.md` #9). They are still sent —
-   * {@link send} reads `getRawValue()` — so the day an endpoint takes them,
-   * enabling the two controls is the whole change.
+   * `phone`, `note` and `skipApplicationReview` are disabled: `createVendor`
+   * takes none of them, nothing emails the note, and there is no approval
+   * model for the review to wait on (`docs/backend-api-gaps.md` #9). They are
+   * still sent — {@link send} reads `getRawValue()` — so the day an endpoint
+   * takes them, enabling the controls is the whole change.
    */
   protected readonly form = this.fb.group({
     businessName: this.fb.control('', Validators.required),
@@ -108,7 +108,7 @@ export class VendorInvite implements OnInit {
     email: this.fb.control('', [Validators.required, Validators.email]),
     phone: this.fb.control({ value: '', disabled: true }),
     trade: this.fb.control(VENDOR_TRADES[0]!, Validators.required),
-    skipApplicationReview: this.fb.control(false),
+    skipApplicationReview: this.fb.control({ value: false, disabled: true }),
     note: this.fb.control({ value: '', disabled: true }, Validators.maxLength(400)),
   });
 
@@ -193,16 +193,12 @@ export class VendorInvite implements OnInit {
   });
 
   /**
-   * What the directory will show the moment this lands. "Skip application
-   * review" is carried by `isAcceptingOrders` server-side (there is no
-   * application model — `docs/backend-api-gaps.md` #9), and a vendor that is
-   * not accepting orders maps to `Paused`, so the toggle decides the pill.
+   * What the directory will show the moment this lands. A new vendor is active,
+   * and the directory's pill reads only that — whether a stall is taking orders
+   * right now is per market and on the vendor's Markets tab — so nothing on this
+   * form can change it.
    */
-  protected readonly standing = computed(() =>
-    this.value().skipApplicationReview
-      ? { label: 'Trading', tone: 'positive' as const }
-      : { label: 'Paused', tone: 'muted' as const },
-  );
+  protected readonly standing = { label: 'Trading', tone: 'positive' } as const;
 
   /**
    * How many vendors this session has added. Nothing server-side counts them

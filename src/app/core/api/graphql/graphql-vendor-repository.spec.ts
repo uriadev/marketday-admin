@@ -5,6 +5,7 @@ import { GraphqlVendorRepository } from './graphql-vendor-repository';
 import { VendorRepository } from '../ports/vendor-repository';
 import {
   EMPTY_VENDOR_FILTERS,
+  VendorDetail,
   VendorDirectoryPage,
   VendorFilters,
   VendorInvite,
@@ -37,7 +38,6 @@ const CREATED = {
   description: null,
   imageUrl: null,
   isActive: true,
-  isAcceptingOrders: true,
   memberCount: 0,
   createdAt: '2026-09-06T10:00:00.000Z',
   updatedAt: '2026-09-06T10:00:00.000Z',
@@ -53,7 +53,6 @@ const MCNALLY = {
   description: 'Twelve acres of vegetables outside Ballyboughal.',
   imageUrl: 'https://cdn.marketday.ie/vendors/vnd-mcnally/stall.jpg',
   isActive: true,
-  isAcceptingOrders: true,
   memberCount: 4,
   createdAt: '2021-03-14T09:00:00.000Z',
   updatedAt: '2021-03-14T09:00:00.000Z',
@@ -171,39 +170,40 @@ describe('GraphqlVendorRepository.invite', () => {
       category: 'Cheese & dairy',
       ownerName: 'Dervla Ó Súilleabháin',
       ownerEmail: 'dervla@cooleacheese.ie',
-      isAcceptingOrders: false,
     });
     request.flush({ data: { createVendor: CREATED } });
 
     expect(created?.slug).toBe('coolea-cheese-co');
     expect(created?.name).toBe('Coolea Cheese Co.');
-    // A vendor that is active and accepting orders reads Trading — never the
-    // fixture's old 'Invitation pending'.
+    // An active vendor reads Trading — never the fixture's old 'Invitation pending'.
     expect(created?.standingLabel).toBe('Trading');
   });
 
-  it('carries "skip application review" on isAcceptingOrders', () => {
-    // There is no application model server-side (gap #9), so the flag the
-    // schema does have holds "approved yet?": review required → created paused.
-    repository.invite(invite({ skipApplicationReview: true })).subscribe();
-    let post = expectPost('mutation CreateVendor');
-    expect(post.variables['input']).toMatchObject({ isAcceptingOrders: true });
-    post.request.flush({ data: { createVendor: CREATED } });
-
-    repository.invite(invite({ skipApplicationReview: false })).subscribe();
-    post = expectPost('mutation CreateVendor');
-    expect(post.variables['input']).toMatchObject({ isAcceptingOrders: false });
-    post.request.flush({
-      data: { createVendor: { ...CREATED, isAcceptingOrders: false } },
-    });
+  it('sends nothing for "skip application review", whichever way it is set', () => {
+    // The vendor-wide `isAcceptingOrders` it rode on is gone from the schema,
+    // and its per-market replacement clears itself after one market day, so
+    // nothing can hold "not approved yet" (gap #9). The picked markets still go.
+    for (const skipApplicationReview of [true, false]) {
+      repository.invite(invite({ skipApplicationReview, marketSlugs: ['temple-bar'] })).subscribe();
+      const markets = http.match((request) =>
+        ((request.body as { query?: string }).query ?? '').includes('query MarketIds'),
+      );
+      for (const request of markets) {
+        request.flush({ data: { adminMarkets: [{ id: 'mkt-tb', slug: 'temple-bar' }] } });
+      }
+      const { request, variables } = expectPost('mutation CreateVendor');
+      expect(variables['input']).not.toHaveProperty('isAcceptingOrders');
+      expect(variables['input']).toMatchObject({ marketIds: ['mkt-tb'] });
+      request.flush({ data: { createVendor: CREATED } });
+    }
   });
 
-  it('reads a paused vendor back as Paused, not Trading', () => {
+  it('reads a deactivated vendor back as Paused, not Trading', () => {
     let created: { standingLabel: string | null } | undefined;
     repository.invite(invite()).subscribe((row) => (created = row));
 
     expectPost('mutation CreateVendor').request.flush({
-      data: { createVendor: { ...CREATED, isAcceptingOrders: false } },
+      data: { createVendor: { ...CREATED, isActive: false } },
     });
 
     expect(created?.standingLabel).toBe('Paused');
@@ -446,6 +446,132 @@ describe('GraphqlVendorRepository.saveProfile', () => {
   });
 });
 
+/** One `vendorOrderWindow` answer, far enough ahead that `now` never overtakes it. */
+function orderWindow(marketId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    marketId,
+    state: 'NOT_YET_OPEN',
+    occursOn: '2099-08-22T09:00:00.000Z',
+    opensAt: '2099-08-20T08:00:00.000Z',
+    closesAt: '2099-08-22T16:30:00.000Z',
+    pausedUntil: null,
+    orderLeadHours: 48,
+    ...overrides,
+  };
+}
+
+describe('GraphqlVendorRepository.detail', () => {
+  const AT_TWO = {
+    ...MCNALLY,
+    markets: [
+      { id: 'mkt-tb', slug: 'temple-bar', name: 'Temple Bar', city: 'Dublin', schedule: null },
+      { id: 'mkt-hh', slug: 'howth', name: 'Howth', city: 'Dublin', schedule: null },
+    ],
+  };
+
+  /** The slug lookup, then the vendor and its (empty) roster, which run side by side. */
+  function flushVendorAndRoster() {
+    resolveSlug();
+    expectOperation('query VendorById').request.flush({ data: { vendor: AT_TWO } });
+    expectOperation('query AdminVendorMembers').request.flush({
+      data: { adminVendorMembers: { totalCount: 0, items: [] } },
+    });
+  }
+
+  /** The window read for one market, by the id it was asked about. */
+  function windowRequest(marketId: string) {
+    const matches = http.match(
+      (request) =>
+        ((request.body as { query?: string }).query ?? '').includes('query VendorOrderWindow') &&
+        (request.body as { variables: Record<string, unknown> }).variables['marketId'] === marketId,
+    );
+    expect(matches.length).toBe(1);
+    return matches[0]!;
+  }
+
+  it('asks for each membership’s order window and shows why it is or is not taking orders', () => {
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    flushVendorAndRoster();
+
+    const templeBar = windowRequest('mkt-tb');
+    expect(templeBar.request.body.variables).toEqual({
+      vendorId: 'vnd-mcnally',
+      marketId: 'mkt-tb',
+    });
+    templeBar.flush({ data: { vendorOrderWindow: orderWindow('mkt-tb') } });
+    windowRequest('mkt-hh').flush({
+      data: {
+        vendorOrderWindow: orderWindow('mkt-hh', {
+          state: 'NO_MARKET_DAY',
+          occursOn: null,
+          opensAt: null,
+          closesAt: null,
+        }),
+      },
+    });
+
+    const [tb, hh] = detail!.memberships;
+    expect(tb!.badges).toEqual([{ label: 'Trading', tone: 'positive' }]);
+    // Market-local time: 08:00 UTC in August is 09:00 in Dublin.
+    expect(tb!.facts.map((fact) => fact.label)).toEqual([
+      'Pre-orders open Thu 20 Aug, 09:00',
+      'Next day Sat 22 Aug',
+      'Orders open 48h before market',
+    ]);
+    expect(tb!.paused).toBe(false);
+    expect(hh!.badges).toEqual([{ label: 'No market day scheduled', tone: 'warn' }]);
+  });
+
+  it('reads a manual pause from pausedUntil, even while the window is not yet open', () => {
+    // The backend ranks NOT_YET_OPEN above PAUSED for shoppers; an admin asking
+    // whether the stall has stopped still needs to see the pause.
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    flushVendorAndRoster();
+
+    windowRequest('mkt-tb').flush({
+      data: {
+        vendorOrderWindow: orderWindow('mkt-tb', { pausedUntil: '2099-08-22T16:30:00.000Z' }),
+      },
+    });
+    windowRequest('mkt-hh').flush({ data: { vendorOrderWindow: orderWindow('mkt-hh') } });
+
+    const [tb, hh] = detail!.memberships;
+    expect(tb!.badges).toEqual([{ label: 'Paused until Sat 22 Aug, 17:30', tone: 'muted' }]);
+    expect(tb!.paused).toBe(true);
+    // Only the market it was tapped at.
+    expect(hh!.paused).toBe(false);
+  });
+
+  it('still opens the vendor when one window will not load', () => {
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    flushVendorAndRoster();
+
+    windowRequest('mkt-tb').flush({ errors: [{ message: 'Internal server error' }] });
+    windowRequest('mkt-hh').flush({ data: { vendorOrderWindow: orderWindow('mkt-hh') } });
+
+    expect(detail?.memberships.length).toBe(2);
+    // No status it could not read, rather than a guess.
+    expect(detail!.memberships[0]!.facts).toEqual([]);
+    expect(detail!.memberships[1]!.facts.length).toBeGreaterThan(0);
+  });
+
+  it('skips the window reads for a vendor at no market', () => {
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    resolveSlug();
+    expectOperation('query VendorById').request.flush({ data: { vendor: MCNALLY } });
+    expectOperation('query AdminVendorMembers').request.flush({
+      data: { adminVendorMembers: { totalCount: 0, items: [] } },
+    });
+
+    // `http.verify()` in afterEach catches any VendorOrderWindow post.
+    expect(detail?.memberships).toEqual([]);
+  });
+});
+
 /** A `VendorModel` row as `VendorFields` selects it, with the markets a test needs. */
 function row(name: string, markets: string[] = []) {
   return {
@@ -494,7 +620,9 @@ describe('GraphqlVendorRepository.list', () => {
     expect(posted.variables['criteria']).toEqual({
       filters: [
         { field: 'name', operator: 'CONTAINS', value: 'kish' },
-        { field: 'isAcceptingOrders', operator: 'EQUAL', value: false },
+        // The rows the directory pills Paused. No vendor-wide order flag is
+        // left to filter on — a pause is per market, per market day.
+        { field: 'isActive', operator: 'EQUAL', value: false },
       ],
       orderBy: 'name',
       orderDir: 'ASC',

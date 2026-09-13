@@ -145,9 +145,9 @@ export type CreateVendorInput = {
   category: Scalars['String']['input'];
   description?: InputMaybe<Scalars['String']['input']>;
   imageUrl?: InputMaybe<Scalars['String']['input']>;
-  isAcceptingOrders?: InputMaybe<Scalars['Boolean']['input']>;
   marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   name: Scalars['String']['input'];
+  orderLeadHours?: InputMaybe<Scalars['Int']['input']>;
   ownerEmail?: InputMaybe<Scalars['String']['input']>;
   ownerName?: InputMaybe<Scalars['String']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
@@ -306,8 +306,9 @@ export type Mutation = {
   setProductFavorite: Scalars['Boolean']['output'];
   setProductListing: ProductListingModel;
   setRole: UserModel;
-  setVendorAcceptingOrders: VendorModel;
   setVendorFavorite: Scalars['Boolean']['output'];
+  setVendorMarketAcceptingOrders: VendorMarketModel;
+  setVendorMarketOrderLeadHours: VendorMarketModel;
   submitContactMessage: Scalars['Boolean']['output'];
   submitSupportMessage: SupportMessageModel;
   suspendUser: AdminUserModel;
@@ -530,14 +531,21 @@ export type MutationSetRoleArgs = {
 };
 
 
-export type MutationSetVendorAcceptingOrdersArgs = {
-  accepting: Scalars['Boolean']['input'];
-};
-
-
 export type MutationSetVendorFavoriteArgs = {
   favorite: Scalars['Boolean']['input'];
   vendorId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetVendorMarketAcceptingOrdersArgs = {
+  accepting: Scalars['Boolean']['input'];
+  marketId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetVendorMarketOrderLeadHoursArgs = {
+  hours: Scalars['Int']['input'];
+  marketId: Scalars['ID']['input'];
 };
 
 
@@ -811,6 +819,7 @@ export type Query = {
   myNotifications: NotificationsPage;
   myOrders: Array<OrderModel>;
   myPasskeys: Array<PasskeyModel>;
+  myVendorMarkets: Array<VendorMarketModel>;
   orderByToken: Maybe<OrderModel>;
   orderStatusHistory: Array<OrderStatusEventModel>;
   ordersByTokens: Array<OrderModel>;
@@ -822,6 +831,7 @@ export type Query = {
   unreadNotificationCount: Scalars['Int']['output'];
   vendor: Maybe<VendorModel>;
   vendorMembers: Array<VendorMemberModel>;
+  vendorOrderWindow: VendorOrderWindowModel;
   vendorOrders: Array<OrderModel>;
   vendors: VendorsPage;
 };
@@ -932,6 +942,12 @@ export type QuerySearchArgs = {
 
 export type QueryVendorArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type QueryVendorOrderWindowArgs = {
+  marketId: Scalars['ID']['input'];
+  vendorId: Scalars['ID']['input'];
 };
 
 
@@ -1095,6 +1111,7 @@ export type UpdateVendorInput = {
   imageUrl?: InputMaybe<Scalars['String']['input']>;
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  slug?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateVendorMemberInput = {
@@ -1161,6 +1178,17 @@ export type VendorInviteModel = {
   marketId: Scalars['ID']['output'];
 };
 
+export type VendorMarketModel = {
+  __typename?: 'VendorMarketModel';
+  id: Scalars['ID']['output'];
+  market: MarketModel;
+  marketId: Scalars['ID']['output'];
+  orderLeadHours: Scalars['Int']['output'];
+  ordersPausedUntil: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  window: VendorOrderWindowModel;
+};
+
 export type VendorMemberModel = {
   __typename?: 'VendorMemberModel';
   avatarUrl: Maybe<Scalars['String']['output']>;
@@ -1193,13 +1221,38 @@ export type VendorModel = {
   description: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   imageUrl: Maybe<Scalars['String']['output']>;
-  isAcceptingOrders: Scalars['Boolean']['output'];
   isActive: Scalars['Boolean']['output'];
   markets: Array<MarketModel>;
   memberCount: Scalars['Int']['output'];
   name: Scalars['String']['output'];
+  orderWindow: Maybe<VendorOrderWindowModel>;
   slug: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
+};
+
+/** Why one stall is or is not taking orders at one market right now. */
+export enum VendorOrderState {
+  Closed = 'CLOSED',
+  MarketUnavailable = 'MARKET_UNAVAILABLE',
+  NotAtMarket = 'NOT_AT_MARKET',
+  NotYetOpen = 'NOT_YET_OPEN',
+  NoMarketDay = 'NO_MARKET_DAY',
+  Open = 'OPEN',
+  Paused = 'PAUSED',
+  VendorUnavailable = 'VENDOR_UNAVAILABLE'
+}
+
+export type VendorOrderWindowModel = {
+  __typename?: 'VendorOrderWindowModel';
+  closesAt: Maybe<Scalars['DateTime']['output']>;
+  isAcceptingOrders: Scalars['Boolean']['output'];
+  marketId: Scalars['ID']['output'];
+  occursOn: Maybe<Scalars['DateTime']['output']>;
+  opensAt: Maybe<Scalars['DateTime']['output']>;
+  orderLeadHours: Scalars['Int']['output'];
+  pausedUntil: Maybe<Scalars['DateTime']['output']>;
+  state: VendorOrderState;
+  vendorId: Scalars['ID']['output'];
 };
 
 export type VendorsPage = {
@@ -1318,7 +1371,7 @@ export type MarketVendorsForRosterQueryVariables = Exact<{
 }>;
 
 
-export type MarketVendorsForRosterQuery = { __typename?: 'Query', vendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, isActive: boolean, isAcceptingOrders: boolean }> } };
+export type MarketVendorsForRosterQuery = { __typename?: 'Query', vendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, isActive: boolean, orderWindow: { __typename?: 'VendorOrderWindowModel', state: VendorOrderState, pausedUntil: string | null } | null }> } };
 
 export type CreateMarketImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
@@ -1398,7 +1451,7 @@ export type VendorProductsQueryVariables = Exact<{
 }>;
 
 
-export type VendorProductsQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, isActive: boolean, isAcceptingOrders: boolean, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string }> } | null, products: { __typename?: 'ProductsPage', totalCount: number, items: Array<{ __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> }> } };
+export type VendorProductsQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, isActive: boolean, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string }> } | null, products: { __typename?: 'ProductsPage', totalCount: number, items: Array<{ __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> }> } };
 
 export type AdminVendorIdsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
@@ -1464,21 +1517,29 @@ export type RequestPasswordResetMutationVariables = Exact<{
 
 export type RequestPasswordResetMutation = { __typename?: 'Mutation', requestPasswordReset: boolean };
 
-export type VendorFieldsFragment = { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> };
+export type VendorFieldsFragment = { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> };
 
 export type AdminVendorsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
 
-export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> }, directory: { __typename?: 'VendorsPage', totalCount: number } };
+export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> }> }, directory: { __typename?: 'VendorsPage', totalCount: number } };
 
 export type VendorByIdQueryVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
 
-export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } | null };
+export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } | null };
+
+export type VendorOrderWindowQueryVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+  marketId: Scalars['ID']['input'];
+}>;
+
+
+export type VendorOrderWindowQuery = { __typename?: 'Query', vendorOrderWindow: { __typename?: 'VendorOrderWindowModel', marketId: string, state: VendorOrderState, occursOn: string | null, opensAt: string | null, closesAt: string | null, pausedUntil: string | null, orderLeadHours: number } };
 
 export type AdminVendorMembersQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
@@ -1492,7 +1553,7 @@ export type CreateVendorMutationVariables = Exact<{
 }>;
 
 
-export type CreateVendorMutation = { __typename?: 'Mutation', createVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };
+export type CreateVendorMutation = { __typename?: 'Mutation', createVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };
 
 export type MarketIdsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1505,4 +1566,4 @@ export type UpdateVendorMutationVariables = Exact<{
 }>;
 
 
-export type UpdateVendorMutation = { __typename?: 'Mutation', updateVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, isAcceptingOrders: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };
+export type UpdateVendorMutation = { __typename?: 'Mutation', updateVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };

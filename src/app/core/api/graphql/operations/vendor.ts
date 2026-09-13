@@ -12,6 +12,12 @@ import { gql } from '../gql-tag';
  * read. `slug` is server-issued (gap #10 closed). `updatedAt` is the only thing
  * behind the Profile tab's "Last edited" line — `VendorModel` records *when* a
  * record changed but not *who* changed it, so that half stays blank.
+ *
+ * There is no vendor-wide "accepting orders" flag any more: whether a stall
+ * takes orders is a fact about one vendor at one market
+ * (`../backend/specs/per-market-order-windows.md`), and `VendorModel.orderWindow`
+ * is null on every read here because none of them is scoped to a market. The
+ * detail read asks {@link VENDOR_ORDER_WINDOW} once per membership instead.
  */
 const VENDOR_FIELDS = gql`
   fragment VendorFields on VendorModel {
@@ -22,7 +28,6 @@ const VENDOR_FIELDS = gql`
     description
     imageUrl
     isActive
-    isAcceptingOrders
     memberCount
     createdAt
     updatedAt
@@ -43,9 +48,9 @@ const VENDOR_FIELDS = gql`
  * `CriteriaInput` carries the whole request: `limit`/`offset` for the page,
  * `orderBy` so the pages are a stable cut of a sorted list rather than
  * whatever order Postgres felt like, and the filters `VendorsService`'s
- * `FILTERABLE_FIELDS` allows (`name`, `category`, `isActive`,
- * `isAcceptingOrders`, `createdAt`). `totalCount` is the count *behind* those
- * filters, which is what the paginator's length must be.
+ * `FILTERABLE_FIELDS` allows (`name`, `category`, `isActive`, `createdAt`).
+ * `totalCount` is the count *behind* those filters, which is what the
+ * paginator's length must be.
  *
  * The `directory` alias is the same query asked a second question in the same
  * round trip: how many vendors there are before any filter — the header's
@@ -75,6 +80,32 @@ export const VENDOR_BY_ID = gql`
   query VendorById($id: ID!) {
     vendor(id: $id) {
       ...VendorFields
+    }
+  }
+`;
+
+/**
+ * When one stall takes orders at one market — the Markets tab's per-membership
+ * status (design 1b). `@Public()`, and the same `getOrderGate` checkout calls,
+ * so what the console shows is what a shopper's cart is refused with.
+ *
+ * One pair per call: `vendor(id)` leaves `orderWindow` null (a market-blind
+ * parent has no truthful answer), so `detail()` asks this once per market the
+ * vendor trades at. A vendor trades at a handful, never a page's worth.
+ *
+ * The admin can read the pause but not set it — `setVendorMarketAcceptingOrders`
+ * resolves the vendor from the caller's seat, and an admin holds none.
+ */
+export const VENDOR_ORDER_WINDOW = gql`
+  query VendorOrderWindow($vendorId: ID!, $marketId: ID!) {
+    vendorOrderWindow(vendorId: $vendorId, marketId: $marketId) {
+      marketId
+      state
+      occursOn
+      opensAt
+      closesAt
+      pausedUntil
+      orderLeadHours
     }
   }
 `;
@@ -118,9 +149,10 @@ export const ADMIN_VENDOR_MEMBERS = gql`
  * them is what stops the calling admin being made the owner by default.
  *
  * `CreateVendorInput` covers those plus `name`, `slug`, `category`,
- * `description`, `imageUrl` and `marketIds` and nothing else, so the
- * invitation's own half (the note, the phone, skipping application review) has
- * nowhere to go and no mutation to send it; see `docs/backend-api-gaps.md` #9.
+ * `description`, `imageUrl`, `marketIds` and `orderLeadHours` and nothing else,
+ * so the invitation's own half (the note, the phone, skipping application
+ * review) has nowhere to go and no mutation to send it; see
+ * `docs/backend-api-gaps.md` #9. `orderLeadHours` is left to its default (48).
  */
 export const CREATE_VENDOR = gql`
   ${VENDOR_FIELDS}
@@ -168,9 +200,9 @@ export const MARKET_IDS = gql`
  * in — they are disabled on the screen rather than collected and dropped.
  * `slug` is deliberately never sent: the backend never re-derives it from a
  * changed `name`, so a rename keeps the URL the console routes by and every
- * link already shared. `isAcceptingOrders` is not on this input at all
- * (`setVendorAcceptingOrders` owns it), which is what stops a profile save from
- * un-pausing a stall as a side effect.
+ * link already shared. The per-market pause is not on this input at all
+ * (`setVendorMarketAcceptingOrders` owns it), which is what stops a profile
+ * save from un-pausing a stall as a side effect.
  */
 export const UPDATE_VENDOR = gql`
   ${VENDOR_FIELDS}

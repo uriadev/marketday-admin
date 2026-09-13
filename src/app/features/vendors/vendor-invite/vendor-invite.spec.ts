@@ -223,30 +223,22 @@ describe('VendorInvite', () => {
     expect(text).toContain('Their MarketDay account, or a new one. Nothing is emailed yet.');
     expect(text).toContain('Not sent today.');
     expect(text).toContain('The business is created and appears in the directory');
-    expect(text).toContain('Off, it is created paused until someone turns it on.');
+    expect(text).toContain('There is no approval step yet');
     expect(text).toContain('The owner’s account is created at the same time, without a password.');
     expect(text).toContain('Create vendor');
   });
 
-  it('shows the standing the review toggle will produce', () => {
-    // "Skip application review" is carried by `isAcceptingOrders` server-side
-    // (docs/backend-api-gaps.md #9), so the pill has to track the toggle —
-    // off means the stall is created paused.
+  it('disables the review toggle, since nothing server-side can carry it', () => {
+    // The vendor-wide `isAcceptingOrders` it rode on is gone, and a per-market
+    // pause clears itself after one market day — no stand-in for "not approved
+    // yet" (docs/backend-api-gaps.md #9). So every vendor is created trading.
     const fixture = open();
 
-    expect(fixture.componentInstance['standing']()).toEqual({
-      label: 'Paused',
-      tone: 'muted',
-    });
-
-    fixture.componentInstance['form'].patchValue({ skipApplicationReview: true });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance['standing']()).toEqual({
-      label: 'Trading',
-      tone: 'positive',
-    });
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Trading');
+    expect(fixture.componentInstance['form'].controls.skipApplicationReview.disabled).toBe(true);
+    expect(fixture.componentInstance['standing']).toEqual({ label: 'Trading', tone: 'positive' });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Trading');
+    expect(text).toContain('takes pre-orders from 48 hours before its market day opens');
   });
 
   it('offers no role to choose — the named owner is the only seat', () => {
@@ -417,7 +409,6 @@ describe('VendorInvite', () => {
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     fill(fixture);
     fixture.componentInstance['addMarket']('bantry-friday');
-    fixture.componentInstance['form'].patchValue({ skipApplicationReview: true });
 
     fixture.componentInstance['send'](true);
     fixture.detectChanges();
@@ -427,7 +418,6 @@ describe('VendorInvite', () => {
     expect(form.controls.email.value).toBe('');
     expect(form.controls.note.value).toBe('');
     // The scope survives, because the next invitation is usually the same batch.
-    expect(form.controls.skipApplicationReview.value).toBe(true);
     expect(fixture.componentInstance['selectedMarkets']()).toEqual(['bantry-friday']);
     expect(navigate).not.toHaveBeenCalled();
   });

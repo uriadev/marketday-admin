@@ -30,6 +30,7 @@ import {
   MarketVendorsForRosterQuery,
   UpdateMarketInput as GqlUpdateMarketInput,
 } from '../generated';
+import { isPausedAt } from './order-window-mapper';
 
 /**
  * Ties every read below to the schema via codegen: a field renamed or
@@ -173,13 +174,19 @@ export function toMarketDetail(market: GqlMarket, vendorCount: number): MarketDe
  * `feesOutstanding: 0` — no application or invoice model server-side
  * (`docs/backend-api-gaps.md` #9, #5). `slug` is the server's own now (gap #10
  * closed), so the `/vendors/:slug` link resolves against `GraphqlVendorRepository`.
- * `standing`/`fee`/`stall`/`staff` have no per-market signal to draw on,
- * so every row reads as a plain "trading" member.
+ * `fee`/`stall`/`staff` have no per-market signal to draw on. `standing` does:
+ * `orderWindow` is hydrated on this market-scoped read, so a member reads
+ * `paused` when the business is deactivated or it has stopped taking orders at
+ * *this* market — judged from `pausedUntil`, not `state`, for the reason
+ * `isPausedAt` gives.
  */
-export function toMarketRoster(rows: readonly GqlMarketVendorRow[]): MarketRoster {
+export function toMarketRoster(
+  rows: readonly GqlMarketVendorRow[],
+  now: Date = new Date(),
+): MarketRoster {
   const vendors: readonly MarketVendor[] = rows.map((row) => {
-    const standing: MarketVendorStanding =
-      row.isActive && row.isAcceptingOrders ? 'trading' : 'paused';
+    const pausedHere = row.orderWindow ? isPausedAt(row.orderWindow, now) : false;
+    const standing: MarketVendorStanding = row.isActive && !pausedHere ? 'trading' : 'paused';
     const fee: StallFeeStatus = 'paid';
     return {
       id: row.id,

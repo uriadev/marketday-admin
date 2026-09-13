@@ -85,7 +85,11 @@ export const GENERATE_OCCURRENCES = gql`
   }
 `;
 
-/** For `roster()` — the vendor rows a market's Vendors tab lists. */
+/**
+ * For `roster()` — the vendor rows a market's Vendors tab lists. `orderWindow`
+ * is hydrated for the whole page in one batched query because this read is
+ * scoped to a market; it is what says whether a member has paused here.
+ */
 export const MARKET_VENDORS = gql`
   query MarketVendorsForRoster($marketId: ID!) {
     vendors(marketId: $marketId) {
@@ -96,7 +100,10 @@ export const MARKET_VENDORS = gql`
         name
         category
         isActive
-        isAcceptingOrders
+        orderWindow {
+          state
+          pausedUntil
+        }
       }
     }
   }

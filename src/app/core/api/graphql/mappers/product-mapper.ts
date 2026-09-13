@@ -37,14 +37,14 @@ const toCategory = (category: GqlProductCategory | null): ProductCategory =>
   (category as unknown as ProductCategory | null) ?? ProductCategory.Other;
 
 /**
- * `active + accepting orders → trading`; anything else pauses every column —
- * there is no per-market pause signal server-side, the same narrowing
- * `vendor-mapper.ts` makes.
+ * A deactivated business pauses every column; an active one pauses none. The
+ * per-market pause is deliberately not read here: it stops checkout for one
+ * market day but leaves the listings on the shopper view, which is what a
+ * paused column on this grid means — and `vendor(id)` carries no `orderWindow`
+ * to read it from anyway.
  */
-export function vendorPaused(
-  vendor: Pick<GqlVendorForProducts, 'isActive' | 'isAcceptingOrders'>,
-): boolean {
-  return !(vendor.isActive && vendor.isAcceptingOrders);
+export function vendorPaused(vendor: Pick<GqlVendorForProducts, 'isActive'>): boolean {
+  return !vendor.isActive;
 }
 
 /** market id → market slug (the grid's column key). */

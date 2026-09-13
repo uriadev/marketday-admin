@@ -1,5 +1,6 @@
 import {
   BadgeTone,
+  MembershipFact,
   VendorBadge,
   VendorDetail,
   VendorMemberRole,
@@ -14,7 +15,14 @@ import {
   AdminVendorMembersQuery,
   VendorFieldsFragment,
   VendorMemberRole as GqlVendorMemberRole,
+  VendorOrderState,
 } from '../generated';
+import {
+  GqlOrderWindow,
+  isPausedAt,
+  marketDayLabel,
+  marketMomentLabel,
+} from './order-window-mapper';
 
 /**
  * Ties every read below to the schema via codegen — a field renamed or removed
@@ -26,13 +34,16 @@ export type GqlVendorMarket = VendorFieldsFragment['markets'][number];
 export type GqlVendorMember = AdminVendorMembersQuery['adminVendorMembers']['items'][number];
 
 /**
- * `active + accepting orders → trading`, anything else → `paused`. There is no
- * fee ledger or application model server-side (`docs/backend-api-gaps.md` #5,
- * #9), so `'fee-unpaid'` and `'pending'` never come back from the real API —
- * the same honest narrowing `market-mapper.ts`'s `toMarketRoster` makes.
+ * `active → trading`, deactivated → `paused`. The business-wide half is all a
+ * vendor-level row can say: taking orders is decided per market now
+ * (`../backend/specs/per-market-order-windows.md`), and a pause lasts one
+ * market day, so it belongs on the membership rather than the directory row.
+ * There is no fee ledger or application model server-side
+ * (`docs/backend-api-gaps.md` #5, #9), so `'fee-unpaid'` and `'pending'` never
+ * come back from the real API.
  */
 function standingOf(vendor: GqlVendor): VendorStanding {
-  return vendor.isActive && vendor.isAcceptingOrders ? 'trading' : 'paused';
+  return vendor.isActive ? 'trading' : 'paused';
 }
 
 const STANDING_LABELS: Record<VendorStanding, string | null> = {
@@ -96,18 +107,81 @@ export function toVendorSummary(vendor: GqlVendor): VendorSummary {
   };
 }
 
-function toMembership(market: GqlVendorMarket, paused: boolean): VendorMembership {
-  const badgeTone: BadgeTone = paused ? 'muted' : 'positive';
-  return {
+/** One membership's badge, from why the stall is or is not taking orders. */
+function orderBadge(window: GqlOrderWindow): VendorBadge {
+  const badge = (label: string, tone: BadgeTone): VendorBadge => ({ label, tone });
+  switch (window.state) {
+    case VendorOrderState.Open:
+      return badge('Taking orders', 'positive');
+    case VendorOrderState.NotYetOpen:
+      return badge('Trading', 'positive');
+    case VendorOrderState.Paused:
+      return badge('Paused', 'muted');
+    case VendorOrderState.NoMarketDay:
+      // The occurrence horizon ran out — the organiser's to fix, not the vendor's.
+      return badge('No market day scheduled', 'warn');
+    case VendorOrderState.MarketUnavailable:
+      return badge('Market not published', 'muted');
+    case VendorOrderState.VendorUnavailable:
+      return badge('Paused', 'muted');
+    case VendorOrderState.NotAtMarket:
+      return badge('Not at this market', 'muted');
+    case VendorOrderState.Closed:
+      return badge('Closed', 'muted');
+  }
+}
+
+/** "Orders close Sat 22 Aug, 14:30" · "Next day Sat 22 Aug" · "Orders open 48h before market". */
+function orderFacts(window: GqlOrderWindow): MembershipFact[] {
+  if (window.state === VendorOrderState.NotAtMarket) return [];
+  const facts: MembershipFact[] = [];
+  const fact = (label: string) => facts.push({ label, emphasis: false });
+  if (window.state === VendorOrderState.Open && window.closesAt) {
+    fact(`Orders close ${marketMomentLabel(window.closesAt)}`);
+  }
+  if (window.state === VendorOrderState.NotYetOpen && window.opensAt) {
+    fact(`Pre-orders open ${marketMomentLabel(window.opensAt)}`);
+  }
+  if (window.occursOn) fact(`Next day ${marketDayLabel(window.occursOn)}`);
+  fact(`Orders open ${window.orderLeadHours}h before market`);
+  return facts;
+}
+
+/**
+ * One market the vendor trades at (design 1b), with its own order status.
+ *
+ * `window` is that stall's `vendorOrderWindow`, or `null` when the read did not
+ * come back — the card then says only what the vendor row itself can, rather
+ * than guessing. A deactivated business is paused everywhere whatever its
+ * windows say. A manual pause outranks the badge the window's `state` would
+ * give: the backend ranks "not yet open" above it for shoppers, but an admin
+ * looking at a stall wants to know it has stopped.
+ */
+function toMembership(
+  market: GqlVendorMarket,
+  vendorActive: boolean,
+  window: GqlOrderWindow | null,
+  now: Date,
+): VendorMembership {
+  const base = {
     id: `mem-${market.id}`,
     market: market.name,
     marketSlug: market.slug,
-    badges: [{ label: paused ? 'Paused' : 'Trading', tone: badgeTone }],
     detail: [describeSchedule(market.schedule), market.city].filter(Boolean).join(' · '),
-    // No per-market fee or staff-scope signal server-side (gaps #5, #7).
-    facts: [],
-    paused,
   };
+  if (!vendorActive) {
+    return { ...base, badges: [{ label: 'Paused', tone: 'muted' }], facts: [], paused: true };
+  }
+  if (!window) {
+    return { ...base, badges: [{ label: 'Trading', tone: 'positive' }], facts: [], paused: false };
+  }
+  const paused = isPausedAt(window, now);
+  const badge: VendorBadge = paused
+    ? { label: `Paused until ${marketMomentLabel(window.pausedUntil!)}`, tone: 'muted' }
+    : orderBadge(window);
+  // No per-market fee or staff-scope signal server-side (gaps #5, #7), so the
+  // facts are the order window's alone.
+  return { ...base, badges: [badge], facts: orderFacts(window), paused };
 }
 
 /**
@@ -157,14 +231,20 @@ export function toVendorStaff(rows: readonly GqlVendorMember[]): VendorStaffMemb
  * rather than invented. The detail tabs already degrade gracefully on empty
  * arrays. `members` defaults to empty so a caller that only needs identity —
  * `profile()` reads through `vendor(id)` alone — can skip the roster round trip.
+ * `windows` is each membership's `vendorOrderWindow`, keyed by market id; a
+ * market missing from it gets a card with no order status.
  */
 export function toVendorDetail(
   vendor: GqlVendor,
   members: readonly GqlVendorMember[] = [],
+  windows: ReadonlyMap<string, GqlOrderWindow> = new Map(),
+  now: Date = new Date(),
 ): VendorDetail {
   const standing = standingOf(vendor);
   const paused = standing === 'paused';
-  const memberships = vendor.markets.map((market) => toMembership(market, paused));
+  const memberships = vendor.markets.map((market) =>
+    toMembership(market, vendor.isActive, windows.get(market.id) ?? null, now),
+  );
   const staff = toVendorStaff(members);
   // Folded people (accounts), not seats: a stallholder at two markets is one
   // account. Falls back to the batch-hydrated seat count when the roster read

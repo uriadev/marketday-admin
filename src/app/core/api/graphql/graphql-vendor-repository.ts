@@ -23,7 +23,9 @@ import {
   MARKET_IDS,
   UPDATE_VENDOR,
   VENDOR_BY_ID,
+  VENDOR_ORDER_WINDOW,
 } from './operations/vendor';
+import { GqlOrderWindow } from './mappers/order-window-mapper';
 import {
   GqlVendor,
   GqlVendorMember,
@@ -47,6 +49,8 @@ import {
   UpdateVendorMutationVariables,
   VendorByIdQuery,
   VendorByIdQueryVariables,
+  VendorOrderWindowQuery,
+  VendorOrderWindowQueryVariables,
 } from './generated';
 
 /** The backend's invitation policy — no query exposes it yet (gap below). */
@@ -86,11 +90,11 @@ function needsFullRead(filters: VendorFilters): boolean {
  * only text column `VendorsService` allows. Narrower than the fixtures, and
  * said so on the screen rather than papered over here.
  *
- * `paused` is `isAcceptingOrders = false` — the toggle a vendor flips when the
- * stall sells out. `vendor-mapper.ts` also reads a tombstoned vendor
- * (`isActive: false`) as paused, and no `CriteriaInput` filter can spell that
- * OR, so a deleted business stays out of this list. That is the better answer
- * anyway: nobody filters a directory looking for shut-down stalls.
+ * `paused` is `isActive = false`, exactly the rows `vendor-mapper.ts` gives a
+ * `Paused` pill. The vendor-wide `isAcceptingOrders` it used to push is gone:
+ * a stall now pauses at one market for one market day
+ * (`../backend/specs/per-market-order-windows.md`), which is neither a column
+ * on `vendors` nor something a directory row can show — the Markets tab does.
  */
 function pushDown(filters: VendorFilters): FilterInput[] {
   const pushed: FilterInput[] = [];
@@ -99,7 +103,7 @@ function pushDown(filters: VendorFilters): FilterInput[] {
     pushed.push({ field: 'name', operator: FilterOperator.Contains, value: needle });
   }
   if (filters.paused) {
-    pushed.push({ field: 'isAcceptingOrders', operator: FilterOperator.Equal, value: false });
+    pushed.push({ field: 'isActive', operator: FilterOperator.Equal, value: false });
   }
   return pushed;
 }
@@ -163,8 +167,10 @@ interface VendorRows {
  * fragment the reads use, so the new vendor is in the directory on the next
  * load rather than only in this session's memory.
  *
- * "Skip application review" lands too, on `isAcceptingOrders` — off creates the
- * stall paused, since there is no application model to hold "approved yet?".
+ * "Skip application review" does not land. It used to ride on the vendor-wide
+ * `isAcceptingOrders`, which the backend replaced with per-market order
+ * windows; a pause there clears itself at the end of the next market day, so
+ * it cannot hold "not approved yet" either. The screen disables the toggle.
  *
  * What it does **not** do is invite anyone. There is no endpoint that emails a
  * would-be owner (gap #9 — `inviteVendorMember` resolves the vendor from the
@@ -244,15 +250,24 @@ export class GraphqlVendorRepository extends VendorRepository {
     );
   }
 
+  /**
+   * The detail shell: the vendor, its roster, and each membership's order
+   * window. The windows need the market ids the vendor read returns, so they
+   * chain off it — while the roster, which needs only the id, runs beside both.
+   */
   override detail(slug: string): Observable<VendorDetail> {
     return this.resolveId(slug).pipe(
       switchMap((id) =>
         forkJoin({
-          vendor: this.fetchVendor(id),
+          vendor: this.fetchVendor(id).pipe(
+            switchMap((vendor) =>
+              this.fetchOrderWindows(vendor).pipe(map((windows) => ({ vendor, windows }))),
+            ),
+          ),
           members: this.fetchMembers(id),
         }),
       ),
-      map(({ vendor, members }) => toVendorDetail(vendor, members)),
+      map(({ vendor: { vendor, windows }, members }) => toVendorDetail(vendor, members, windows)),
     );
   }
 
@@ -325,12 +340,13 @@ export class GraphqlVendorRepository extends VendorRepository {
    * them is refused outright — there is deliberately no fallback that would
    * make the admin the owner.
    *
-   * "Skip application review" rides on `isAcceptingOrders`. There is no
-   * application model server-side to hold "approved yet?" (gap #9), so the flag
-   * the schema *does* have carries it: toggle off means the stall is created
-   * paused and shows as `Paused` in the directory until someone turns it on.
-   * Always sent explicitly rather than left to the column default, because the
-   * console always knows which the admin chose.
+   * "Skip application review" is not sent: there is no application model to
+   * hold "approved yet?" (gap #9), and the vendor-wide `isAcceptingOrders` that
+   * stood in for one is gone. Its per-market replacement clears itself at the
+   * end of the next market day, so it cannot stand in either — the vendor is
+   * created at the markets the admin picked and trades there, taking pre-orders
+   * from `orderLeadHours` (left at the backend's default of 48) before each
+   * market day.
    *
    * `CreateVendorInput.description` is left unset on purpose: the form's note
    * is a private message to the invitee, while `description` is published to
@@ -354,7 +370,6 @@ export class GraphqlVendorRepository extends VendorRepository {
             category: invite.trade,
             ownerName,
             ownerEmail,
-            isAcceptingOrders: invite.skipApplicationReview,
             // Omitted rather than sent empty: an empty list and "no scope" are
             // the same thing to the backend, and `marketIds` is nullable.
             ...(marketIds.length > 0 ? { marketIds } : {}),
@@ -445,6 +460,40 @@ export class GraphqlVendorRepository extends VendorRepository {
           return result.vendor;
         }),
       );
+  }
+
+  /**
+   * Each membership's `vendorOrderWindow`, keyed by market id — one call per
+   * market, since the query takes one pair and `vendor(id)` hydrates none.
+   *
+   * A window that will not load is left out rather than failing the shell: the
+   * card then shows no order status, and every other tab still opens. The
+   * header and the Staff tab should not depend on a status line.
+   */
+  private fetchOrderWindows(vendor: GqlVendor): Observable<ReadonlyMap<string, GqlOrderWindow>> {
+    if (vendor.markets.length === 0) return of(new Map());
+    return forkJoin(
+      vendor.markets.map((market) =>
+        this.client
+          .request<VendorOrderWindowQuery, VendorOrderWindowQueryVariables>(VENDOR_ORDER_WINDOW, {
+            vendorId: vendor.id,
+            marketId: market.id,
+          })
+          .pipe(
+            map((result): GqlOrderWindow | null => result.vendorOrderWindow),
+            catchError(() => of(null)),
+          ),
+      ),
+    ).pipe(
+      map(
+        (windows) =>
+          new Map(
+            windows
+              .filter((window): window is GqlOrderWindow => window !== null)
+              .map((window) => [window.marketId, window]),
+          ),
+      ),
+    );
   }
 
   /**

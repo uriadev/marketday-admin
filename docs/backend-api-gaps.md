@@ -137,9 +137,9 @@ found while reading the same code, unrelated to what's missing.
 9. **No vendor application/approval concept, and no way to invite a vendor.**
    `Market.reviewApplications` is a real NOT NULL column but nothing acts on it — no
    `approveVendor`/`declineVendor`, no pending/approved/declined state on `Vendor` (only
-   `isActive` and `isAcceptingOrders`). Blocks the "needs a decision" flows on the Markets and
-   Vendors screens. A vendor read from `adminVendors` is therefore only ever `trading` or
-   `paused` — never `pending`/`fee-unpaid`/`invited`.
+   `isActive`). Blocks the "needs a decision" flows on the Markets and Vendors screens. A vendor
+   read from `adminVendors` is therefore only ever `trading` or `paused` (deactivated) — never
+   `pending`/`fee-unpaid`/`invited`.
 
    ~~**…and no way to create a vendor, or its owner, as an admin.**~~ **Closed.**
    `createVendor(input: CreateVendorInput!)` is `@Roles(ADMIN)` and
@@ -170,12 +170,27 @@ found while reading the same code, unrelated to what's missing.
    One person holds at most one seat, so naming someone who already owns a vendor is refused,
    naming them: `dervla@… already belongs to a vendor`.
 
-   `CreateVendorInput` also grew `isAcceptingOrders`, which is where design 1n's "skip
-   application review" toggle now lands. There is still no application model to hold "approved
-   yet?", so the flag the schema _does_ have carries it: review required → the stall is created
-   with `isAcceptingOrders: false` and reads `Paused` in the directory until someone turns it
-   on. A real approval model would replace this — the toggle is standing in for one, not
-   describing one.
+   **Still open: skipping application review.** Design 1n's toggle used to land on
+   `CreateVendorInput.isAcceptingOrders` — review required → created paused. The backend has
+   since replaced that vendor-wide flag with per-(vendor, market) order windows
+   (`../backend/specs/per-market-order-windows.md`): `orderLeadHours` per stall and a manual
+   pause that **clears itself** at the end of the market day it was tapped on, so nothing is
+   left that can hold "not approved yet". The backend spec suggests creating an unapproved
+   vendor with no `marketIds` instead; the console does not, because that drops the markets the
+   admin picked, and `joinMarket` is owner-only — the owner would approve themselves by joining.
+   So the toggle is **disabled** and every vendor is created trading at the picked markets
+   (`orderLeadHours` left at the default 48). What would close it: an approval state on
+   `vendor_markets` (or `vendors`) with an admin-scoped approve/decline, which is also what
+   `Market.reviewApplications` is waiting for.
+
+   The console reads the new windows but cannot write them. `vendorOrderWindow(vendorId:,
+   marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one call per
+   market because `vendor(id)` leaves `orderWindow` null; `vendors(marketId:)` hydrates
+   `orderWindow` for the market roster. Both `setVendorMarketAcceptingOrders` and
+   `setVendorMarketOrderLeadHours` resolve the vendor from the caller's seat, so an admin can
+   neither pause a stall nor change its lead time — the market roster's "Pause at this market"
+   stays disabled. An `adminVendorMarkets(vendorId:)` read and ADMIN branches on those two
+   mutations (the treatment `updateVendor` got) would close it.
 
    **Still open: the invitation itself.** There is no way to _tell_ the new owner. No endpoint
    emails a would-be owner — `inviteVendorMember` resolves the vendor from the caller
@@ -222,9 +237,10 @@ found while reading the same code, unrelated to what's missing.
 13. **The vendor directory can only push half its filters down.** `adminVendors` pages for
     real — `limit`/`offset` and `totalCount` are honoured, and the console asks for the page it
     is showing — but `VendorsService.FILTERABLE_FIELDS` is `name`, `category`, `isActive`,
-    `isAcceptingOrders`, `createdAt`, so of design 1a's filters only the search (as
-    `name CONTAINS`) and "Paused" (as `isAcceptingOrders = false`) can travel in a
-    `CriteriaInput`:
+    `createdAt`, so of design 1a's filters only the search (as `name CONTAINS`) and "Paused" (as
+    `isActive = false`, the rows the directory pills Paused) can travel in a `CriteriaInput`.
+    A stall paused at one market is not a directory-level fact any more — the pause is per
+    market and per market day — so that filter cannot find one; see #9.
 
     - **Market** and **At 2+ markets** ask about the `vendor_markets` relation.
       `TypeOrmCriteriaConverter` can filter on a joined alias, but `VendorsService.filter`

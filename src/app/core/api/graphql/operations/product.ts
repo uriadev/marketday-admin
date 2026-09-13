@@ -41,7 +41,6 @@ export const VENDOR_PRODUCTS = gql`
       slug
       name
       isActive
-      isAcceptingOrders
       markets {
         id
         slug

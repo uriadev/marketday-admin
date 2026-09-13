@@ -21,10 +21,15 @@ Market, At 2+ markets, Applications, Fee unpaid (`docs/backend-api-gaps.md` §13
 branch before its owner-only seat lookup) backs that tab's save, and `createVendor`
 (`@Roles(ADMIN)`) makes the invite screen (design 1n) create the business for real — name,
 trade, the picked markets, and an owner: the contact name and email seat that person as the
-vendor's `OWNER`, reusing their MarketDay account or creating a passwordless one, and "skip
-application review" rides on `isAcceptingOrders` (off → created paused). What the invite screen
-still has no endpoint for is the invitation itself: no email is sent, and the owner gets in via
-Forgot password. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
+vendor's `OWNER`, reusing their MarketDay account or creating a passwordless one. What the
+invite screen still has no endpoint for is the invitation itself (no email is sent; the owner
+gets in via Forgot password) or an approval step: "skip application review" is disabled, since
+the vendor-wide `isAcceptingOrders` it rode on is gone. Taking orders is **per (vendor, market)**
+now (`../backend/specs/per-market-order-windows.md`): the Markets tab reads each membership's
+`vendorOrderWindow` (one call per market) and the market roster reads the `orderWindow` that
+`vendors(marketId:)` hydrates, so "paused" there means paused *at that market*; the directory's
+Paused pill and filter mean `isActive = false`. An admin can read a stall's pause but not set it
+— `setVendorMarketAcceptingOrders` resolves the vendor from the caller's seat. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
 registered name, VAT, produce tags, contact block and address have no column at all, so the tab
 disables them and the adapter drops them. Products runs end-to-end — `products(vendorId:)`
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`
