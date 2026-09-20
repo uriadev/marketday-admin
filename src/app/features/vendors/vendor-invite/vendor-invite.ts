@@ -51,17 +51,18 @@ import { VendorInviteFacade } from '../vendor-invite-facade';
  * and created — without a password — if they do not. There is no role to pick,
  * because there is only one seat to give.
  *
- * What is still missing is the message, and the review. No invitation endpoint
- * exists (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone
- * field, so neither the note nor the phone number has anywhere to go; the new
- * owner gets in through Forgot password. Nor is there an approval model:
- * "Skip application review" used to ride on the vendor-wide
- * `isAcceptingOrders`, which the backend replaced with per-market order
- * windows whose pause clears itself after one market day — nothing that can
- * hold "not approved yet". All three are therefore **disabled** — they stay on
- * the screen, since this is the shape the form takes the day the endpoints
- * land, but nothing is collected that would be silently dropped. The rail says
+ * What is still missing is the message. No invitation endpoint exists
+ * (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone field,
+ * so neither the note nor the phone number has anywhere to go; the new owner
+ * gets in through Forgot password. Both are therefore **disabled** — they stay
+ * on the screen, since this is the shape the form takes the day the endpoint
+ * lands, but nothing is collected that would be silently dropped. The rail says
  * as much rather than letting the preview imply a message left the building.
+ *
+ * "Skip application review" is live: it is `CreateVendorInput.isActive`. On,
+ * the vendor trades from the moment it exists; off, it is created inactive —
+ * owned and joined to its markets but unable to take an order — until an admin
+ * activates it from the directory's row menu.
  */
 @Component({
   selector: 'md-vendor-invite',
@@ -96,11 +97,13 @@ export class VendorInvite implements OnInit {
   protected readonly trades = VENDOR_TRADES;
 
   /**
-   * `phone`, `note` and `skipApplicationReview` are disabled: `createVendor`
-   * takes none of them, nothing emails the note, and there is no approval
-   * model for the review to wait on (`docs/backend-api-gaps.md` #9). They are
-   * still sent — {@link send} reads `getRawValue()` — so the day an endpoint
-   * takes them, enabling the controls is the whole change.
+   * `phone` and `note` are disabled: `createVendor` takes neither and nothing
+   * emails the note (`docs/backend-api-gaps.md` #9). They are still sent —
+   * {@link send} reads `getRawValue()` — so the day an endpoint takes them,
+   * enabling the controls is the whole change.
+   *
+   * `skipApplicationReview` starts off: review is the default, so a vendor an
+   * admin has not chosen to wave through is created inactive.
    */
   protected readonly form = this.fb.group({
     businessName: this.fb.control('', Validators.required),
@@ -108,7 +111,7 @@ export class VendorInvite implements OnInit {
     email: this.fb.control('', [Validators.required, Validators.email]),
     phone: this.fb.control({ value: '', disabled: true }),
     trade: this.fb.control(VENDOR_TRADES[0]!, Validators.required),
-    skipApplicationReview: this.fb.control({ value: false, disabled: true }),
+    skipApplicationReview: this.fb.control(false),
     note: this.fb.control({ value: '', disabled: true }, Validators.maxLength(400)),
   });
 
@@ -192,13 +195,27 @@ export class VendorInvite implements OnInit {
     return `${scope} · ${owner ? `${owner} owns it` : 'owner not named yet'}`;
   });
 
+  /** Read from the value signal, not the control, so the rail follows the toggle. */
+  protected readonly reviewSkipped = computed(() => this.value().skipApplicationReview);
+
   /**
-   * What the directory will show the moment this lands. A new vendor is active,
-   * and the directory's pill reads only that — whether a stall is taking orders
-   * right now is per market and on the vendor's Markets tab — so nothing on this
-   * form can change it.
+   * What the directory will show the moment this lands. The pill reads only
+   * whether the vendor is active — whether a stall is taking orders right now is
+   * per market and on the vendor's Markets tab — so the one thing on this form
+   * that can change it is skipping the review.
    */
-  protected readonly standing = { label: 'Trading', tone: 'positive' } as const;
+  protected readonly standing = computed(() =>
+    this.reviewSkipped()
+      ? ({ label: 'Trading', tone: 'positive' } as const)
+      : ({ label: 'Paused', tone: 'muted' } as const),
+  );
+
+  /** What the review toggle does in its current position, said under its title. */
+  protected readonly reviewHint = computed(() =>
+    this.reviewSkipped()
+      ? 'The vendor goes live at the markets picked above as soon as it is created.'
+      : 'The vendor is created inactive — unable to take orders — until you activate it from the Vendors list.',
+  );
 
   /**
    * How many vendors this session has added. Nothing server-side counts them
@@ -276,7 +293,11 @@ export class VendorInvite implements OnInit {
       // can do here — the vendor and its owner exist, no email has gone
       // anywhere, so the admin has to tell them themselves.
       this.notifications.success(
-        `${created.name} created, owned by ${invite.contactName}. No email sent yet.`,
+        `${created.name} created, owned by ${invite.contactName}. ${
+          created.isActive
+            ? 'No email sent yet.'
+            : 'It stays inactive until you activate it. No email sent yet.'
+        }`,
       );
       if (addAnother) {
         // Keep the access choices, clear who it is for.

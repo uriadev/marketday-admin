@@ -14,6 +14,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ConsoleChrome } from '../../../layouts/console-layout/console-chrome';
+import { Notifications } from '../../../core/notifications/notifications';
 import { PageHeader } from '../../../shared/components/page-header/page-header';
 import { StatusPill } from '../../../shared/components/status-pill/status-pill';
 import { EmptyState } from '../../../shared/components/empty-state/empty-state';
@@ -65,6 +66,7 @@ export class Vendors {
   protected readonly store = inject(VendorsStore);
   protected readonly chrome = inject(ConsoleChrome);
   private readonly router = inject(Router);
+  private readonly notifications = inject(Notifications);
 
   /** Filters arrive as query params (§7); an absent one binds as `undefined`. */
   readonly q = input<string>();
@@ -176,5 +178,24 @@ export class Vendors {
 
   protected staffLabel(vendor: VendorSummary): string {
     return `${vendor.staffCount} staff`;
+  }
+
+  /**
+   * Rows are followed by id, not by object: activating or deactivating a vendor
+   * swaps in the row the server answered with, and tracking by identity would
+   * tear the row down and rebuild it — dropping keyboard focus, which the menu
+   * hands back to the row's ⋮ button when it closes.
+   */
+  protected trackVendor(_index: number, vendor: VendorSummary): string {
+    return vendor.id;
+  }
+
+  /** Asks the store to flip the vendor; the row shows what the server answers with. */
+  protected toggleActive(vendor: VendorSummary): void {
+    this.store.setActive(vendor, !vendor.isActive, (updated) =>
+      this.notifications.success(
+        `${updated.name} is now ${updated.isActive ? 'active' : 'inactive'}.`,
+      ),
+    );
   }
 }

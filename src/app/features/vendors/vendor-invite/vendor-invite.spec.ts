@@ -113,6 +113,9 @@ class StubVendorRepository extends VendorRepository {
   override saveProfile(_slug: string, patch: VendorProfilePatch): Observable<VendorProfile> {
     return of({ ...MCNALLY_PROFILE, ...patch });
   }
+  override setActive(): Observable<VendorSummary> {
+    return of(VENDORS_FIXTURE[0]!);
+  }
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: this.addedSoFar, linkValidDays: 14, reminderAfterDays: 5 });
   }
@@ -130,6 +133,7 @@ class StubVendorRepository extends VendorRepository {
       appliedLabel: null,
       staff: [invite.contactName],
       staffCount: 1,
+      isActive: invite.skipApplicationReview,
       standing: 'invited',
       standingLabel: 'Invitation pending',
     });
@@ -223,22 +227,38 @@ describe('VendorInvite', () => {
     expect(text).toContain('Their MarketDay account, or a new one. Nothing is emailed yet.');
     expect(text).toContain('Not sent today.');
     expect(text).toContain('The business is created and appears in the directory');
-    expect(text).toContain('There is no approval step yet');
+    expect(text).toContain('The vendor is created inactive');
     expect(text).toContain('The owner’s account is created at the same time, without a password.');
     expect(text).toContain('Create vendor');
   });
 
-  it('disables the review toggle, since nothing server-side can carry it', () => {
-    // The vendor-wide `isAcceptingOrders` it rode on is gone, and a per-market
-    // pause clears itself after one market day — no stand-in for "not approved
-    // yet" (docs/backend-api-gaps.md #9). So every vendor is created trading.
+  it('starts with the review on: the vendor is created inactive until activated', () => {
+    // "Skip application review" is `CreateVendorInput.isActive`. Left off, the
+    // vendor exists and is owned but cannot take orders — the directory shows
+    // it as Paused, and the rail says how to open it.
+    const fixture = open();
+    const control = fixture.componentInstance['form'].controls.skipApplicationReview;
+
+    expect(control.disabled).toBe(false);
+    expect(control.value).toBe(false);
+    expect(fixture.componentInstance['standing']()).toEqual({ label: 'Paused', tone: 'muted' });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('until you activate it from the Vendors list');
+    expect(text).toContain('It cannot take orders until you choose');
+    expect(text).not.toContain('takes pre-orders from 48 hours before its market day opens');
+  });
+
+  it('reads as trading once the review is skipped', () => {
     const fixture = open();
 
-    expect(fixture.componentInstance['form'].controls.skipApplicationReview.disabled).toBe(true);
-    expect(fixture.componentInstance['standing']).toEqual({ label: 'Trading', tone: 'positive' });
+    fixture.componentInstance['form'].patchValue({ skipApplicationReview: true });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['standing']()).toEqual({ label: 'Trading', tone: 'positive' });
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Trading');
+    expect(text).toContain('goes live at the markets picked above as soon as it is created');
     expect(text).toContain('takes pre-orders from 48 hours before its market day opens');
+    expect(text).not.toContain('It cannot take orders');
   });
 
   it('offers no role to choose — the named owner is the only seat', () => {
@@ -391,6 +411,17 @@ describe('VendorInvite', () => {
     expect(vendors.sent?.marketSlugs).toEqual(['bantry-friday']);
     expect(vendors.sent?.skipApplicationReview).toBe(false);
     expect(navigate).toHaveBeenCalledWith(['/vendors']);
+  });
+
+  it('sends the review choice as it stands, so a skipped review opens the vendor', () => {
+    const fixture = open();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fill(fixture);
+    fixture.componentInstance['form'].patchValue({ skipApplicationReview: true });
+
+    fixture.componentInstance['send']();
+
+    expect(vendors.sent?.skipApplicationReview).toBe(true);
   });
 
   it('sends the seeded market and returns to that market, when opened from one', () => {

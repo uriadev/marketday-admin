@@ -21,10 +21,16 @@ Market, At 2+ markets, Applications, Fee unpaid (`docs/backend-api-gaps.md` §13
 branch before its owner-only seat lookup) backs that tab's save, and `createVendor`
 (`@Roles(ADMIN)`) makes the invite screen (design 1n) create the business for real — name,
 trade, the picked markets, and an owner: the contact name and email seat that person as the
-vendor's `OWNER`, reusing their MarketDay account or creating a passwordless one. What the
-invite screen still has no endpoint for is the invitation itself (no email is sent; the owner
-gets in via Forgot password) or an approval step: "skip application review" is disabled, since
-the vendor-wide `isAcceptingOrders` it rode on is gone. Taking orders is **per (vendor, market)**
+vendor's `OWNER`, reusing their MarketDay account or creating a passwordless one. "Skip
+application review" is `CreateVendorInput.isActive`: on, the vendor trades at once; off (the
+default), it is created **inactive** — owned and joined to its markets, but refused at checkout
+and dropped from search (its stalls stay on their market rosters, which clients show as "no
+longer available") — until an admin chooses **Activate vendor** in that row's ⋮ menu on the
+directory, which sends `updateVendor(id, { isActive })` alone (**Deactivate vendor** is the same
+call the other way). `isActive` is admin-only on `updateVendor` server-side, so an owner cannot
+reopen what an admin closed. What the invite screen still has no endpoint for is the invitation
+itself (no email is sent; the owner gets in via Forgot password); there is still no application
+*model* (no submitted form, no decline). Taking orders is **per (vendor, market)**
 now (`../backend/specs/per-market-order-windows.md`): the Markets tab reads each membership's
 `vendorOrderWindow` (one call per market) and the market roster reads the `orderWindow` that
 `vendors(marketId:)` hydrates, so "paused" there means paused *at that market*; the directory's

@@ -167,10 +167,12 @@ interface VendorRows {
  * fragment the reads use, so the new vendor is in the directory on the next
  * load rather than only in this session's memory.
  *
- * "Skip application review" does not land. It used to ride on the vendor-wide
- * `isAcceptingOrders`, which the backend replaced with per-market order
- * windows; a pause there clears itself at the end of the next market day, so
- * it cannot hold "not approved yet" either. The screen disables the toggle.
+ * "Skip application review" lands as `CreateVendorInput.isActive`. It used to
+ * ride on the vendor-wide `isAcceptingOrders`, which the backend replaced with
+ * per-market order windows whose pause clears itself at the end of the next
+ * market day — nothing there can hold "not approved yet". `isActive` can:
+ * a vendor created inactive is refused at checkout and dropped from search
+ * until an admin activates it, which `setActive` does from the directory.
  *
  * What it does **not** do is invite anyone. There is no endpoint that emails a
  * would-be owner (gap #9 — `inviteVendorMember` resolves the vendor from the
@@ -319,6 +321,28 @@ export class GraphqlVendorRepository extends VendorRepository {
   }
 
   /**
+   * Activates or deactivates the business through `updateVendor`, sending `isActive`
+   * and nothing else — so, like the Profile tab's save in the other direction,
+   * it cannot touch a field it was not asked to. `isActive` is admin-only
+   * server-side, which is what makes deactivating mean something: an owner cannot
+   * reopen what an admin closed.
+   *
+   * The row comes back through `toVendorSummary`, so the pill and the menu
+   * label both read what the backend stored.
+   */
+  override setActive(slug: string, active: boolean): Observable<VendorSummary> {
+    return this.resolveId(slug).pipe(
+      switchMap((id) =>
+        this.client.request<UpdateVendorMutation, UpdateVendorMutationVariables>(UPDATE_VENDOR, {
+          id,
+          input: { isActive: active },
+        }),
+      ),
+      map((result) => toVendorSummary(result.updateVendor)),
+    );
+  }
+
+  /**
    * Nothing server-side counts invitations (gap #9), so the count is this
    * session's own creates rather than a month's — the screen hides the line
    * while it is zero instead of stating a number it cannot know.
@@ -340,13 +364,13 @@ export class GraphqlVendorRepository extends VendorRepository {
    * them is refused outright — there is deliberately no fallback that would
    * make the admin the owner.
    *
-   * "Skip application review" is not sent: there is no application model to
-   * hold "approved yet?" (gap #9), and the vendor-wide `isAcceptingOrders` that
-   * stood in for one is gone. Its per-market replacement clears itself at the
-   * end of the next market day, so it cannot stand in either — the vendor is
-   * created at the markets the admin picked and trades there, taking pre-orders
+   * "Skip application review" is `isActive`: on, the vendor trades at the
+   * markets the admin picked from the moment it exists; off, it is created
+   * inactive at those same markets and waits for an admin to activate it. There
+   * is still no application *model* (gap #9) — no submitted form, no decline —
+   * but "not approved yet" no longer needs one. Either way it takes pre-orders
    * from `orderLeadHours` (left at the backend's default of 48) before each
-   * market day.
+   * market day once it is active.
    *
    * `CreateVendorInput.description` is left unset on purpose: the form's note
    * is a private message to the invitee, while `description` is published to
@@ -370,6 +394,9 @@ export class GraphqlVendorRepository extends VendorRepository {
             category: invite.trade,
             ownerName,
             ownerEmail,
+            // Review required → created inactive. Always sent, `false` included:
+            // omitting it would mean "live", the opposite of what was asked.
+            isActive: invite.skipApplicationReview,
             // Omitted rather than sent empty: an empty list and "no scope" are
             // the same thing to the backend, and `marketIds` is nullable.
             ...(marketIds.length > 0 ? { marketIds } : {}),

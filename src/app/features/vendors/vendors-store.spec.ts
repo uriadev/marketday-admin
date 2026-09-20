@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
 import {
   MCNALLY_DETAIL,
@@ -27,10 +27,29 @@ import { VendorsStore } from './vendors-store';
  */
 class StubVendorRepository extends VendorRepository {
   readonly queries: VendorListQuery[] = [];
+  /** Every switch asked for, oldest first. */
+  readonly switches: { slug: string; active: boolean }[] = [];
+  /** What has been switched, laid over the fixture so the next `list()` sees it. */
+  private readonly switched = new Map<string, boolean>();
+
+  private rows(): VendorSummary[] {
+    return VENDORS_FIXTURE.map((vendor) => this.withSwitch(vendor));
+  }
+
+  private withSwitch(vendor: VendorSummary): VendorSummary {
+    const active = this.switched.get(vendor.slug);
+    if (active === undefined) return vendor;
+    return {
+      ...vendor,
+      isActive: active,
+      standing: active ? 'trading' : 'paused',
+      standingLabel: active ? 'Trading' : 'Paused',
+    };
+  }
 
   override list(query: VendorListQuery): Observable<VendorDirectoryPage> {
     this.queries.push(query);
-    const matched = VENDORS_FIXTURE.filter((vendor) => matchesVendorFilters(vendor, query.filters));
+    const matched = this.rows().filter((vendor) => matchesVendorFilters(vendor, query.filters));
     return of({
       ...pageOf(matched, query.page),
       facets: {
@@ -51,6 +70,13 @@ class StubVendorRepository extends VendorRepository {
   override saveProfile(_slug: string, patch: VendorProfilePatch): Observable<VendorProfile> {
     return of({ ...MCNALLY_PROFILE, ...patch });
   }
+  override setActive(slug: string, active: boolean): Observable<VendorSummary> {
+    this.switches.push({ slug, active });
+    const vendor = VENDORS_FIXTURE.find((candidate) => candidate.slug === slug);
+    if (!vendor) return throwError(() => new Error(`No vendor matches “${slug}”.`));
+    this.switched.set(slug, active);
+    return of(this.withSwitch(vendor));
+  }
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
   }
@@ -68,6 +94,22 @@ class StubVendorRepository extends VendorRepository {
 class FailingVendorRepository extends StubVendorRepository {
   override list(): Observable<VendorDirectoryPage> {
     return throwError(() => new Error('The directory is unavailable.'));
+  }
+}
+
+/** The backend refusing a switch — a non-admin caller, say. */
+class RefusingSwitchRepository extends StubVendorRepository {
+  override setActive(): Observable<VendorSummary> {
+    return throwError(() => new Error('forbidden'));
+  }
+}
+
+/** A switch that stays in flight until the test lets it answer. */
+class SlowSwitchRepository extends StubVendorRepository {
+  readonly answer = new Subject<VendorSummary>();
+  override setActive(slug: string, active: boolean): Observable<VendorSummary> {
+    this.switches.push({ slug, active });
+    return this.answer;
   }
 }
 
@@ -191,5 +233,104 @@ describe('VendorsStore', () => {
 
     expect(store.hasError()).toBe(true);
     expect(store.error()).toBe('The directory is unavailable.');
+  });
+
+  describe('switching a vendor on or off', () => {
+    it('asks the repository, then shows the row it answers with', () => {
+      const repo = new StubVendorRepository();
+      const store = storeWith(repo);
+      store.load();
+      const vendor = store.items().find((row) => row.isActive)!;
+      const done = vi.fn();
+
+      store.setActive(vendor, false, done);
+
+      expect(repo.switches).toEqual([{ slug: vendor.slug, active: false }]);
+      const shown = store.items().find((row) => row.id === vendor.id);
+      expect(shown).toMatchObject({ isActive: false, standing: 'paused', standingLabel: 'Paused' });
+      expect(done).toHaveBeenCalledWith(shown);
+      expect(store.isPending(vendor)).toBe(false);
+      expect(store.commandError()).toBeNull();
+      // Nothing else on the page moved.
+      expect(store.items()).toHaveLength(25);
+    });
+
+    it('does not read the page again unless the Paused filter is on', () => {
+      // Switching only changes `isActive`, and only the Paused filter narrows
+      // by it — the directory count and every other row are as they were.
+      const repo = new StubVendorRepository();
+      const store = storeWith(repo);
+      store.load();
+      const reads = repo.queries.length;
+
+      store.setActive(
+        store.items().find((row) => row.isActive)!,
+        false,
+      );
+
+      expect(repo.queries).toHaveLength(reads);
+    });
+
+    it('reads the page again under the Paused filter, so the row leaves it', () => {
+      const repo = new StubVendorRepository();
+      const store = storeWith(repo);
+      store.load();
+      store.setFilters({ paused: true });
+      const pausedBefore = store.total();
+      const reads = repo.queries.length;
+      const vendor = store.items()[0]!;
+
+      store.setActive(vendor, true);
+
+      expect(repo.queries).toHaveLength(reads + 1);
+      expect(store.total()).toBe(pausedBefore - 1);
+      expect(store.items().some((row) => row.id === vendor.id)).toBe(false);
+    });
+
+    it('leaves the row alone and says why when the backend refuses', () => {
+      // Not optimistic: a refused change must leave the row exactly where it was.
+      const store = storeWith(new RefusingSwitchRepository());
+      store.load();
+      const vendor = store.items().find((row) => row.isActive)!;
+      const done = vi.fn();
+
+      store.setActive(vendor, false, done);
+
+      expect(store.items().find((row) => row.id === vendor.id)).toEqual(vendor);
+      expect(store.commandError()).toBe('forbidden');
+      expect(store.isPending(vendor)).toBe(false);
+      expect(done).not.toHaveBeenCalled();
+    });
+
+    it('clears an earlier refusal when the next change is attempted', () => {
+      const repo = new StubVendorRepository();
+      const store = storeWith(repo);
+      store.load();
+      const vendor = store.items().find((row) => row.isActive)!;
+
+      store.setActive({ ...vendor, slug: 'no-such-vendor' }, false);
+      expect(store.commandError()).toBe('No vendor matches “no-such-vendor”.');
+
+      store.setActive(vendor, false);
+      expect(store.commandError()).toBeNull();
+    });
+
+    it('ignores a second click while the first is still in flight', () => {
+      const repo = new SlowSwitchRepository();
+      const store = storeWith(repo);
+      store.load();
+      const [first, second] = store.items();
+
+      store.setActive(first!, false);
+      store.setActive(first!, true);
+
+      expect(repo.switches).toEqual([{ slug: first!.slug, active: false }]);
+      expect(store.isPending(first!)).toBe(true);
+      // Only that row waits — another can still be switched.
+      expect(store.isPending(second!)).toBe(false);
+
+      repo.answer.next({ ...first!, isActive: false, standing: 'paused', standingLabel: 'Paused' });
+      expect(store.isPending(first!)).toBe(false);
+    });
   });
 });

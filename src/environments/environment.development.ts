@@ -9,7 +9,7 @@ export const environment = {
     /** Served by `proxy.conf.mjs`, which adds `x-api-key` and dodges CORS. */
     graphqlUrl: '/graphql',
     /** Empty on purpose: the dev proxy injects the key, so the app must not. */
-    key: '',
+    key: 'cGNg0XHSBjDGdg6fcupHozioyKS0nnRl',
   },
   googleMaps: {
     // Public by nature — the browser sends it in the clear. It is protected by
@@ -17,7 +17,7 @@ export const environment = {
     // being secret. Needs Maps JavaScript API, Places API (New) and Geocoding
     // API enabled. Unset, it reads as empty and the maps degrade (`typeof`
     // tolerates the undeclared identifier — see `environment.ts`).
-    apiKey: typeof MARKETDAY_GOOGLE_MAPS_API_KEY === 'string' ? MARKETDAY_GOOGLE_MAPS_API_KEY : '',
+    apiKey: typeof MARKETDAY_GOOGLE_MAPS_API_KEY === 'string' ? MARKETDAY_GOOGLE_MAPS_API_KEY : 'AIzaSyBgqKhwaZvt-8r3_w1vQdRZEV9BAPIWsso',
     mapId: 'DEMO_MAP_ID',
     region: 'IE',
     language: 'en-IE',

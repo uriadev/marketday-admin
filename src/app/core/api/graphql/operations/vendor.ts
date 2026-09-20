@@ -148,11 +148,15 @@ export const ADMIN_VENDOR_MEMBERS = gql`
  * reusing their account or creating a passwordless one — and refusing without
  * them is what stops the calling admin being made the owner by default.
  *
+ * `isActive` is design 1n's "Skip application review": true opens the vendor
+ * live, false creates it held back until an admin switches it on
+ * ({@link UPDATE_VENDOR}). It is always sent — omitting it would mean live.
+ *
  * `CreateVendorInput` covers those plus `name`, `slug`, `category`,
  * `description`, `imageUrl`, `marketIds` and `orderLeadHours` and nothing else,
- * so the invitation's own half (the note, the phone, skipping application
- * review) has nowhere to go and no mutation to send it; see
- * `docs/backend-api-gaps.md` #9. `orderLeadHours` is left to its default (48).
+ * so the invitation's own half (the note, the phone) has nowhere to go and no
+ * mutation to send it; see `docs/backend-api-gaps.md` #9. `orderLeadHours` is
+ * left to its default (48).
  */
 export const CREATE_VENDOR = gql`
   ${VENDOR_FIELDS}
@@ -203,6 +207,11 @@ export const MARKET_IDS = gql`
  * link already shared. The per-market pause is not on this input at all
  * (`setVendorMarketAcceptingOrders` owns it), which is what stops a profile
  * save from un-pausing a stall as a side effect.
+ *
+ * The directory's row menu sends `{ isActive }` alone through the same
+ * mutation. `isActive` is **admin-only** server-side — a vendor owner who sends
+ * it is refused — so the Profile tab, which never sends it, stays safe to
+ * share with an owner-facing client.
  */
 export const UPDATE_VENDOR = gql`
   ${VENDOR_FIELDS}

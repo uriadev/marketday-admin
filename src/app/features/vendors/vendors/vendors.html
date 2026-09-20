@@ -89,6 +89,16 @@
 </div>
 
 <div class="scroller">
+  @if (store.commandError(); as message) {
+    <div
+      class="mb-4 flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ message }}</span>
+    </div>
+  }
+
   @if (store.hasError()) {
     <div
       class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
@@ -108,7 +118,7 @@
     </md-empty-state>
   } @else {
     <div class="table-card">
-      <table mat-table [dataSource]="store.items()" class="directory">
+      <table mat-table [dataSource]="store.items()" [trackBy]="trackVendor" class="directory">
         <ng-container matColumnDef="vendor">
           <th mat-header-cell *matHeaderCellDef scope="col">Vendor</th>
           <td mat-cell *matCellDef="let vendor">
@@ -186,6 +196,14 @@
             </button>
             <mat-menu #rowMenu="matMenu">
               <a mat-menu-item [routerLink]="['/vendors', vendor.slug]">Open vendor</a>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.isPending(vendor)"
+                (click)="toggleActive(vendor)"
+              >
+                {{ vendor.isActive ? 'Deactivate vendor' : 'Activate vendor' }}
+              </button>
               <button mat-menu-item type="button" disabled>Message vendor</button>
               <button mat-menu-item type="button" disabled>Suspend vendor</button>
             </mat-menu>

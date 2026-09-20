@@ -122,10 +122,7 @@
               <p class="m-0 text-body-medium font-semibold text-on-surface">
                 Skip application review
               </p>
-              <p class="m-0 text-body-small text-on-surface-variant">
-                There is no approval step yet, so every vendor is created trading at the markets
-                picked above.
-              </p>
+              <p class="m-0 text-body-small text-on-surface-variant">{{ reviewHint() }}</p>
             </div>
             <mat-slide-toggle formControlName="skipApplicationReview" />
           </div>
@@ -171,9 +168,14 @@
       <h3 class="rail-title">What happens next</h3>
       <p class="m-0 text-body-medium text-on-surface-variant">
         The business is created and appears in the directory as
-        <md-status-pill [tone]="standing.tone">{{ standing.label }}</md-status-pill>
-        at the markets picked here. Each stall takes pre-orders from 48 hours before its market day
-        opens.
+        <md-status-pill [tone]="standing().tone">{{ standing().label }}</md-status-pill>
+        at the markets picked here.
+        @if (reviewSkipped()) {
+          Each stall takes pre-orders from 48 hours before its market day opens.
+        } @else {
+          It cannot take orders until you choose
+          <strong>Activate vendor</strong> from its menu in the Vendors list.
+        }
       </p>
       <p class="m-0 text-body-medium text-on-surface-variant">
         The owner’s account is created at the same time, without a password. Tell them yourself for

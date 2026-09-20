@@ -170,6 +170,8 @@ describe('GraphqlVendorRepository.invite', () => {
       category: 'Cheese & dairy',
       ownerName: 'Dervla Ó Súilleabháin',
       ownerEmail: 'dervla@cooleacheese.ie',
+      // The review is on by default, so the vendor is created held back.
+      isActive: false,
     });
     request.flush({ data: { createVendor: CREATED } });
 
@@ -179,10 +181,10 @@ describe('GraphqlVendorRepository.invite', () => {
     expect(created?.standingLabel).toBe('Trading');
   });
 
-  it('sends nothing for "skip application review", whichever way it is set', () => {
-    // The vendor-wide `isAcceptingOrders` it rode on is gone from the schema,
-    // and its per-market replacement clears itself after one market day, so
-    // nothing can hold "not approved yet" (gap #9). The picked markets still go.
+  it('sends "skip application review" as isActive, whichever way it is set', () => {
+    // Skipping the review opens the vendor; keeping it creates the vendor
+    // inactive. `false` is sent, not omitted — an absent `isActive` means live,
+    // the opposite of what was asked. The picked markets still go either way.
     for (const skipApplicationReview of [true, false]) {
       repository.invite(invite({ skipApplicationReview, marketSlugs: ['temple-bar'] })).subscribe();
       const markets = http.match((request) =>
@@ -192,8 +194,12 @@ describe('GraphqlVendorRepository.invite', () => {
         request.flush({ data: { adminMarkets: [{ id: 'mkt-tb', slug: 'temple-bar' }] } });
       }
       const { request, variables } = expectPost('mutation CreateVendor');
+      expect(variables['input']).toMatchObject({
+        isActive: skipApplicationReview,
+        marketIds: ['mkt-tb'],
+      });
+      // The vendor-wide flag it used to ride on is gone from the schema.
       expect(variables['input']).not.toHaveProperty('isAcceptingOrders');
-      expect(variables['input']).toMatchObject({ marketIds: ['mkt-tb'] });
       request.flush({ data: { createVendor: CREATED } });
     }
   });
@@ -308,6 +314,83 @@ describe('GraphqlVendorRepository.invite', () => {
     let after: number | undefined;
     repository.inviteSummary().subscribe((summary) => (after = summary.sentThisMonth));
     expect(after).toBe(1);
+  });
+});
+
+describe('GraphqlVendorRepository.setActive', () => {
+  it('resolves the slug, then sends isActive and nothing else', () => {
+    repository.setActive('mcnally-family-farm', false).subscribe();
+
+    // `updateVendor` takes an id and the console routes by slug.
+    resolveSlug();
+
+    const { request, variables } = expectPost('mutation UpdateVendor');
+    expect(variables['id']).toBe('vnd-mcnally');
+    // Nothing else may ride along: a switch that also sent the profile would
+    // overwrite an edit made in another tab.
+    expect(variables['input']).toEqual({ isActive: false });
+    request.flush({ data: { updateVendor: { ...MCNALLY, isActive: false } } });
+  });
+
+  it('sends true to switch a vendor back on', () => {
+    repository.setActive('mcnally-family-farm', true).subscribe();
+    resolveSlug();
+
+    const { request, variables } = expectPost('mutation UpdateVendor');
+    expect(variables['input']).toEqual({ isActive: true });
+    request.flush({ data: { updateVendor: MCNALLY } });
+  });
+
+  it('answers with the directory row as stored, not the state that was asked for', () => {
+    let row: { isActive: boolean; standing: string; standingLabel: string | null } | undefined;
+    repository.setActive('mcnally-family-farm', false).subscribe((result) => (row = result));
+    resolveSlug();
+
+    // The backend says it is still active: that is what the screen must show.
+    expectPost('mutation UpdateVendor').request.flush({
+      data: { updateVendor: { ...MCNALLY, isActive: true } },
+    });
+    expect(row).toMatchObject({ isActive: true, standing: 'trading', standingLabel: 'Trading' });
+  });
+
+  it('reads a switched-off vendor as Paused', () => {
+    let row: { isActive: boolean; standing: string; standingLabel: string | null } | undefined;
+    repository.setActive('mcnally-family-farm', false).subscribe((result) => (row = result));
+    resolveSlug();
+
+    expectPost('mutation UpdateVendor').request.flush({
+      data: { updateVendor: { ...MCNALLY, isActive: false } },
+    });
+    expect(row).toMatchObject({ isActive: false, standing: 'paused', standingLabel: 'Paused' });
+  });
+
+  it('fails for a slug the directory does not have, without calling updateVendor', () => {
+    let error: Error | undefined;
+    repository
+      .setActive('no-such-vendor', false)
+      .subscribe({ error: (cause: Error) => (error = cause) });
+
+    resolveSlug();
+
+    expect(error?.message).toBe('That vendor could not be found.');
+    http.expectNone((request) =>
+      ((request.body as { query?: string }).query ?? '').includes('mutation UpdateVendor'),
+    );
+  });
+
+  it('surfaces a refusal from the backend', () => {
+    let error: Error | undefined;
+    repository
+      .setActive('mcnally-family-farm', false)
+      .subscribe({ error: (cause: Error) => (error = cause) });
+    resolveSlug();
+
+    expectPost('mutation UpdateVendor').request.flush({
+      errors: [{ message: 'forbidden' }],
+      data: null,
+    });
+
+    expect(error).toBeInstanceOf(Error);
   });
 });
 

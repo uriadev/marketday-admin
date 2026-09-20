@@ -102,6 +102,7 @@ export function toVendorSummary(vendor: GqlVendor): VendorSummary {
     // label and the face-pile discs.
     staff: [],
     staffCount: vendor.memberCount,
+    isActive: vendor.isActive,
     standing,
     standingLabel: STANDING_LABELS[standing],
   };

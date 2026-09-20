@@ -145,6 +145,7 @@ export type CreateVendorInput = {
   category: Scalars['String']['input'];
   description?: InputMaybe<Scalars['String']['input']>;
   imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
   marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   name: Scalars['String']['input'];
   orderLeadHours?: InputMaybe<Scalars['Int']['input']>;
@@ -306,6 +307,7 @@ export type Mutation = {
   setProductFavorite: Scalars['Boolean']['output'];
   setProductListing: ProductListingModel;
   setRole: UserModel;
+  setVendorDaySummaryEmail: VendorModel;
   setVendorFavorite: Scalars['Boolean']['output'];
   setVendorMarketAcceptingOrders: VendorMarketModel;
   setVendorMarketOrderLeadHours: VendorMarketModel;
@@ -531,6 +533,11 @@ export type MutationSetRoleArgs = {
 };
 
 
+export type MutationSetVendorDaySummaryEmailArgs = {
+  enabled: Scalars['Boolean']['input'];
+};
+
+
 export type MutationSetVendorFavoriteArgs = {
   favorite: Scalars['Boolean']['input'];
   vendorId: Scalars['ID']['input'];
@@ -625,6 +632,7 @@ export type Notification = {
 
 export enum NotificationType {
   MarketDayReminder = 'MARKET_DAY_REMINDER',
+  MarketDaySummary = 'MARKET_DAY_SUMMARY',
   NewOrder = 'NEW_ORDER',
   OrderCancelled = 'ORDER_CANCELLED',
   OrderStatusChanged = 'ORDER_STATUS_CHANGED'
@@ -1218,6 +1226,7 @@ export type VendorModel = {
   __typename?: 'VendorModel';
   category: Scalars['String']['output'];
   createdAt: Scalars['DateTime']['output'];
+  daySummaryEmail: Scalars['Boolean']['output'];
   description: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   imageUrl: Maybe<Scalars['String']['output']>;

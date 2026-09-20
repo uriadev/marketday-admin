@@ -46,13 +46,24 @@ export abstract class VendorRepository {
   /** Publishes the profile to every market page the vendor trades at. */
   abstract saveProfile(slug: string, patch: VendorProfilePatch): Observable<VendorProfile>;
 
+  /**
+   * Activates or deactivates a vendor — the directory's row menu. An inactive
+   * vendor cannot take an order and drops out of search; nothing else about it
+   * changes, and activating it again restores it as it was.
+   *
+   * Answers with the directory row as the server now holds it, so the caller
+   * shows what was stored rather than what it asked for. Rejects when no vendor
+   * matches `slug`.
+   */
+  abstract setActive(slug: string, active: boolean): Observable<VendorSummary>;
+
   /** Invitation policy and how many have gone out this month (design 1n). */
   abstract inviteSummary(): Observable<VendorInviteSummary>;
 
   /**
-   * Sends an invitation and returns the directory row it creates — an
-   * `invited` vendor, waiting on them to sign up rather than on a decision
-   * from us.
+   * Creates the vendor and returns the directory row it makes. Whether it
+   * opens live is the invite's `skipApplicationReview`: on, it trades at once;
+   * off, it is held inactive until {@link setActive} switches it on.
    */
   abstract invite(invite: VendorInvite): Observable<VendorSummary>;
 }

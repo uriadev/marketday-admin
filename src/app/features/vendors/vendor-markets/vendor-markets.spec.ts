@@ -43,6 +43,9 @@ class StubVendorRepository extends VendorRepository {
   override saveProfile(_slug: string, patch: VendorProfilePatch): Observable<VendorProfile> {
     return of({ ...MCNALLY_PROFILE, ...patch });
   }
+  override setActive(): Observable<VendorSummary> {
+    return of(VENDORS_FIXTURE[0]!);
+  }
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
   }

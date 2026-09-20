@@ -62,6 +62,9 @@ class StubVendorRepository extends VendorRepository {
       lastEditedBy: 'by you, in the admin console',
     });
   }
+  override setActive(): Observable<VendorSummary> {
+    return of(VENDORS_FIXTURE[0]!);
+  }
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
   }

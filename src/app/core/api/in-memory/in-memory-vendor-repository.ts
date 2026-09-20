@@ -366,6 +366,9 @@ function toSummary(seed: VendorSeed, index: number): VendorSummary {
     appliedLabel: seed.appliedLabel ?? null,
     staff,
     staffCount: staff.length,
+    // Paused is the one standing that means "switched off"; a fee owed or an
+    // application waiting does not stop the stall trading.
+    isActive: seed.standing !== 'paused',
     standing: seed.standing,
     standingLabel: STANDING_LABELS[seed.standing],
   };
@@ -762,6 +765,12 @@ export class InMemoryVendorRepository extends VendorRepository {
   private readonly invited = new Map<string, VendorSummary>();
 
   /**
+   * Vendors activated or deactivated this session, keyed by slug — the fixture
+   * rows are constants, so the change is laid over them rather than written in.
+   */
+  private readonly activeOverrides = new Map<string, boolean>();
+
+  /**
    * The fixture holds the whole directory, so every filter is honoured here
    * and the page is cut from what matched — the same answer a server-paged
    * backend gives, arrived at the only way a fixture can. The facets are the
@@ -769,7 +778,9 @@ export class InMemoryVendorRepository extends VendorRepository {
    * the markets the menu offers, and the applications still waiting.
    */
   override list(query: VendorListQuery): Observable<VendorDirectoryPage> {
-    const all = [...VENDORS_FIXTURE, ...this.invited.values()];
+    const all = [...VENDORS_FIXTURE, ...this.invited.values()].map((vendor) =>
+      this.withActiveOverride(vendor),
+    );
     const matched = all.filter((vendor) => matchesVendorFilters(vendor, query.filters));
     return of({
       ...pageOf(matched, query.page),
@@ -842,6 +853,28 @@ export class InMemoryVendorRepository extends VendorRepository {
     return vendor ? buildProfile(vendor, index >= 0 ? index : VENDORS_FIXTURE.length) : null;
   }
 
+  override setActive(slug: string, active: boolean): Observable<VendorSummary> {
+    const vendor =
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.invited.get(slug);
+    if (!vendor) {
+      return throwError(() => new Error(`No vendor matches “${slug}”.`)).pipe(delay(300));
+    }
+    this.activeOverrides.set(slug, active);
+    return of(this.withActiveOverride(vendor)).pipe(delay(300));
+  }
+
+  /**
+   * The row as it reads after any switch made this session. A row already in
+   * the requested state is returned as it was, so switching a fee-unpaid vendor
+   * off and on again brings back "Fee unpaid" rather than a generic "Trading".
+   */
+  private withActiveOverride(vendor: VendorSummary): VendorSummary {
+    const active = this.activeOverrides.get(vendor.slug);
+    if (active === undefined || active === vendor.isActive) return vendor;
+    const standing: VendorStanding = active ? 'trading' : 'paused';
+    return { ...vendor, isActive: active, standing, standingLabel: STANDING_LABELS[standing] };
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({
       sentThisMonth: INVITES_SENT_THIS_MONTH + this.invited.size,
@@ -870,6 +903,8 @@ export class InMemoryVendorRepository extends VendorRepository {
       appliedLabel: null,
       staff: invite.contactName ? [invite.contactName] : [],
       staffCount: invite.contactName ? 1 : 0,
+      // Skipping the review opens it; otherwise it waits for an admin's switch.
+      isActive: invite.skipApplicationReview,
       standing: 'invited',
       standingLabel: STANDING_LABELS.invited,
     };

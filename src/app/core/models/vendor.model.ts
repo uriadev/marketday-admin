@@ -49,6 +49,15 @@ export interface VendorSummary {
   /** How many people hold a seat — the authoritative team size, whether or not
    *  {@link staff} names are loaded (`VendorModel.memberCount`). */
   staffCount: number;
+  /**
+   * Whether the business is live at all (`VendorModel.isActive`) — what the
+   * directory's row menu activates and deactivates. An inactive vendor cannot
+   * take an order and drops out of search — its stalls stay on their market
+   * rosters, shown as unavailable — which is what "Paused" in {@link standing}
+   * reads as. Not whether a stall is taking orders right now: that is per market
+   * and lives on the Markets tab.
+   */
+  isActive: boolean;
   standing: VendorStanding;
   /** "Trading", "Fee unpaid ×1", "Paused". `null` while pending — the row
    *  offers a Review button in place of a badge. */
@@ -365,7 +374,11 @@ export interface VendorInvite {
   trade: string;
   /** Slugs of the markets they may apply to. Empty means every market. */
   marketSlugs: readonly string[];
-  /** On, they can book a stall the moment they sign up. */
+  /**
+   * On, the vendor is created active and trades at once. Off, it is created
+   * inactive — recorded, owned, joined to its markets, but unable to take an
+   * order — until an admin activates it from the directory. It is `CreateVendorInput.isActive`, one for one.
+   */
   skipApplicationReview: boolean;
   /** Shown above the sign-up button in the invitation email. */
   note: string;

@@ -34,6 +34,12 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
     applicationCount: 0,
     vendorCount: 0,
   });
+  /** Slugs with an activate / deactivate in flight, so each row stops taking clicks on its own. */
+  private readonly _pending = signal<ReadonlySet<string>>(new Set());
+  private readonly _commandError = signal<string | null>(null);
+
+  /** Why the last activate / deactivate was refused, or `null`. */
+  readonly commandError = this._commandError.asReadonly();
 
   constructor() {
     super(EMPTY_VENDOR_FILTERS);
@@ -74,6 +80,56 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
   });
 
   readonly hasActiveFilters = computed(() => hasVendorFilters(this.filters()));
+
+  /** Whether this vendor's activate / deactivate is waiting on the server. */
+  isPending(vendor: VendorSummary): boolean {
+    return this._pending().has(vendor.slug);
+  }
+
+  /**
+   * Activates or deactivates a vendor. Not optimistic: the row on screen changes
+   * only once the server has agreed — a refusal leaves it where it was, with the
+   * reason in {@link commandError}, rather than showing a state the backend
+   * never stored.
+   *
+   * The row is swapped for the one the server answers with. The Paused filter
+   * is the only one this can change, so the page is read again only when it is
+   * on — a row that no longer matches has to leave, and the count under the
+   * paginator moved with it. `onDone` runs with that row, on success only.
+   */
+  setActive(
+    vendor: VendorSummary,
+    active: boolean,
+    onDone: (updated: VendorSummary) => void = () => undefined,
+  ): void {
+    if (this.isPending(vendor)) return;
+    this._commandError.set(null);
+    this.markPending(vendor.slug, true);
+
+    this.repo.setActive(vendor.slug, active).subscribe({
+      next: (row) => {
+        this.replaceAll(this.items().map((item) => (item.id === row.id ? row : item)));
+        this.markPending(vendor.slug, false);
+        if (this.filters().paused) this.load();
+        onDone(row);
+      },
+      error: (cause: unknown) => {
+        this._commandError.set(
+          cause instanceof Error ? cause.message : 'That vendor could not be updated.',
+        );
+        this.markPending(vendor.slug, false);
+      },
+    });
+  }
+
+  private markPending(slug: string, pending: boolean): void {
+    this._pending.update((current) => {
+      const next = new Set(current);
+      if (pending) next.add(slug);
+      else next.delete(slug);
+      return next;
+    });
+  }
 
   /**
    * Nothing matched, but the directory is not empty — the state that offers a

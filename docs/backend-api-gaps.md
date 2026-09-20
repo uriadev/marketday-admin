@@ -170,18 +170,35 @@ found while reading the same code, unrelated to what's missing.
    One person holds at most one seat, so naming someone who already owns a vendor is refused,
    naming them: `dervla@… already belongs to a vendor`.
 
-   **Still open: skipping application review.** Design 1n's toggle used to land on
-   `CreateVendorInput.isAcceptingOrders` — review required → created paused. The backend has
-   since replaced that vendor-wide flag with per-(vendor, market) order windows
+   **Closed: skipping application review.** Design 1n's toggle used to land on
+   `CreateVendorInput.isAcceptingOrders` — review required → created paused. The backend
+   replaced that vendor-wide flag with per-(vendor, market) order windows
    (`../backend/specs/per-market-order-windows.md`): `orderLeadHours` per stall and a manual
-   pause that **clears itself** at the end of the market day it was tapped on, so nothing is
-   left that can hold "not approved yet". The backend spec suggests creating an unapproved
-   vendor with no `marketIds` instead; the console does not, because that drops the markets the
-   admin picked, and `joinMarket` is owner-only — the owner would approve themselves by joining.
-   So the toggle is **disabled** and every vendor is created trading at the picked markets
-   (`orderLeadHours` left at the default 48). What would close it: an approval state on
-   `vendor_markets` (or `vendors`) with an admin-scoped approve/decline, which is also what
-   `Market.reviewApplications` is waiting for.
+   pause that **clears itself** at the end of the market day it was tapped on, so nothing was
+   left that could hold "not approved yet". `vendors.isActive` can, and it needed two **backend**
+   changes, made here:
+
+   - `CreateVendorInput` grew `isActive` (nullable, default live — so a self-signup and any
+     client that never heard of it create vendors exactly as before). The toggle sends it
+     straight through: skip review → `true`, keep review → `false`. A vendor created `false` is
+     still seated and joined to the markets the admin picked; it is refused at
+     checkout (`VENDOR_UNAVAILABLE`) and dropped from search until it is switched on. Its stalls
+     stay on their market rosters, which the mobile app already shows as "No longer available" —
+     `vendors(marketId:)` does not filter `isActive`, since it relied on account deletion removing
+     the stall rows. Hiding an inactive vendor from the roster too is one `andWhere` in
+     `pageByMarket`, but the admin console reads the same query for its market roster. That also answers the
+     old objection to creating it with no `marketIds` — that `joinMarket` is owner-only, so the
+     owner would approve themselves by joining: approval is now `isActive`, not a join.
+   - `updateVendor` refuses `isActive` from a vendor member (`VendorAccessDenied`), where it
+     used to accept it from an owner. `UpdateVendorInput.isActive` already existed, but with
+     `updateVendor` open to `@Roles(VENDOR)` an owner could have reopened a business an admin
+     had closed — approving themselves. ADMIN is the only caller that may send it. The mobile app
+     never sends `isActive`, so nothing there changes.
+
+   The directory switches it from each row's ⋮ menu (**Activate vendor** / **Deactivate
+   vendor**), one `updateVendor(id, { isActive })` and nothing else. What is still not modelled
+   is an application itself — a submitted form, a decline, a reason — which is also what
+   `Market.reviewApplications` is waiting for; "Applications" in the directory stays empty.
 
    The console reads the new windows but cannot write them. `vendorOrderWindow(vendorId:,
    marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one call per
