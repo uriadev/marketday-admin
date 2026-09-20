@@ -20,11 +20,14 @@ import {
   ADMIN_VENDORS,
   ADMIN_VENDOR_MEMBERS,
   CREATE_VENDOR,
+  JOIN_MARKET,
+  LEAVE_MARKET,
   MARKET_IDS,
   UPDATE_VENDOR,
   VENDOR_BY_ID,
   VENDOR_ORDER_WINDOW,
 } from './operations/vendor';
+import { blankToNull } from './mappers/nullable';
 import { GqlOrderWindow } from './mappers/order-window-mapper';
 import {
   GqlVendor,
@@ -43,6 +46,10 @@ import {
   CriteriaInput,
   FilterInput,
   FilterOperator,
+  JoinMarketMutation,
+  JoinMarketMutationVariables,
+  LeaveMarketMutation,
+  LeaveMarketMutationVariables,
   MarketIdsQuery,
   OrderDirection,
   UpdateVendorMutation,
@@ -305,11 +312,8 @@ export class GraphqlVendorRepository extends VendorRepository {
           input: {
             name,
             category: patch.category,
-            description: patch.description,
-            // Sent as an explicit `null` when the photo was cleared: omitting
-            // the field reads as "leave it alone" server-side, which would keep
-            // a picture the admin just removed.
-            imageUrl: patch.imageUrl,
+            description: blankToNull(patch.description),
+            imageUrl: blankToNull(patch.imageUrl),
           },
         }),
       ),
@@ -339,6 +343,50 @@ export class GraphqlVendorRepository extends VendorRepository {
         }),
       ),
       map((result) => toVendorSummary(result.updateVendor)),
+    );
+  }
+
+  /**
+   * Puts an existing vendor on a market's roster through `joinMarket`, which
+   * grew an `vendorId` argument and an ADMIN branch for exactly this — until
+   * then the only membership an admin could write was one `createVendor` made
+   * at creation time (`docs/backend-api-gaps.md` #9).
+   *
+   * Both ids are looked up here rather than passed in: the console routes by
+   * slug throughout, and ports do not read each other
+   * (`../../../../../docs/ARCHITECTURE.md` §1), so this adapter resolves the
+   * market the same way {@link invite} does. An unknown slug on either side is
+   * an error rather than a silent no-op.
+   *
+   * The answer is discarded — see the port for why the callers reload instead.
+   */
+  override addToMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    return this.stallIds(vendorSlug, marketSlug).pipe(
+      switchMap(({ vendorId, marketId }) =>
+        this.client.request<JoinMarketMutation, JoinMarketMutationVariables>(JOIN_MARKET, {
+          vendorId,
+          marketId,
+        }),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
+   * Takes the stall away again through `leaveMarket`. Destructive server-side
+   * — the row carries this market's lead time and pause, and the vendor's
+   * listings here go with it — so the screens confirm before calling this; the
+   * adapter just sends it.
+   */
+  override removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    return this.stallIds(vendorSlug, marketSlug).pipe(
+      switchMap(({ vendorId, marketId }) =>
+        this.client.request<LeaveMarketMutation, LeaveMarketMutationVariables>(LEAVE_MARKET, {
+          vendorId,
+          marketId,
+        }),
+      ),
+      map(() => undefined),
     );
   }
 
@@ -397,9 +445,9 @@ export class GraphqlVendorRepository extends VendorRepository {
             // Review required → created inactive. Always sent, `false` included:
             // omitting it would mean "live", the opposite of what was asked.
             isActive: invite.skipApplicationReview,
-            // Omitted rather than sent empty: an empty list and "no scope" are
-            // the same thing to the backend, and `marketIds` is nullable.
-            ...(marketIds.length > 0 ? { marketIds } : {}),
+            // `null`, not `[]`: no market picked is "no scope", and `marketIds`
+            // is nullable — an empty list would read as a real, empty one.
+            marketIds: marketIds.length > 0 ? marketIds : null,
           },
         }),
       ),
@@ -567,6 +615,22 @@ export class GraphqlVendorRepository extends VendorRepository {
         }),
       ),
     );
+  }
+
+  /**
+   * The pair `joinMarket` and `leaveMarket` want, from the two slugs the
+   * screens hold. Resolved together so a market the console does not know
+   * fails before the vendor lookup has any bearing on the answer — either way
+   * nothing is sent.
+   */
+  private stallIds(
+    vendorSlug: string,
+    marketSlug: string,
+  ): Observable<{ vendorId: string; marketId: string }> {
+    return forkJoin({
+      vendorId: this.resolveId(vendorSlug),
+      marketIds: this.resolveMarketIds([marketSlug]),
+    }).pipe(map(({ vendorId, marketIds }) => ({ vendorId, marketId: marketIds[0]! })));
   }
 
   /** Refills the slug → id map from `adminVendors` when asked for an unknown slug. */

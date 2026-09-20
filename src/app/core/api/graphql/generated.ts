@@ -432,11 +432,13 @@ export type MutationInviteVendorMemberArgs = {
 
 export type MutationJoinMarketArgs = {
   marketId: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
 export type MutationLeaveMarketArgs = {
   marketId: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -1576,3 +1578,19 @@ export type UpdateVendorMutationVariables = Exact<{
 
 
 export type UpdateVendorMutation = { __typename?: 'Mutation', updateVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } };
+
+export type JoinMarketMutationVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+  marketId: Scalars['ID']['input'];
+}>;
+
+
+export type JoinMarketMutation = { __typename?: 'Mutation', joinMarket: { __typename?: 'VendorModel', id: string, slug: string } };
+
+export type LeaveMarketMutationVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+  marketId: Scalars['ID']['input'];
+}>;
+
+
+export type LeaveMarketMutation = { __typename?: 'Mutation', leaveMarket: { __typename?: 'VendorModel', id: string, slug: string } };

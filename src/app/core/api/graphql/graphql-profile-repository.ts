@@ -5,6 +5,7 @@ import { ProfileRepository } from '../ports/profile-repository';
 import { AdminProfile, AdminProfilePatch } from '../../models/admin-user.model';
 import { GraphqlClient } from './graphql-client';
 import { ME, REQUEST_PASSWORD_RESET, UPDATE_ME } from './operations/profile';
+import { blankToNull } from './mappers/nullable';
 import { defaultLocalOnly, joinName, toAdminProfile } from './mappers/profile-mapper';
 import {
   MeQuery,
@@ -48,8 +49,8 @@ export class GraphqlProfileRepository extends ProfileRepository {
     const vars: UpdateMeMutationVariables = {
       input: {
         fullName: joinName(patch.firstName, patch.lastName),
-        phone: patch.phone || undefined,
-        avatarUrl: patch.avatarUrl ?? undefined,
+        phone: blankToNull(patch.phone),
+        avatarUrl: blankToNull(patch.avatarUrl),
       },
     };
     return this.client.request<UpdateMeMutation, UpdateMeMutationVariables>(UPDATE_ME, vars).pipe(

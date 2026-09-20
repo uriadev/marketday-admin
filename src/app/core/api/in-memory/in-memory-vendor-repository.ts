@@ -771,6 +771,13 @@ export class InMemoryVendorRepository extends VendorRepository {
   private readonly activeOverrides = new Map<string, boolean>();
 
   /**
+   * Market memberships added and dropped this session, keyed by vendor slug and
+   * held as the short labels a row's chips carry. Laid over the constant rows
+   * the same way {@link activeOverrides} is.
+   */
+  private readonly marketOverrides = new Map<string, readonly string[]>();
+
+  /**
    * The fixture holds the whole directory, so every filter is honoured here
    * and the page is cut from what matched — the same answer a server-paged
    * backend gives, arrived at the only way a fixture can. The facets are the
@@ -869,10 +876,58 @@ export class InMemoryVendorRepository extends VendorRepository {
    * off and on again brings back "Fee unpaid" rather than a generic "Trading".
    */
   private withActiveOverride(vendor: VendorSummary): VendorSummary {
+    const markets = this.marketOverrides.get(vendor.slug);
+    const row = markets === undefined ? vendor : { ...vendor, markets };
     const active = this.activeOverrides.get(vendor.slug);
-    if (active === undefined || active === vendor.isActive) return vendor;
+    if (active === undefined || active === row.isActive) return row;
     const standing: VendorStanding = active ? 'trading' : 'paused';
-    return { ...vendor, isActive: active, standing, standingLabel: STANDING_LABELS[standing] };
+    return { ...row, isActive: active, standing, standingLabel: STANDING_LABELS[standing] };
+  }
+
+  override addToMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    return this.editMarkets(vendorSlug, marketSlug, (labels, label) =>
+      // A vendor already trading there is left as it is, as the real
+      // `joinMarket` is idempotent.
+      labels.includes(label) ? labels : [...labels, label],
+    );
+  }
+
+  override removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    return this.editMarkets(vendorSlug, marketSlug, (labels, label) => {
+      if (!labels.includes(label)) {
+        throw new Error(`That vendor does not trade at ${label}.`);
+      }
+      return labels.filter((candidate) => candidate !== label);
+    });
+  }
+
+  /**
+   * The membership half of the session overrides. Both slugs are resolved
+   * against the fixtures first, so an unknown one is refused rather than
+   * recorded — the same refusal the real adapter's slug lookups make.
+   */
+  private editMarkets(
+    vendorSlug: string,
+    marketSlug: string,
+    edit: (labels: readonly string[], label: string) => readonly string[],
+  ): Observable<void> {
+    const vendor =
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === vendorSlug) ??
+      this.invited.get(vendorSlug);
+    if (!vendor) {
+      return throwError(() => new Error(`No vendor matches “${vendorSlug}”.`)).pipe(delay(300));
+    }
+    const label = MARKET_LABELS[marketSlug];
+    if (!label) {
+      return throwError(() => new Error(`No market matches “${marketSlug}”.`)).pipe(delay(300));
+    }
+    try {
+      const current = this.marketOverrides.get(vendorSlug) ?? vendor.markets;
+      this.marketOverrides.set(vendorSlug, edit(current, label));
+    } catch (cause: unknown) {
+      return throwError(() => cause).pipe(delay(300));
+    }
+    return of(undefined).pipe(delay(300));
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {

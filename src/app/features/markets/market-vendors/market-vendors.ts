@@ -10,6 +10,7 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -18,6 +19,10 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+} from '../../../shared/components/confirm-dialog/confirm-dialog';
 import { Avatar } from '../../../shared/components/avatar/avatar';
 import { EmptyState } from '../../../shared/components/empty-state/empty-state';
 import { FacePile } from '../../../shared/components/face-pile/face-pile';
@@ -29,7 +34,12 @@ import {
   MarketVendorFilters,
   MarketVendorToggle,
 } from '../../../core/models/market.model';
+import { VendorRepository } from '../../../core/api/ports/vendor-repository';
+import { VendorSummary } from '../../../core/models/vendor.model';
+import { Notifications } from '../../../core/notifications/notifications';
+import { MarketDetailFacade } from '../market-detail-facade';
 import { MarketVendorsStore } from '../market-vendors-store';
+import { AddVendorDialog, AddVendorDialogData } from '../add-vendor-dialog/add-vendor-dialog';
 
 /** A page you can take in without scrolling the table, as the directory does. */
 const PAGE_SIZE = 25;
@@ -40,9 +50,15 @@ const PAGE_SIZE = 25;
  *
  * It is the vendor directory (design 1a) narrowed to one market, so it keeps
  * that screen's row anatomy and links every row back to the vendor's own
- * record rather than duplicating it. Nothing here writes: assigning a pitch,
- * pausing a membership and reviewing an application all belong to screens that
- * do not exist yet, so those actions read as coming soon.
+ * record rather than duplicating it.
+ *
+ * The one thing it writes is the roster itself — who trades here. **Add
+ * existing vendor** puts a business already on MarketDay onto this market, and
+ * a row's **Remove from this market** takes it off again; both go through
+ * `VendorRepository`, which sends the `joinMarket` / `leaveMarket` pair that
+ * grew an ADMIN branch for this screen. Assigning a pitch, pausing a
+ * membership and reviewing an application still belong to screens that do not
+ * exist yet, so those actions read as coming soon.
  */
 @Component({
   selector: 'md-market-vendors',
@@ -55,6 +71,7 @@ const PAGE_SIZE = 25;
     StatusPill,
     MatButtonModule,
     MatChipsModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -79,6 +96,11 @@ export class MarketVendors {
 
   protected readonly store = inject(MarketVendorsStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+  private readonly vendors = inject(VendorRepository);
+  private readonly notifications = inject(Notifications);
+  /** Provided at the parent `:slug` route — the shell's load, for the tab badge. */
+  private readonly detail = inject(MarketDetailFacade);
 
   protected readonly toggles = MARKET_VENDOR_TOGGLES;
   protected readonly columns = ['vendor', 'stall', 'fee', 'staff', 'status', 'actions'];
@@ -156,6 +178,77 @@ export class MarketVendors {
   protected onPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
     this.pageSize.set(event.pageSize);
+  }
+
+  /* ── Roster ────────────────────────────────────────────────────────────── */
+
+  /** This market, named in the dialogs. The slug is the fallback pre-load. */
+  private marketName(): string {
+    return this.detail.market()?.name ?? this.slug();
+  }
+
+  protected addVendor(): void {
+    const data: AddVendorDialogData = {
+      marketName: this.marketName(),
+      onRosterSlugs: this.store.items().map((vendor) => vendor.slug),
+    };
+    this.dialog
+      .open<AddVendorDialog, AddVendorDialogData, VendorSummary>(AddVendorDialog, {
+        data,
+        width: '520px',
+      })
+      .afterClosed()
+      .subscribe((vendor) => {
+        if (!vendor) return;
+        this.vendors.addToMarket(vendor.slug, this.slug()).subscribe({
+          next: () => {
+            this.refresh();
+            this.notifications.success(`${vendor.name} now trades at ${this.marketName()}.`);
+          },
+          error: (cause: unknown) =>
+            this.notifications.error(
+              cause instanceof Error ? cause.message : `${vendor.name} could not be added.`,
+            ),
+        });
+      });
+  }
+
+  protected removeVendor(vendor: MarketVendor): void {
+    const data: ConfirmDialogData = {
+      title: `Remove ${vendor.name} from ${this.marketName()}?`,
+      body:
+        `They stop trading here straight away. This market’s order lead time, any pause on ` +
+        `the stall and the products they list here go with it — rejoining starts from the ` +
+        `defaults. The vendor itself, its team and its other markets are untouched.`,
+      confirmLabel: 'Remove from market',
+      cancelLabel: 'Keep them',
+    };
+    this.dialog
+      .open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data, width: '480px' })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.vendors.removeFromMarket(vendor.slug, this.slug()).subscribe({
+          next: () => {
+            this.refresh();
+            this.notifications.success(`${vendor.name} no longer trades at ${this.marketName()}.`);
+          },
+          error: (cause: unknown) =>
+            this.notifications.error(
+              cause instanceof Error ? cause.message : `${vendor.name} could not be removed.`,
+            ),
+        });
+      });
+  }
+
+  /**
+   * Both reads the membership changed. The roster is this tab's own, and the
+   * shell's `detail()` carries the count in the Vendors tab badge — without
+   * the second call the badge keeps the number it was rendered with.
+   */
+  private refresh(): void {
+    this.store.load();
+    this.detail.load(this.slug());
   }
 
   /* ── Cells ─────────────────────────────────────────────────────────────── */

@@ -34,7 +34,9 @@ import { GraphqlVendorRepository } from './graphql/graphql-vendor-repository';
  * and restores for real. `adminVendors` closed #2 and
  * a `slug` field closed #10; `createVendor` (`@Roles(ADMIN)`) makes the invite
  * screen's create real, owner and all (#9), and `updateVendor` grew an ADMIN
- * branch so the Profile tab's save persists too (#7). Only the *invitation*
+ * branch so the Profile tab's save persists too (#7); `joinMarket`/`leaveMarket`
+ * grew the same branch, so an existing vendor can be added to a market and
+ * taken off again from either side of the relation. Only the *invitation*
  * itself is still unwired (`GraphqlVendorRepository` documents which and why).
  * Products' write mutations were widened to `@Roles(VENDOR, ADMIN)` server-side
  * (#7 as well), so `GraphqlProductRepository` runs the grid and the form

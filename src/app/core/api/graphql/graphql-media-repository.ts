@@ -83,7 +83,7 @@ export class GraphqlMediaRepository extends MediaRepository {
         return this.client
           .request<CreateVendorImageUploadUrlMutation, CreateVendorImageUploadUrlMutationVariables>(
             CREATE_VENDOR_IMAGE_UPLOAD_URL,
-            { mimeType, vendorId },
+            { mimeType, vendorId: vendorId ?? null },
           )
           .pipe(map((r): UploadUrlResult => r.createVendorImageUploadUrl));
       case 'product-image':
@@ -91,7 +91,7 @@ export class GraphqlMediaRepository extends MediaRepository {
           .request<
             CreateProductImageUploadUrlMutation,
             CreateProductImageUploadUrlMutationVariables
-          >(CREATE_PRODUCT_IMAGE_UPLOAD_URL, { mimeType, vendorId })
+          >(CREATE_PRODUCT_IMAGE_UPLOAD_URL, { mimeType, vendorId: vendorId ?? null })
           .pipe(map((r): UploadUrlResult => r.createProductImageUploadUrl));
       case 'avatar':
         return this.client

@@ -16,6 +16,7 @@ import {
   UpdateProductInput,
   VendorProductsQuery,
 } from '../generated';
+import { blankToNull } from './nullable';
 
 /**
  * Ties every read to the schema via codegen — a field renamed on `ProductModel`
@@ -131,7 +132,7 @@ export function toProductInput(draft: ProductDraft): CreateProductInput & Update
     category: draft.category as unknown as GqlProductCategory,
     unit: draft.unit as unknown as GqlProductUnit,
     price: draft.price,
-    description: draft.description || null,
-    imageUrl: draft.imageUrl,
+    description: blankToNull(draft.description),
+    imageUrl: blankToNull(draft.imageUrl),
   };
 }

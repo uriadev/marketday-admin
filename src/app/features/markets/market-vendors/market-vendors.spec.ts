@@ -17,13 +17,94 @@ import {
   MarketDetail,
   MarketDraft,
   MarketRoster,
+  MarketVendor,
   MarketSchedulePatch,
   MarketSettingsPatch,
   MarketStallPlan,
   MarketSummary,
 } from '../../../core/models/market.model';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { VendorRepository } from '../../../core/api/ports/vendor-repository';
+import {
+  VendorDirectoryPage,
+  VendorInvite,
+  VendorInviteSummary,
+  VendorProfile,
+  VendorProfilePatch,
+  VendorSummary,
+} from '../../../core/models/vendor.model';
+import { VendorDetail as VendorDetailModel } from '../../../core/models/vendor.model';
+import { MarketDetailFacade } from '../market-detail-facade';
 import { MarketVendors } from './market-vendors';
 import { MarketVendorsStore } from '../market-vendors-store';
+
+/** A vendor not on Temple Bar's roster, as the picker hands one back. */
+const OUTSIDER: VendorSummary = {
+  id: 'vnd-outsider',
+  slug: 'nine-bean-rows',
+  name: 'Nine Bean Rows',
+  meta: 'Bakery · since 2019',
+  markets: [],
+  appliedLabel: null,
+  staff: [],
+  staffCount: 1,
+  isActive: true,
+  standing: 'trading',
+  standingLabel: 'Trading',
+};
+
+/** Records the membership writes; nothing else on this port is reached here. */
+class StubVendorRepository extends VendorRepository {
+  readonly added: [string, string][] = [];
+  readonly removed: [string, string][] = [];
+  /** Set to make the next write fail, the way a refusal arrives. */
+  refuse: string | null = null;
+
+  override addToMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    if (this.refuse) return throwError(() => new Error(this.refuse!));
+    this.added.push([vendorSlug, marketSlug]);
+    return of(undefined);
+  }
+
+  override removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    if (this.refuse) return throwError(() => new Error(this.refuse!));
+    this.removed.push([vendorSlug, marketSlug]);
+    return of(undefined);
+  }
+
+  override list(): Observable<VendorDirectoryPage> {
+    return of({
+      items: [OUTSIDER],
+      total: 1,
+      facets: { markets: [], applicationCount: 0, vendorCount: 1 },
+    });
+  }
+  override detail(): Observable<VendorDetailModel> {
+    return of({} as VendorDetailModel);
+  }
+  override profile(): Observable<VendorProfile> {
+    return of({} as VendorProfile);
+  }
+  override saveProfile(_slug: string, _patch: VendorProfilePatch): Observable<VendorProfile> {
+    return of({} as VendorProfile);
+  }
+  override setActive(): Observable<VendorSummary> {
+    return of(OUTSIDER);
+  }
+  override inviteSummary(): Observable<VendorInviteSummary> {
+    return of({} as VendorInviteSummary);
+  }
+  override invite(_invite: VendorInvite): Observable<VendorSummary> {
+    return of(OUTSIDER);
+  }
+}
+
+/** Stands in for the picker, so the screen's own write path is what is tested. */
+function pick<T>(value: T | undefined): void {
+  vi.spyOn(MatDialog.prototype, 'open').mockReturnValue({
+    afterClosed: () => of(value),
+  } as MatDialogRef<unknown, T>);
+}
 
 /**
  * The shipped fixture, answered synchronously — the specs assert on Temple
@@ -91,6 +172,30 @@ function text(fixture: { nativeElement: unknown }): string {
   return (fixture.nativeElement as HTMLElement).textContent ?? '';
 }
 
+function buttons(fixture: { nativeElement: unknown }): HTMLButtonElement[] {
+  return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+}
+
+function click(fixture: { nativeElement: unknown; detectChanges(): void }, label: string): void {
+  const button = buttons(fixture).find((candidate) => candidate.textContent?.includes(label));
+  if (!button) throw new Error(`No button labelled \u201c${label}\u201d.`);
+  button.click();
+  fixture.detectChanges();
+}
+
+/**
+ * The row menu lives in a `mat-menu` template, so its items only exist once it
+ * is opened — more machinery than this is worth. The command behind the item
+ * is what the tests are about, so they call it the way the menu does.
+ */
+function remove(
+  fixture: { componentInstance: unknown; detectChanges(): void },
+  vendor: MarketVendor,
+): void {
+  (fixture.componentInstance as { removeVendor(v: MarketVendor): void }).removeVendor(vendor);
+  fixture.detectChanges();
+}
+
 function rowNames(fixture: { nativeElement: unknown }): string[] {
   const host = fixture.nativeElement as HTMLElement;
   return Array.from(host.querySelectorAll('.vendor-name')).map(
@@ -106,7 +211,9 @@ describe('MarketVendors', () => {
         provideRouter([]),
         provideNoopAnimations(),
         MarketVendorsStore,
+        MarketDetailFacade,
         { provide: MarketRepository, useClass: StubMarketRepository },
+        { provide: VendorRepository, useClass: StubVendorRepository },
       ],
     }).compileComponents();
   });
@@ -219,5 +326,72 @@ describe('MarketVendors', () => {
     const invite = host.querySelector('a[href^="/vendors/invite"]');
 
     expect(invite?.getAttribute('href')).toBe('/vendors/invite?market=temple-bar');
+  });
+
+  it('offers adding a vendor that already exists, beside inviting a new one', () => {
+    const fixture = open('temple-bar');
+    const labels = buttons(fixture).map((button) => button.textContent ?? '');
+
+    expect(labels.some((label) => label.includes('Add existing vendor'))).toBe(true);
+  });
+
+  it('adds the picked vendor to this market, and re-reads both screens', () => {
+    const fixture = open('temple-bar');
+    const vendors = TestBed.inject(VendorRepository) as StubVendorRepository;
+    const roster = vi.spyOn(TestBed.inject(MarketVendorsStore), 'load');
+    // The tab badge counts members off the shell's read, not the roster's.
+    const shell = vi.spyOn(TestBed.inject(MarketDetailFacade), 'load');
+    pick(OUTSIDER);
+
+    click(fixture, 'Add existing vendor');
+
+    expect(vendors.added).toEqual([['nine-bean-rows', 'temple-bar']]);
+    expect(roster).toHaveBeenCalled();
+    expect(shell).toHaveBeenCalledWith('temple-bar');
+  });
+
+  it('writes nothing when the picker is dismissed', () => {
+    const fixture = open('temple-bar');
+    const vendors = TestBed.inject(VendorRepository) as StubVendorRepository;
+    pick(undefined);
+
+    click(fixture, 'Add existing vendor');
+
+    expect(vendors.added).toEqual([]);
+  });
+
+  it('leaves the roster alone when the write is refused', () => {
+    const fixture = open('temple-bar');
+    const vendors = TestBed.inject(VendorRepository) as StubVendorRepository;
+    vendors.refuse = 'Forbidden';
+    const roster = vi.spyOn(TestBed.inject(MarketVendorsStore), 'load');
+    pick(OUTSIDER);
+
+    click(fixture, 'Add existing vendor');
+
+    expect(vendors.added).toEqual([]);
+    expect(roster).not.toHaveBeenCalled();
+  });
+
+  it('removes a member from this market once the removal is confirmed', () => {
+    const fixture = open('temple-bar');
+    const vendors = TestBed.inject(VendorRepository) as StubVendorRepository;
+    const member = TestBed.inject(MarketVendorsStore).items()[0]!;
+    pick(true);
+
+    remove(fixture, member);
+
+    expect(vendors.removed).toEqual([[member.slug, 'temple-bar']]);
+  });
+
+  it('keeps the member when the removal is not confirmed', () => {
+    const fixture = open('temple-bar');
+    const vendors = TestBed.inject(VendorRepository) as StubVendorRepository;
+    const member = TestBed.inject(MarketVendorsStore).items()[0]!;
+    pick(false);
+
+    remove(fixture, member);
+
+    expect(vendors.removed).toEqual([]);
   });
 });

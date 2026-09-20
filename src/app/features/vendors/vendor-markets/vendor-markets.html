@@ -21,7 +21,7 @@
 
       <div class="flex items-center justify-between gap-4">
         <span class="text-title-medium font-bold text-on-surface">Market memberships</span>
-        <button matButton type="button" disabled matTooltip="Coming soon">
+        <button matButton="tonal" type="button" (click)="addMarket()">
           <mat-icon>add</mat-icon>
           Add to a market
         </button>
@@ -54,6 +54,15 @@
                 <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
                   Manage membership
                 </button>
+                <button
+                  matIconButton
+                  type="button"
+                  [attr.aria-label]="'Remove from ' + membership.market"
+                  matTooltip="Remove from this market"
+                  (click)="removeMembership(membership)"
+                >
+                  <mat-icon>remove_circle_outline</mat-icon>
+                </button>
               </div>
             </div>
 
@@ -70,8 +79,10 @@
         <md-empty-state
           icon="storefront"
           headline="Not trading at any market yet"
-          body="Once an organiser approves an application, the membership shows up here."
-        />
+          body="Add them to a market, or wait for an organiser to approve an application, and the membership shows up here."
+        >
+          <button matButton="filled" type="button" (click)="addMarket()">Add to a market</button>
+        </md-empty-state>
       }
     </div>
 

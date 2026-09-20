@@ -30,6 +30,7 @@ import {
   MarketVendorsForRosterQuery,
   UpdateMarketInput as GqlUpdateMarketInput,
 } from '../generated';
+import { blankToNull } from './nullable';
 import { isPausedAt } from './order-window-mapper';
 
 /**
@@ -260,8 +261,8 @@ export interface UpdateMarketVariables {
  * the same type. Both are string enums over the same value domain, so the
  * member itself casts straight across.
  */
-function toGqlMarketType(type: MarketType | null): GqlMarketType | undefined {
-  return type ? (type as unknown as GqlMarketType) : undefined;
+function toGqlMarketType(type: MarketType | null): GqlMarketType | null {
+  return type ? (type as unknown as GqlMarketType) : null;
 }
 
 /**
@@ -280,13 +281,13 @@ export function toCreateVariables(draft: MarketDraft, publish: boolean): CreateM
       longitude: draft.longitude ?? 0,
       schedule: draft.schedule,
       duration: draft.duration,
-      description: draft.description,
-      imageUrl: draft.imageUrl,
-      bannerImageUrl: draft.bannerUrl,
+      description: blankToNull(draft.description),
+      imageUrl: blankToNull(draft.imageUrl),
+      bannerImageUrl: blankToNull(draft.bannerUrl),
       marketType: toGqlMarketType(draft.marketType),
-      organiserName: draft.organiserName,
-      organiserPhone: draft.organiserPhone,
-      stallFeePerDay: draft.stallFeePerDay,
+      organiserName: blankToNull(draft.organiserName),
+      organiserPhone: blankToNull(draft.organiserPhone),
+      stallFeePerDay: draft.stallFeePerDay ?? null,
       reviewApplications: draft.reviewApplications,
       status: publish ? GqlMarketStatus.Published : GqlMarketStatus.Draft,
     },
@@ -312,15 +313,17 @@ export function toUpdateVariablesFromSettings(
       slug: patch.slug,
       address: patch.address,
       city: patch.city,
+      // The one pair left `undefined` rather than `null`: a market always has a
+      // location, so "no pin" means "leave the stored one" — never "clear it".
       latitude: patch.latitude ?? undefined,
       longitude: patch.longitude ?? undefined,
-      description: patch.description,
-      imageUrl: patch.imageUrl,
-      bannerImageUrl: patch.bannerUrl,
+      description: blankToNull(patch.description),
+      imageUrl: blankToNull(patch.imageUrl),
+      bannerImageUrl: blankToNull(patch.bannerUrl),
       marketType: toGqlMarketType(patch.marketType),
-      organiserName: patch.organiserName,
-      organiserPhone: patch.organiserPhone,
-      stallFeePerDay: patch.stallFeePerDay,
+      organiserName: blankToNull(patch.organiserName),
+      organiserPhone: blankToNull(patch.organiserPhone),
+      stallFeePerDay: patch.stallFeePerDay ?? null,
       reviewApplications: patch.reviewApplications,
     },
   };

@@ -28,14 +28,22 @@ and dropped from search (its stalls stay on their market rosters, which clients 
 longer available") — until an admin chooses **Activate vendor** in that row's ⋮ menu on the
 directory, which sends `updateVendor(id, { isActive })` alone (**Deactivate vendor** is the same
 call the other way). `isActive` is admin-only on `updateVendor` server-side, so an owner cannot
-reopen what an admin closed. What the invite screen still has no endpoint for is the invitation
+reopen what an admin closed. A vendor that already exists can be **put on another market's
+roster**: `joinMarket` and `leaveMarket` grew a nullable `vendorId` and `@Roles(ADMIN, VENDOR)`
+(the `updateVendor` treatment — an owner omits it and reaches their own business, an admin names
+the vendor), which the market's Vendors tab drives with **Add existing vendor** / **Remove from
+this market** and the vendor's Markets tab with **Add to a market** / a remove per membership
+card. Joining is idempotent; leaving is destructive — it takes that market's order lead time,
+any live pause and the vendor's product listings there with it — so both screens confirm first.
+What the invite screen still has no endpoint for is the invitation
 itself (no email is sent; the owner gets in via Forgot password); there is still no application
-*model* (no submitted form, no decline). Taking orders is **per (vendor, market)**
+_model_ (no submitted form, no decline). Taking orders is **per (vendor, market)**
 now (`../backend/specs/per-market-order-windows.md`): the Markets tab reads each membership's
 `vendorOrderWindow` (one call per market) and the market roster reads the `orderWindow` that
-`vendors(marketId:)` hydrates, so "paused" there means paused *at that market*; the directory's
+`vendors(marketId:)` hydrates, so "paused" there means paused _at that market_; the directory's
 Paused pill and filter mean `isActive = false`. An admin can read a stall's pause but not set it
-— `setVendorMarketAcceptingOrders` resolves the vendor from the caller's seat. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
+— `setVendorMarketAcceptingOrders` resolves the vendor from the caller's seat, which joining and
+leaving no longer do. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
 registered name, VAT, produce tags, contact block and address have no column at all, so the tab
 disables them and the adapter drops them. Products runs end-to-end — `products(vendorId:)`
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`

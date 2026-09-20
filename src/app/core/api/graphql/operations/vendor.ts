@@ -221,3 +221,42 @@ export const UPDATE_VENDOR = gql`
     }
   }
 `;
+
+/**
+ * Putting an existing vendor on a market's roster, and taking it off again —
+ * `@Roles(ADMIN, VENDOR)`.
+ *
+ * `vendorId` is what makes these usable here at all. Both mutations used to
+ * resolve the vendor from the caller's **seat**, and an admin holds none, so
+ * there was no way to write a membership for a business that already existed —
+ * `createVendor(input: { marketIds })` could only do it at creation time
+ * (`docs/backend-api-gaps.md` #9). The argument is nullable server-side: a
+ * vendor owner omits it and reaches their own business, an admin names the
+ * vendor and `@Roles` is the whole gate — the same shape `updateVendor` has.
+ *
+ * `joinMarket` is idempotent (the insert ignores a conflict), so re-adding a
+ * vendor already on the roster is a no-op that keeps any live pause rather
+ * than reopening a sold-out stall. `leaveMarket` is not reversible in kind:
+ * it deletes the stall's lead time, its pause and the vendor's product
+ * listings **at that market**, which is why both callers confirm first.
+ *
+ * A two-field projection: the console reloads its own screen afterwards (see
+ * `VendorRepository.addToMarket`), so nothing here is read back.
+ */
+export const JOIN_MARKET = gql`
+  mutation JoinMarket($vendorId: ID!, $marketId: ID!) {
+    joinMarket(vendorId: $vendorId, marketId: $marketId) {
+      id
+      slug
+    }
+  }
+`;
+
+export const LEAVE_MARKET = gql`
+  mutation LeaveMarket($vendorId: ID!, $marketId: ID!) {
+    leaveMarket(vendorId: $vendorId, marketId: $marketId) {
+      id
+      slug
+    }
+  }
+`;

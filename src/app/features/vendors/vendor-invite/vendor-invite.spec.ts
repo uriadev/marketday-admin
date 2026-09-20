@@ -116,6 +116,15 @@ class StubVendorRepository extends VendorRepository {
   override setActive(): Observable<VendorSummary> {
     return of(VENDORS_FIXTURE[0]!);
   }
+  /** Not a write these screens make; present so the port is satisfied. */
+  override addToMarket(): Observable<void> {
+    return of(undefined);
+  }
+
+  override removeFromMarket(): Observable<void> {
+    return of(undefined);
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: this.addedSoFar, linkValidDays: 14, reminderAfterDays: 5 });
   }

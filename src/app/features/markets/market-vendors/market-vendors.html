@@ -20,6 +20,10 @@
       <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
         Export roster
       </button>
+      <button matButton="tonal" type="button" (click)="addVendor()">
+        <mat-icon>storefront</mat-icon>
+        Add existing vendor
+      </button>
       <a
         matButton="filled"
         [routerLink]="['/vendors', 'invite']"
@@ -106,9 +110,13 @@
     <md-empty-state
       icon="storefront"
       headline="No vendors here yet"
-      body="Invite a vendor, or approve an application, and they show up on this roster."
+      body="Add a vendor already on MarketDay, or invite a new one, and they show up on this roster."
     >
-      <a matButton="filled" [routerLink]="['/vendors', 'invite']" [queryParams]="{ market: slug() }"
+      <button matButton="filled" type="button" (click)="addVendor()">Add existing vendor</button>
+      <a
+        matButton="outlined"
+        [routerLink]="['/vendors', 'invite']"
+        [queryParams]="{ market: slug() }"
         >Invite vendor</a
       >
     </md-empty-state>
@@ -204,6 +212,9 @@
               <a mat-menu-item [routerLink]="['/vendors', vendor.slug, 'products']">Products</a>
               <button mat-menu-item type="button" disabled>Move pitch</button>
               <button mat-menu-item type="button" disabled>Pause at this market</button>
+              <button mat-menu-item type="button" (click)="removeVendor(vendor)">
+                Remove from this market
+              </button>
             </mat-menu>
           </td>
         </ng-container>

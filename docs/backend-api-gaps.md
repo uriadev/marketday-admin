@@ -187,8 +187,9 @@ found while reading the same code, unrelated to what's missing.
      `vendors(marketId:)` does not filter `isActive`, since it relied on account deletion removing
      the stall rows. Hiding an inactive vendor from the roster too is one `andWhere` in
      `pageByMarket`, but the admin console reads the same query for its market roster. That also answers the
-     old objection to creating it with no `marketIds` — that `joinMarket` is owner-only, so the
-     owner would approve themselves by joining: approval is now `isActive`, not a join.
+     old objection to creating it with no `marketIds` — that `joinMarket` used to be owner-only, so the
+     owner would approve themselves by joining: approval is `isActive`, not a join, which is what
+     made it safe to open the join to admins too (below).
    - `updateVendor` refuses `isActive` from a vendor member (`VendorAccessDenied`), where it
      used to accept it from an owner. `UpdateVendorInput.isActive` already existed, but with
      `updateVendor` open to `@Roles(VENDOR)` an owner could have reopened a business an admin
@@ -200,14 +201,38 @@ found while reading the same code, unrelated to what's missing.
    is an application itself — a submitted form, a decline, a reason — which is also what
    `Market.reviewApplications` is waiting for; "Applications" in the directory stays empty.
 
-   The console reads the new windows but cannot write them. `vendorOrderWindow(vendorId:,
-   marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one call per
+   **Closed: putting an existing vendor on a market.** `createVendor(input: { marketIds })`
+   could only write a membership at creation time, so a business already on MarketDay could not
+   be added to another market from the console at all: `joinMarket(marketId:)` resolved the
+   vendor from the caller's **seat**, which an admin holds none of, and `UpdateVendorInput` has
+   no `marketIds`. One **backend** change closed it, made here:
+
+   - `joinMarket` and `leaveMarket` grew a nullable `vendorId: ID` argument and
+     `@Roles(ADMIN, VENDOR)` — the treatment `updateVendor` and `createVendorImageUploadUrl`
+     already had. A VENDOR caller omits it and reaches their own business, which they must still
+     own; an ADMIN names the vendor and the role guard is the whole gate. An id a member points
+     at another business is `Forbidden` rather than silently redirected to their own
+     (`targetVendorForStall` in `domain/seat.ts`), and an admin who names none is refused rather
+     than defaulted. The argument is nullable, so the mobile app calls both exactly as before —
+     the one behaviour change is that a BUYER is now refused by the guard rather than by the seat
+     lookup a step later, which is `Forbidden` either way.
+
+   The market's Vendors tab drives it with **Add existing vendor** and a row's **Remove from this
+   market**; the vendor's Markets tab does the same from the other end (**Add to a market**, and
+   a remove on each membership card). Removing is destructive server-side — the stall row carries
+   that market's order lead time and any live pause, and `LeaveMarket` drops the vendor's product
+   listings at that market in the same transaction — so both screens confirm first and say so.
+   Joining is idempotent (`INSERT … ON CONFLICT DO NOTHING`), so re-adding a vendor already on a
+   roster keeps any live pause rather than reopening a sold-out stall.
+
+   The console reads the order windows but still cannot write them. `vendorOrderWindow(vendorId:,
+marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one call per
    market because `vendor(id)` leaves `orderWindow` null; `vendors(marketId:)` hydrates
    `orderWindow` for the market roster. Both `setVendorMarketAcceptingOrders` and
    `setVendorMarketOrderLeadHours` resolve the vendor from the caller's seat, so an admin can
    neither pause a stall nor change its lead time — the market roster's "Pause at this market"
    stays disabled. An `adminVendorMarkets(vendorId:)` read and ADMIN branches on those two
-   mutations (the treatment `updateVendor` got) would close it.
+   mutations (the same treatment join and leave have now had) would close it.
 
    **Still open: the invitation itself.** There is no way to _tell_ the new owner. No endpoint
    emails a would-be owner — `inviteVendorMember` resolves the vendor from the caller
@@ -223,10 +248,10 @@ found while reading the same code, unrelated to what's missing.
    creates.
 
 10. ~~**`VendorModel` has no `slug`.**~~ **Closed.** `VendorModel.slug` is a real `String!`
-    field and `Create`/`UpdateVendorInput` both accept `slug`. `market-mapper.ts`'s
-    `toMarketRoster` still derives a slug client-side for the per-market roster rows because
-    that query (`vendors(marketId)`) selects a narrower projection — widen its selection to
-    `slug` to drop the derivation there too.
+    field and `Create`/`UpdateVendorInput` both accept `slug`. `vendors(marketId:)` selects it
+    too, so `market-mapper.ts`'s `toMarketRoster` carries the server's own slug rather than
+    deriving one — which is what lets a roster row address its vendor for *Remove from this
+    market*.
 
 11. **No `totalCount` on `adminMarkets`.** `MarketsService.filter` applies neither a `totalCount`
     nor a default `limit` — an omitted `criteria` is an unbounded scan. `vendors`/`products`

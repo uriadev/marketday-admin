@@ -13,10 +13,15 @@ import {
   VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
+  VendorMembership,
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
 } from '../../../core/models/vendor.model';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MarketRepository } from '../../../core/api/ports/market-repository';
+import { MARKETS_FIXTURE } from '../../../core/api/in-memory/market-fixture';
+import { MarketSummary } from '../../../core/models/market.model';
 import { VendorDetail } from '../vendor-detail/vendor-detail';
 import { VendorDetailFacade } from '../vendor-detail-facade';
 import { VendorMarkets } from './vendor-markets';
@@ -46,6 +51,19 @@ class StubVendorRepository extends VendorRepository {
   override setActive(): Observable<VendorSummary> {
     return of(VENDORS_FIXTURE[0]!);
   }
+  readonly added: [string, string][] = [];
+  readonly removed: [string, string][] = [];
+
+  override addToMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    this.added.push([vendorSlug, marketSlug]);
+    return of(undefined);
+  }
+
+  override removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void> {
+    this.removed.push([vendorSlug, marketSlug]);
+    return of(undefined);
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
   }
@@ -60,6 +78,20 @@ class StubVendorRepository extends VendorRepository {
   }
 }
 
+/** Only `list()` is reached — the picker reads the directory and nothing else. */
+class StubMarketRepository {
+  list(): Observable<readonly MarketSummary[]> {
+    return of(MARKETS_FIXTURE);
+  }
+}
+
+/** Stands in for the picker, so the tab's own write path is what is tested. */
+function pick<T>(value: T | undefined): void {
+  vi.spyOn(MatDialog.prototype, 'open').mockReturnValue({
+    afterClosed: () => of(value),
+  } as MatDialogRef<unknown, T>);
+}
+
 function configure(component: unknown) {
   return TestBed.configureTestingModule({
     imports: [component as never],
@@ -68,6 +100,7 @@ function configure(component: unknown) {
       provideNoopAnimations(),
       VendorDetailFacade,
       { provide: VendorRepository, useClass: StubVendorRepository },
+      { provide: MarketRepository, useClass: StubMarketRepository },
     ],
   }).compileComponents();
 }
@@ -180,5 +213,66 @@ describe('VendorMarkets tab', () => {
     expect(text).toContain('Organic cert · renews 30 Sep');
     expect(text).toContain('Suspend vendor');
     expect(text).toContain('Removes them from all 3 markets and signs out all 5 staff accounts.');
+  });
+
+  it('offers adding a market, where it used to say "coming soon"', () => {
+    TestBed.inject(VendorDetailFacade).load('mcnally-family-farm');
+
+    const fixture = TestBed.createComponent(VendorMarkets);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const add = Array.from(host.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Add to a market'),
+    );
+    expect(add).toBeDefined();
+    expect(add?.disabled).toBe(false);
+  });
+
+  it('adds the picked market to this vendor, and re-reads the record', () => {
+    const facade = TestBed.inject(VendorDetailFacade);
+    facade.load('mcnally-family-farm');
+
+    const fixture = TestBed.createComponent(VendorMarkets);
+    fixture.detectChanges();
+
+    const repo = TestBed.inject(VendorRepository) as StubVendorRepository;
+    const reload = vi.spyOn(facade, 'load');
+    pick(MARKETS_FIXTURE.find((market) => market.slug === 'kinsale-harbour'));
+
+    const host = fixture.nativeElement as HTMLElement;
+    const add = Array.from(host.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Add to a market'),
+    ) as HTMLButtonElement;
+    add.click();
+    fixture.detectChanges();
+
+    expect(repo.added).toEqual([['mcnally-family-farm', 'kinsale-harbour']]);
+    expect(reload).toHaveBeenCalledWith('mcnally-family-farm');
+  });
+
+  it('removes a membership once the removal is confirmed, and not before', () => {
+    const facade = TestBed.inject(VendorDetailFacade);
+    facade.load('mcnally-family-farm');
+
+    const fixture = TestBed.createComponent(VendorMarkets);
+    fixture.detectChanges();
+
+    const repo = TestBed.inject(VendorRepository) as StubVendorRepository;
+    const membership = MCNALLY_DETAIL.memberships[0]!;
+    // The button sits on a card, so the command behind it is called the way
+    // the template does rather than hunting the right one of several.
+    const tab = fixture.componentInstance as unknown as {
+      removeMembership(m: VendorMembership): void;
+    };
+
+    pick(false);
+    tab.removeMembership(membership);
+    expect(repo.removed).toEqual([]);
+
+    vi.restoreAllMocks();
+    pick(true);
+    tab.removeMembership(membership);
+    expect(repo.removed).toEqual([['mcnally-family-farm', membership.marketSlug]]);
   });
 });

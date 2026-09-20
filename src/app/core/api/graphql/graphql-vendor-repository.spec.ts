@@ -172,6 +172,8 @@ describe('GraphqlVendorRepository.invite', () => {
       ownerEmail: 'dervla@cooleacheese.ie',
       // The review is on by default, so the vendor is created held back.
       isActive: false,
+      // No market picked: an explicit null, not an omitted key.
+      marketIds: null,
     });
     request.flush({ data: { createVendor: CREATED } });
 
@@ -215,13 +217,13 @@ describe('GraphqlVendorRepository.invite', () => {
     expect(created?.standingLabel).toBe('Paused');
   });
 
-  it('omits marketIds entirely when no market was picked', () => {
-    // "No markets picked" means every market on this screen, and `marketIds`
-    // is nullable — an empty array would read as a real, empty scope.
+  it('sends marketIds as null when no market was picked', () => {
+    // `marketIds` is nullable, and an empty array would read as a real, empty
+    // scope — so an empty pick is `null`, present rather than omitted.
     repository.invite(invite()).subscribe();
 
     const { request, variables } = expectPost('mutation CreateVendor');
-    expect(variables['input']).not.toHaveProperty('marketIds');
+    expect(variables['input']).toHaveProperty('marketIds', null);
     request.flush({ data: { createVendor: CREATED } });
   });
 
@@ -443,6 +445,20 @@ describe('GraphqlVendorRepository.saveProfile', () => {
     const { request, variables } = expectPost('mutation UpdateVendor');
     expect(variables['input']).toMatchObject({ imageUrl: null });
     request.flush({ data: { updateVendor: { ...MCNALLY, imageUrl: null } } });
+  });
+
+  it.each([
+    ['empty', ''],
+    ['whitespace-only', '   '],
+  ])('sends an explicit null for a %s description', (_kind, description) => {
+    // `''` would be stored as a blank description, and omitting the key would
+    // leave the old text in place.
+    repository.saveProfile('mcnally-family-farm', patch({ description })).subscribe();
+    resolveSlug();
+
+    const { request, variables } = expectPost('mutation UpdateVendor');
+    expect(variables['input']).toHaveProperty('description', null);
+    request.flush({ data: { updateVendor: { ...MCNALLY, description: null } } });
   });
 
   it('trims the trading name it sends', () => {
@@ -808,5 +824,94 @@ describe('GraphqlVendorRepository.list', () => {
     expectOperation('query AdminVendors').request.flush({
       data: { adminVendors: { totalCount: 30, items: [MCNALLY] }, directory: { totalCount: 30 } },
     });
+  });
+});
+
+describe('GraphqlVendorRepository.addToMarket / removeFromMarket', () => {
+  it('resolves both slugs to ids, then joins the vendor to the market', () => {
+    let done = false;
+    repository.addToMarket('mcnally-family-farm', 'temple-bar').subscribe(() => (done = true));
+
+    // Both lookups go out together — neither depends on the other, so they
+    // are matched by document rather than by being the only request in flight.
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
+
+    const { request, variables } = expectPost('mutation JoinMarket');
+    expect(variables).toEqual({ vendorId: 'vnd-mcnally', marketId: 'mkt-2' });
+    request.flush({ data: { joinMarket: { id: 'vnd-mcnally', slug: 'mcnally-family-farm' } } });
+
+    expect(done).toBe(true);
+  });
+
+  it('sends the same pair to leaveMarket, from either screen', () => {
+    repository.removeFromMarket('mcnally-family-farm', 'howth').subscribe();
+
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
+
+    const { request, variables } = expectPost('mutation LeaveMarket');
+    expect(variables).toEqual({ vendorId: 'vnd-mcnally', marketId: 'mkt-1' });
+    request.flush({ data: { leaveMarket: { id: 'vnd-mcnally', slug: 'mcnally-family-farm' } } });
+  });
+
+  it('reuses ids already resolved rather than looking them up again', () => {
+    repository.addToMarket('mcnally-family-farm', 'temple-bar').subscribe();
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
+    expectPost('mutation JoinMarket').request.flush({
+      data: { joinMarket: { id: 'vnd-mcnally', slug: 'mcnally-family-farm' } },
+    });
+
+    repository.removeFromMarket('mcnally-family-farm', 'temple-bar').subscribe();
+
+    // Straight to the mutation: both maps are already filled.
+    expectPost('mutation LeaveMarket').request.flush({
+      data: { leaveMarket: { id: 'vnd-mcnally', slug: 'mcnally-family-farm' } },
+    });
+  });
+
+  it('fails on a market the console does not know, without writing anything', () => {
+    let error: Error | undefined;
+    repository
+      .addToMarket('mcnally-family-farm', 'gone')
+      .subscribe({ error: (cause: Error) => (error = cause) });
+
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
+
+    expect(error?.message).toContain('gone');
+  });
+
+  it('fails on a vendor the directory does not have, without writing anything', () => {
+    let error: Error | undefined;
+    repository
+      .addToMarket('not-a-vendor', 'temple-bar')
+      .subscribe({ error: (cause: Error) => (error = cause) });
+
+    // Markets first: the vendor lookup is what fails, and failing cancels
+    // the request beside it.
+    flushMarkets();
+    flushVendors([MCNALLY], 1, 1);
+
+    expect(error?.message).toContain('That vendor could not be found.');
+  });
+
+  it('surfaces the refusal a backend without the admin branch would send', () => {
+    let error: Error | undefined;
+    repository
+      .addToMarket('mcnally-family-farm', 'temple-bar')
+      .subscribe({ error: (cause: Error) => (error = cause) });
+
+    flushVendors([MCNALLY], 1, 1);
+    flushMarkets();
+    // What an API still resolving the vendor from the caller's seat answers
+    // an admin with, mapped to the sentence the console shows.
+    expectPost('mutation JoinMarket').request.flush({
+      data: null,
+      errors: [{ message: 'Forbidden' }],
+    });
+
+    expect(error?.message).toBe('You do not have permission to do that.');
   });
 });

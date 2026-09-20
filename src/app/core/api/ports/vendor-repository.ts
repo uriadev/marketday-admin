@@ -57,6 +57,33 @@ export abstract class VendorRepository {
    */
   abstract setActive(slug: string, active: boolean): Observable<VendorSummary>;
 
+  /**
+   * Puts a vendor that already exists on a market's roster — the market's
+   * Vendors tab and the vendor's Markets tab both send this. Idempotent: a
+   * vendor already trading there is left exactly as it is, live pause
+   * included, rather than being reset by a second tap.
+   *
+   * Answers with nothing on purpose. Neither caller can rebuild its screen
+   * from what the mutation returns — a roster row is the market-scoped
+   * projection `vendors(marketId:)` gives, and a membership card needs the
+   * per-market order window the detail read fans out for — so both reload
+   * from their own read. Handing back a row nobody can use would be theatre.
+   *
+   * Rejects when no vendor matches `vendorSlug` or no market `marketSlug`.
+   */
+  abstract addToMarket(vendorSlug: string, marketSlug: string): Observable<void>;
+
+  /**
+   * Takes the vendor off that roster again — the undo for
+   * {@link addToMarket}, and **destructive**: the stall row carries this
+   * market's order lead time and any live pause, and its product listings at
+   * this market go with it. A later rejoin starts from the defaults rather
+   * than from what was there. Both screens confirm before calling it.
+   *
+   * Rejects when the vendor does not trade at that market.
+   */
+  abstract removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void>;
+
   /** Invitation policy and how many have gone out this month (design 1n). */
   abstract inviteSummary(): Observable<VendorInviteSummary>;
 
