@@ -49,10 +49,10 @@ export class ConsoleLayout {
   /** The console's IA. A link with a `route` is wired up; the rest are shown
    *  disabled so the shell reads true while the screens land. */
   protected readonly platformLinks: NavLink[] = [
-    { icon: 'storefront', label: 'Markets', meta: '7', route: '/markets' },
-    { icon: 'shopping_bag', label: 'Vendors', meta: '4', badge: true, route: '/vendors' },
-    { icon: 'group', label: 'Users', meta: '318', route: '/users' },
-    { icon: 'support_agent', label: 'Support', meta: '9', badge: true, route: '/support' },
+    { icon: 'storefront', label: 'Markets', route: '/markets' },
+    { icon: 'shopping_bag', label: 'Vendors', badge: true, route: '/vendors' },
+    { icon: 'group', label: 'Users', route: '/users' },
+    { icon: 'support_agent', label: 'Support', badge: true, route: '/support' },
   ];
 
   protected readonly accountLinks: NavLink[] = [
