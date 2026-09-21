@@ -115,9 +115,17 @@ export const VENDOR_ORDER_WINDOW = gql`
  * roster: it is deliberately not a field on `VendorModel`, so the public
  * `vendor(id)` query never hands out every staff member's email. One vendor's
  * seats are `{ field: "vendorId", operator: EQUAL, value: id }`; the backend
- * returns one row per seat, so a stallholder at two markets is two rows that
- * `toVendorStaff` folds into one person. `VendorMemberModel` carries no phone
- * and no invitation state — a seat exists only once the invite is accepted.
+ * returns one row per seat, and `toVendorStaff` keys them by person — one seat
+ * each, since `vendor_members.userId` is a `@OneToOne`, so a stallholder mans
+ * one market at a time and moving them is a re-scope rather than an addition.
+ * `VendorMemberModel` carries no phone, and no invitation state — a seat
+ * exists only once the invite is accepted, so the pending half of the tab is
+ * {@link PENDING_VENDOR_INVITES} instead.
+ *
+ * `market { slug }` is selected for the writes rather than the reads: the
+ * console routes and addresses markets by slug, and the Staff tab's *Change
+ * market* has to know which stall a person is already on without matching on
+ * the label it prints.
  */
 export const ADMIN_VENDOR_MEMBERS = gql`
   query AdminVendorMembers($criteria: CriteriaInput) {
@@ -131,10 +139,94 @@ export const ADMIN_VENDOR_MEMBERS = gql`
         role
         market {
           id
+          slug
           name
         }
       }
     }
+  }
+`;
+
+/**
+ * The invitations a vendor has out (design 1c's *Invitation pending* rows) —
+ * the half of the team that has no seat yet.
+ *
+ * `vendorId` is the argument that opens this to an admin: like every operation
+ * on `VendorMembersResolver`, it used to resolve the vendor from the caller's
+ * seat, and an admin holds none. Nullable server-side — a vendor owner omits
+ * it and reads their own, an admin names the vendor and `targetVendorForTeam`
+ * is the gate. Owner-only for a member either way: the list is a set of
+ * addresses that have been offered a seat.
+ *
+ * `expiresAt` is the backend's own 15-minute code TTL rather than a policy the
+ * console restates, and `createdAt` is what the row's "invited 2 days ago"
+ * line is built from.
+ */
+export const PENDING_VENDOR_INVITES = gql`
+  query PendingVendorInvites($vendorId: ID!) {
+    pendingVendorInvites(vendorId: $vendorId) {
+      id
+      email
+      createdAt
+      expiresAt
+      market {
+        id
+        slug
+        name
+      }
+    }
+  }
+`;
+
+/**
+ * Writing a vendor's team (design 1c) — invite, withdraw, move, remove.
+ *
+ * All four grew the same nullable `vendorId` as `joinMarket` / `leaveMarket`
+ * and for the same reason: they resolved the vendor from the caller's seat, so
+ * there was no roster an admin could write at all. It is **always sent** from
+ * here — the console only ever manages somebody else's team, and an admin who
+ * omits it is refused rather than defaulted, which is what stops an invitation
+ * going out on behalf of a business nobody named.
+ *
+ * `inviteVendorMember` mails a 6-digit code and answers `Boolean`; the person
+ * has no seat, and so no row on the roster, until they redeem it. Sending to
+ * the same address again supersedes the outstanding code rather than minting a
+ * second, which is what *Resend* relies on. Throttled server-side per vendor
+ * and per mailbox, the admin path included.
+ *
+ * `updateVendorMember` is a **move**, not an addition: one person holds one
+ * seat, and the owner has no market scope to set (`OwnerHasNoMarketScope`).
+ * `removeVendorMember` drops the seat and demotes the account to buyer in one
+ * transaction, and refuses the owner's seat whoever asks — it is the only
+ * route back into the business.
+ *
+ * Nothing is read back: the tab reloads `detail()`, which is what folds seats,
+ * invitations and the vendor's markets into the rows it draws.
+ */
+export const INVITE_VENDOR_MEMBER = gql`
+  mutation InviteVendorMember($input: InviteVendorMemberInput!) {
+    inviteVendorMember(input: $input)
+  }
+`;
+
+export const REVOKE_VENDOR_INVITE = gql`
+  mutation RevokeVendorInvite($id: ID!, $vendorId: ID!) {
+    revokeVendorInvite(id: $id, vendorId: $vendorId)
+  }
+`;
+
+export const UPDATE_VENDOR_MEMBER = gql`
+  mutation UpdateVendorMember($input: UpdateVendorMemberInput!) {
+    updateVendorMember(input: $input) {
+      id
+      userId
+    }
+  }
+`;
+
+export const REMOVE_VENDOR_MEMBER = gql`
+  mutation RemoveVendorMember($userId: ID!, $vendorId: ID!) {
+    removeVendorMember(userId: $userId, vendorId: $vendorId)
   }
 `;
 

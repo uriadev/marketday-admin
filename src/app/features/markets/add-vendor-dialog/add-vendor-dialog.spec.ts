@@ -84,6 +84,22 @@ class StubVendorRepository extends VendorRepository {
   override removeFromMarket(): Observable<void> {
     return of(undefined);
   }
+
+  override inviteStaff(): Observable<void> {
+    return of(undefined);
+  }
+
+  override revokeStaffInvite(): Observable<void> {
+    return of(undefined);
+  }
+
+  override moveStaffToMarket(): Observable<void> {
+    return of(undefined);
+  }
+
+  override removeStaff(): Observable<void> {
+    return of(undefined);
+  }
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({} as VendorInviteSummary);
   }

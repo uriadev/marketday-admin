@@ -35,9 +35,20 @@ the vendor), which the market's Vendors tab drives with **Add existing vendor** 
 this market** and the vendor's Markets tab with **Add to a market** / a remove per membership
 card. Joining is idempotent; leaving is destructive — it takes that market's order lead time,
 any live pause and the vendor's product listings there with it — so both screens confirm first.
-What the invite screen still has no endpoint for is the invitation
-itself (no email is sent; the owner gets in via Forgot password); there is still no application
-_model_ (no submitted form, no decline). Taking orders is **per (vendor, market)**
+A vendor's **team** is writable now too: `inviteVendorMember`, `revokeVendorInvite`,
+`updateVendorMember`, `removeVendorMember` and the `pendingVendorInvites` query each grew the
+same nullable `vendorId` (`targetVendorForTeam` in the backend's `domain/seat.ts` holds the rule
+the resolver's shape used to), so the Staff tab drives **Invite staff member** (email + one of
+the vendor's markets → an emailed 6-digit code), **Send the invitation again** / **Withdraw
+invitation** on a pending row, **Change market** (a move, not an addition — one person holds one
+seat) and **Remove from vendor** (the seat goes and the account drops back to a buyer's). The
+roster the tab draws is `adminVendorMembers` seats plus `pendingVendorInvites` rows folded
+together; an invitation has no account behind it, so it can only be re-sent or withdrawn, and it
+is not counted as a person. The **owner's seat cannot be removed by anyone** (`CannotRemoveOwner`,
+added with the widening — it is the only route back into the business), and **Make an owner**
+stays disabled: nothing transfers a business. What the invite screen still has no endpoint for is
+the _owner's_ invitation (no email is sent; the owner gets in via Forgot password); there is still
+no application _model_ (no submitted form, no decline). Taking orders is **per (vendor, market)**
 now (`../backend/specs/per-market-order-windows.md`): the Markets tab reads each membership's
 `vendorOrderWindow` (one call per market) and the market roster reads the `orderWindow` that
 `vendors(marketId:)` hydrates, so "paused" there means paused _at that market_; the directory's

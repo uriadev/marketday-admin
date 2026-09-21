@@ -575,6 +575,9 @@ describe('GraphqlVendorRepository.detail', () => {
     expectOperation('query AdminVendorMembers').request.flush({
       data: { adminVendorMembers: { totalCount: 0, items: [] } },
     });
+    expectOperation('query PendingVendorInvites').request.flush({
+      data: { pendingVendorInvites: [] },
+    });
   }
 
   /** The window read for one market, by the id it was asked about. */
@@ -664,6 +667,9 @@ describe('GraphqlVendorRepository.detail', () => {
     expectOperation('query VendorById').request.flush({ data: { vendor: MCNALLY } });
     expectOperation('query AdminVendorMembers').request.flush({
       data: { adminVendorMembers: { totalCount: 0, items: [] } },
+    });
+    expectOperation('query PendingVendorInvites').request.flush({
+      data: { pendingVendorInvites: [] },
     });
 
     // `http.verify()` in afterEach catches any VendorOrderWindow post.
@@ -913,5 +919,162 @@ describe('GraphqlVendorRepository.addToMarket / removeFromMarket', () => {
     });
 
     expect(error?.message).toBe('You do not have permission to do that.');
+  });
+});
+
+describe('GraphqlVendorRepository team writes', () => {
+  /** Every write names the vendor: an admin holds no seat to infer one from. */
+  function resolveVendor() {
+    flushVendors([MCNALLY], 1, 1);
+  }
+
+  it('reads the outstanding invitations beside the roster, as rows of their own', () => {
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    resolveSlug();
+    expectOperation('query VendorById').request.flush({ data: { vendor: MCNALLY } });
+    expectOperation('query AdminVendorMembers').request.flush({
+      data: {
+        adminVendorMembers: {
+          totalCount: 1,
+          items: [
+            {
+              id: 'seat-1',
+              userId: 'usr-cathal',
+              fullName: 'Cathal Byrne',
+              email: 'cathal@example.ie',
+              role: 'STAFF',
+              market: { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar' },
+            },
+          ],
+        },
+      },
+    });
+
+    const invites = expectOperation('query PendingVendorInvites');
+    expect(invites.variables).toEqual({ vendorId: 'vnd-mcnally' });
+    invites.request.flush({
+      data: {
+        pendingVendorInvites: [
+          {
+            id: 'inv-1',
+            email: 'dara@example.ie',
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date().toISOString(),
+            market: { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar' },
+          },
+        ],
+      },
+    });
+
+    // Seats first, then the offers out. Only the seat is a person.
+    expect(detail?.staff.map((person) => person.name)).toEqual(['Cathal Byrne', 'dara@example.ie']);
+    const [seated, invited] = detail!.staff;
+    expect(seated).toMatchObject({
+      id: 'usr-cathal',
+      pending: false,
+      inviteId: null,
+      marketSlugs: ['temple-bar'],
+    });
+    expect(invited).toMatchObject({
+      pending: true,
+      inviteId: 'inv-1',
+      role: 'Stallholder · invited today',
+    });
+    // An offer is not a member of the team, so it is not counted as one.
+    expect(detail?.staffCount).toBe(1);
+  });
+
+  it('still opens the tab when the invitations will not load', () => {
+    let detail: VendorDetail | undefined;
+    repository.detail('mcnally-family-farm').subscribe((result) => (detail = result));
+    resolveSlug();
+    expectOperation('query VendorById').request.flush({ data: { vendor: MCNALLY } });
+    expectOperation('query AdminVendorMembers').request.flush({
+      data: { adminVendorMembers: { totalCount: 0, items: [] } },
+    });
+    expectOperation('query PendingVendorInvites').request.flush(
+      { errors: [{ message: 'Forbidden' }] },
+      { status: 200, statusText: 'OK' },
+    );
+
+    // The seats are the screen; the offers are not worth taking it down for.
+    expect(detail?.staff).toEqual([]);
+  });
+
+  it('sends the invitation with the vendor and the market named', () => {
+    let done = false;
+    repository
+      .inviteStaff('mcnally-family-farm', { email: '  Dara@Example.ie ', marketSlug: 'temple-bar' })
+      .subscribe(() => (done = true));
+
+    resolveVendor();
+    flushMarkets();
+
+    const { request, variables } = expectPost('mutation InviteVendorMember');
+    expect(variables['input']).toEqual({
+      email: 'Dara@Example.ie',
+      marketId: 'mkt-2',
+      vendorId: 'vnd-mcnally',
+    });
+    request.flush({ data: { inviteVendorMember: true } });
+
+    expect(done).toBe(true);
+  });
+
+  it('refuses a blank address without asking the backend', () => {
+    let error: Error | undefined;
+    repository
+      .inviteStaff('mcnally-family-farm', { email: '   ', marketSlug: 'temple-bar' })
+      .subscribe({ error: (cause: Error) => (error = cause) });
+
+    // `http.verify()` in afterEach catches any post.
+    expect(error?.message).toBe('An invitation needs an email address.');
+  });
+
+  it('withdraws an invitation by its id, scoped to the vendor', () => {
+    repository.revokeStaffInvite('mcnally-family-farm', 'inv-1').subscribe();
+    resolveVendor();
+
+    const { request, variables } = expectPost('mutation RevokeVendorInvite');
+    expect(variables).toEqual({ id: 'inv-1', vendorId: 'vnd-mcnally' });
+    request.flush({ data: { revokeVendorInvite: true } });
+  });
+
+  it('moves a stallholder by user id, resolving the market from its slug', () => {
+    repository.moveStaffToMarket('mcnally-family-farm', 'usr-cathal', 'howth').subscribe();
+
+    resolveVendor();
+    flushMarkets();
+
+    const { request, variables } = expectPost('mutation UpdateVendorMember');
+    expect(variables['input']).toEqual({
+      userId: 'usr-cathal',
+      marketId: 'mkt-1',
+      vendorId: 'vnd-mcnally',
+    });
+    request.flush({ data: { updateVendorMember: { id: 'seat-1', userId: 'usr-cathal' } } });
+  });
+
+  it('removes a seat by user id, and surfaces the refusal for an owner', () => {
+    let error: Error | undefined;
+    repository
+      .removeStaff('mcnally-family-farm', 'usr-tom')
+      .subscribe({ error: (cause: Error) => (error = cause) });
+    resolveVendor();
+
+    const { request, variables } = expectPost('mutation RemoveVendorMember');
+    expect(variables).toEqual({ userId: 'usr-tom', vendorId: 'vnd-mcnally' });
+    // What the backend answers when the seat named is the owner's.
+    request.flush({
+      errors: [
+        {
+          message:
+            'The owner cannot be removed from their own business. Delete the account instead.',
+        },
+      ],
+    });
+
+    expect(error?.message).toContain('The owner cannot be removed');
   });
 });

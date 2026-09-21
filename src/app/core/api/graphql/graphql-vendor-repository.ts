@@ -11,6 +11,7 @@ import {
   VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
+  VendorStaffInvite,
   VendorSummary,
   matchesVendorFilters,
 } from '../../models/vendor.model';
@@ -20,10 +21,15 @@ import {
   ADMIN_VENDORS,
   ADMIN_VENDOR_MEMBERS,
   CREATE_VENDOR,
+  INVITE_VENDOR_MEMBER,
   JOIN_MARKET,
   LEAVE_MARKET,
   MARKET_IDS,
+  PENDING_VENDOR_INVITES,
+  REMOVE_VENDOR_MEMBER,
+  REVOKE_VENDOR_INVITE,
   UPDATE_VENDOR,
+  UPDATE_VENDOR_MEMBER,
   VENDOR_BY_ID,
   VENDOR_ORDER_WINDOW,
 } from './operations/vendor';
@@ -31,6 +37,7 @@ import { blankToNull } from './mappers/nullable';
 import { GqlOrderWindow } from './mappers/order-window-mapper';
 import {
   GqlVendor,
+  GqlVendorInvite,
   GqlVendorMember,
   toVendorDetail,
   toVendorProfile,
@@ -46,12 +53,22 @@ import {
   CriteriaInput,
   FilterInput,
   FilterOperator,
+  InviteVendorMemberMutation,
+  InviteVendorMemberMutationVariables,
   JoinMarketMutation,
   JoinMarketMutationVariables,
   LeaveMarketMutation,
   LeaveMarketMutationVariables,
   MarketIdsQuery,
   OrderDirection,
+  PendingVendorInvitesQuery,
+  PendingVendorInvitesQueryVariables,
+  RemoveVendorMemberMutation,
+  RemoveVendorMemberMutationVariables,
+  RevokeVendorInviteMutation,
+  RevokeVendorInviteMutationVariables,
+  UpdateVendorMemberMutation,
+  UpdateVendorMemberMutationVariables,
   UpdateVendorMutation,
   UpdateVendorMutationVariables,
   VendorByIdQuery,
@@ -274,9 +291,12 @@ export class GraphqlVendorRepository extends VendorRepository {
             ),
           ),
           members: this.fetchMembers(id),
+          invites: this.fetchInvites(id),
         }),
       ),
-      map(({ vendor: { vendor, windows }, members }) => toVendorDetail(vendor, members, windows)),
+      map(({ vendor: { vendor, windows }, members, invites }) =>
+        toVendorDetail(vendor, members, windows, new Date(), invites),
+      ),
     );
   }
 
@@ -385,6 +405,98 @@ export class GraphqlVendorRepository extends VendorRepository {
           vendorId,
           marketId,
         }),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
+   * Offers a seat through `inviteVendorMember`, which mails the address a
+   * 6-digit code. Nothing appears on the roster until they redeem it — the row
+   * the tab draws meanwhile is the invitation itself, read back by
+   * {@link fetchInvites}.
+   *
+   * `vendorId` is always sent: an admin holds no seat for the backend to infer
+   * one from, and one who omits it is refused rather than defaulted, which is
+   * what stops an invitation going out on behalf of a business nobody named.
+   * The market is resolved from its slug the same way {@link addToMarket}'s is
+   * — the console routes by slug and ports do not read each other.
+   *
+   * The address is trimmed and left to the backend to validate: `IsEmail` on
+   * the input is the authority, and a second opinion here would only disagree
+   * with it. Answers with nothing; the tab reloads `detail()`.
+   */
+  override inviteStaff(vendorSlug: string, invite: VendorStaffInvite): Observable<void> {
+    const email = invite.email.trim();
+    if (email === '') {
+      return throwError(() => new Error('An invitation needs an email address.'));
+    }
+    return this.stallIds(vendorSlug, invite.marketSlug).pipe(
+      switchMap(({ vendorId, marketId }) =>
+        this.client.request<InviteVendorMemberMutation, InviteVendorMemberMutationVariables>(
+          INVITE_VENDOR_MEMBER,
+          { input: { email, marketId, vendorId } },
+        ),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
+   * Withdraws an outstanding invitation. Scoped to the vendor server-side, so
+   * an id from another business's roster answers `Invite not found` rather
+   * than cancelling anything.
+   */
+  override revokeStaffInvite(vendorSlug: string, inviteId: string): Observable<void> {
+    return this.resolveId(vendorSlug).pipe(
+      switchMap((vendorId) =>
+        this.client.request<RevokeVendorInviteMutation, RevokeVendorInviteMutationVariables>(
+          REVOKE_VENDOR_INVITE,
+          { id: inviteId, vendorId },
+        ),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
+   * Moves a stallholder to another of the vendor's markets through
+   * `updateVendorMember`. `staffId` is the person's **user id**, which is what
+   * `toVendorStaff` keys a seated row by — an invitation row has no user to
+   * move, and the screen does not offer this on one.
+   *
+   * The seat row it answers with is discarded: the tab reloads `detail()`,
+   * which is what folds seats, invitations and markets into what it draws.
+   */
+  override moveStaffToMarket(
+    vendorSlug: string,
+    staffId: string,
+    marketSlug: string,
+  ): Observable<void> {
+    return this.stallIds(vendorSlug, marketSlug).pipe(
+      switchMap(({ vendorId, marketId }) =>
+        this.client.request<UpdateVendorMemberMutation, UpdateVendorMemberMutationVariables>(
+          UPDATE_VENDOR_MEMBER,
+          { input: { userId: staffId, marketId, vendorId } },
+        ),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
+   * Drops a seat through `removeVendorMember`, which demotes that account back
+   * to a buyer's in the same transaction — so a removed stallholder cannot
+   * keep signing in to the vendor app. The owner's seat is refused
+   * server-side; the screen does not offer it either.
+   */
+  override removeStaff(vendorSlug: string, staffId: string): Observable<void> {
+    return this.resolveId(vendorSlug).pipe(
+      switchMap((vendorId) =>
+        this.client.request<RemoveVendorMemberMutation, RemoveVendorMemberMutationVariables>(
+          REMOVE_VENDOR_MEMBER,
+          { userId: staffId, vendorId },
+        ),
       ),
       map(() => undefined),
     );
@@ -588,6 +700,28 @@ export class GraphqlVendorRepository extends VendorRepository {
         },
       })
       .pipe(map((result) => result.adminVendorMembers.items));
+  }
+
+  /**
+   * The invitations this vendor has out — the *Invitation pending* rows of the
+   * Staff tab, which `adminVendorMembers` cannot carry because a seat exists
+   * only once an invite is accepted.
+   *
+   * Failure is swallowed to an empty list rather than taken to the shell: the
+   * seats are the screen, and a tab that will not open because an offer list
+   * would not load is worse than one that shows the team without the pending
+   * offers. Retried on the next load.
+   */
+  private fetchInvites(id: string): Observable<readonly GqlVendorInvite[]> {
+    return this.client
+      .request<PendingVendorInvitesQuery, PendingVendorInvitesQueryVariables>(
+        PENDING_VENDOR_INVITES,
+        { vendorId: id },
+      )
+      .pipe(
+        map((result) => result.pendingVendorInvites),
+        catchError(() => of<readonly GqlVendorInvite[]>([])),
+      );
   }
 
   /**

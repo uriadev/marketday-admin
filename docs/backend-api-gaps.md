@@ -60,10 +60,11 @@ found while reading the same code, unrelated to what's missing.
    `GraphqlVendorRepository` wires `list()` to it and `detail()` / the Profile tab's read to
    `vendor(id)`. `VendorModel.memberCount` is now a real field (batch-hydrated on the list, so
    free per row) and `adminVendorMembers(criteria:)` (`@Roles(ADMIN)`) exposes the roster:
-   `detail()` folds it in — filtered `{ field: "vendorId", operator: EQUAL }` — so the Staff
-   tab (design 1c) and the detail's Staff badge/stat run on real data. The directory list does
-   **not** fan out to `adminVendorMembers`, so the face pile there still draws faceless discs
-   and `staff` names stay empty on the list read. Creating a vendor is a real write too —
+   `detail()` folds it in — filtered `{ field: "vendorId", operator: EQUAL }`, beside
+   `pendingVendorInvites(vendorId:)` for the invitations that have no seat yet — so the Staff
+   tab (design 1c) both reads and, since gap 9's team half closed, **writes** real data. The
+   directory list does **not** fan out to `adminVendorMembers`, so the face pile there still
+   draws faceless discs and `staff` names stay empty on the list read. Creating a vendor is a real write too —
    `createVendor` is `@Roles(ADMIN)` and now seats a named owner, see gap 9. What is still
    missing on `VendorModel` keeps the _other_ vendor write paths and the richer detail tabs on
    session-local data — see gaps 6–9 and the `GraphqlVendorRepository` class doc: no
@@ -234,24 +235,55 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
    stays disabled. An `adminVendorMarkets(vendorId:)` read and ADMIN branches on those two
    mutations (the same treatment join and leave have now had) would close it.
 
-   **Still open: the invitation itself.** There is no way to _tell_ the new owner. No endpoint
-   emails a would-be owner — `inviteVendorMember` resolves the vendor from the caller
-   (`VendorMembersResolver` is deliberately argument-free, so one owner can never address
-   another vendor's roster) and only ever mints a `STAFF` seat, so an admin cannot use it. So
-   design 1n's phone and personal note are **disabled on the screen** rather than collected and
-   dropped, and the admin has to tell the owner themselves; the screen says so rather than
-   implying a message went out. What would close it: an admin-scoped
-   `inviteVendorOwner(vendorId:, email:)`, or `createVendor` sending a set-your-password mail
-   through `MailSender` the way `VendorInvitesService.invite` already does.
-   `VendorInviteSummary`'s two policy windows would come from the same place; today they are
-   constants in `GraphqlVendorRepository`, and `sentThisMonth` counts only this session's own
-   creates.
+   ~~**The team was unreachable too.**~~ **Closed, for staff.** Every operation on
+   `VendorMembersResolver` resolved the vendor from the caller's seat and took no argument, so an
+   admin — who holds none — could read another vendor's roster through `adminVendorMembers` but
+   could not write it: design 1c's _Invite staff member_, _Change market_, _Remove from vendor_
+   and the pending-invitation row's _Resend_ / _Cancel_ were all dead buttons. One **backend**
+   change closed it, made here:
+
+   - `inviteVendorMember`, `revokeVendorInvite`, `updateVendorMember`, `removeVendorMember` and
+     the `pendingVendorInvites` query grew a nullable `vendorId` — join and leave's treatment
+     again, and `VendorAccess.actorFor` was already the whole difference between the two callers,
+     so no `@Roles` line changed. `targetVendorForTeam` (`domain/seat.ts`) holds the rule the
+     file's shape used to: a member must be the **owner** and an id pointed at another business
+     is `Forbidden` rather than redirected, an admin names the vendor and is refused rather than
+     defaulted. `VendorActor`'s admin branch now carries the admin's own `userId`, because an
+     invitation is _attributed_ as well as authorized — `vendor_invites.invitedByUserId` and the
+     invitation email's "invited by" line are the admin, not the vendor's owner.
+   - **The owner's seat cannot be removed by anyone** (`CannotRemoveOwner`). An owner was already
+     refused their own seat (`CannotRemoveSelf`, which never fires for an admin), and there is at
+     most one `OWNER` per vendor, so without this guard opening the roster to admins would let
+     one leave a business nobody could sign in to manage.
+
+   The Staff tab drives all five, reloading `detail()` after each — a row there is a seat, an
+   invitation and a market folded together, which no single mutation returns. Pending
+   invitations are `pendingVendorInvites(vendorId:)` rows rather than seats, so they are
+   re-sendable and withdrawable and nothing else; a failed read of them leaves the seats on
+   screen rather than taking the tab down.
+
+   **Still open on that tab: making somebody an owner.** `updateVendorMember` moves a stall and
+   deliberately does not touch `role`, `VendorInvite` only ever mints `STAFF`, and nothing
+   transfers a business — so _Make an owner_ stays disabled, the way Users' _Change role_ does
+   and for the same reason (#1): it is a privilege grant that wants its own design and an audit
+   trail, not a `role` column on an existing input.
+
+   **Still open: the _owner's_ invitation.** There is still no way to _tell_ the person
+   `createVendor` just seated. `inviteVendorMember` mints a `STAFF` seat at a named market, so it
+   cannot serve as an owner's invitation whatever vendor it is pointed at. So design 1n's phone
+   and personal note are **disabled on the screen** rather than collected and dropped, and the
+   admin has to tell the owner themselves; the screen says so rather than implying a message went
+   out. What would close it: an admin-scoped `inviteVendorOwner(vendorId:, email:)`, or
+   `createVendor` sending a set-your-password mail through `MailSender` the way
+   `InviteVendorMember` already mails its code. `VendorInviteSummary`'s two policy windows would
+   come from the same place; today they are constants in `GraphqlVendorRepository`, and
+   `sentThisMonth` counts only this session's own creates.
 
 10. ~~**`VendorModel` has no `slug`.**~~ **Closed.** `VendorModel.slug` is a real `String!`
     field and `Create`/`UpdateVendorInput` both accept `slug`. `vendors(marketId:)` selects it
     too, so `market-mapper.ts`'s `toMarketRoster` carries the server's own slug rather than
-    deriving one — which is what lets a roster row address its vendor for *Remove from this
-    market*.
+    deriving one — which is what lets a roster row address its vendor for _Remove from this
+    market_.
 
 11. **No `totalCount` on `adminMarkets`.** `MarketsService.filter` applies neither a `totalCount`
     nor a default `limit` — an omitted `criteria` is an unbounded scan. `vendors`/`products`

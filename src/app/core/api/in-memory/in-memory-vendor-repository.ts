@@ -12,6 +12,7 @@ import {
   VendorMembership,
   VendorProfile,
   VendorProfilePatch,
+  VendorStaffInvite,
   VendorStaffMember,
   VendorStaffNote,
   VendorStanding,
@@ -437,8 +438,10 @@ const MCNALLY_STAFF: readonly VendorStaffMember[] = [
     phone: '087 244 1180',
     allMarkets: true,
     markets: [],
+    marketSlugs: [],
     managesStaff: true,
     pending: false,
+    inviteId: null,
   },
   {
     id: 'stf-brid-mcnally',
@@ -449,8 +452,10 @@ const MCNALLY_STAFF: readonly VendorStaffMember[] = [
     phone: '086 771 0342',
     allMarkets: true,
     markets: [],
+    marketSlugs: [],
     managesStaff: true,
     pending: false,
+    inviteId: null,
   },
   {
     id: 'stf-cathal-byrne',
@@ -461,8 +466,10 @@ const MCNALLY_STAFF: readonly VendorStaffMember[] = [
     phone: '085 209 6614',
     allMarkets: false,
     markets: ['Temple Bar', 'Marlay Park'],
+    marketSlugs: ['temple-bar', 'marlay-park'],
     managesStaff: false,
     pending: false,
+    inviteId: null,
   },
   {
     id: 'stf-lucia-marin',
@@ -473,8 +480,10 @@ const MCNALLY_STAFF: readonly VendorStaffMember[] = [
     phone: '089 118 2277',
     allMarkets: false,
     markets: ['Marlay Park'],
+    marketSlugs: ['marlay-park'],
     managesStaff: false,
     pending: false,
+    inviteId: null,
   },
   {
     id: 'stf-sam-okafor',
@@ -485,8 +494,10 @@ const MCNALLY_STAFF: readonly VendorStaffMember[] = [
     phone: 'No phone yet',
     allMarkets: false,
     markets: ['Temple Bar'],
+    marketSlugs: ['temple-bar'],
     managesStaff: false,
     pending: true,
+    inviteId: 'inv-sam-okafor',
   },
 ];
 
@@ -594,8 +605,10 @@ function buildStaff(vendor: VendorSummary): VendorStaffMember[] {
       phone: phoneFor(i + vendor.name.length),
       allMarkets: owner,
       markets: owner || !market ? [] : [market],
+      marketSlugs: owner || !market ? [] : [slugForLabel(market) ?? market],
       managesStaff: owner,
       pending: false,
+      inviteId: null,
     };
   });
 }
@@ -802,15 +815,19 @@ export class InMemoryVendorRepository extends VendorRepository {
   }
 
   override detail(slug: string): Observable<VendorDetail> {
-    if (slug === MCNALLY_DETAIL.slug) {
-      return of(MCNALLY_DETAIL).pipe(delay(300));
-    }
-    const vendor =
-      VENDORS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.invited.get(slug);
-    if (!vendor) {
+    const detail = this.seedDetail(slug);
+    if (!detail) {
       return throwError(() => new Error(`No vendor matches “${slug}”.`)).pipe(delay(300));
     }
-    return of(buildDetail(vendor)).pipe(delay(300));
+    return of(this.withStaffOverride(detail)).pipe(delay(300));
+  }
+
+  /** The detail a slug reads as before this session touched its team. */
+  private seedDetail(slug: string): VendorDetail | null {
+    if (slug === MCNALLY_DETAIL.slug) return MCNALLY_DETAIL;
+    const vendor =
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.invited.get(slug);
+    return vendor ? buildDetail(vendor) : null;
   }
 
   /**
@@ -928,6 +945,156 @@ export class InMemoryVendorRepository extends VendorRepository {
       return throwError(() => cause).pipe(delay(300));
     }
     return of(undefined).pipe(delay(300));
+  }
+
+  /* ── The team (design 1c) ───────────────────────────────────────────────── */
+
+  /**
+   * Rosters changed this session, keyed by vendor slug — laid over the
+   * constant fixture rows the way {@link marketOverrides} is, so an invitation
+   * sent on the Staff tab is still there when the tab is reopened.
+   */
+  private readonly staffOverrides = new Map<string, readonly VendorStaffMember[]>();
+
+  /** Invitations minted this session, for the ids *Cancel invite* sends back. */
+  private nextInviteId = 1;
+
+  /**
+   * The detail as it reads after this session's team changes. `staffCount` and
+   * the Staff stat are recomputed from the **seated** rows alone: an
+   * outstanding invitation is an offer rather than a member of the team, so
+   * counting it would have the header promise staff the vendor does not have.
+   */
+  private withStaffOverride(detail: VendorDetail): VendorDetail {
+    const staff = this.staffOverrides.get(detail.slug);
+    if (!staff) return detail;
+    const seated = staff.filter((person) => !person.pending).length;
+    return {
+      ...detail,
+      staff,
+      staffCount: seated,
+      stats: detail.stats.map((stat) =>
+        stat.label === 'Staff' ? { ...stat, value: String(seated) } : stat,
+      ),
+    };
+  }
+
+  override inviteStaff(vendorSlug: string, invite: VendorStaffInvite): Observable<void> {
+    return this.editStaff(vendorSlug, (staff, markets) => {
+      const email = invite.email.trim().toLowerCase();
+      if (email === '') throw new Error('An invitation needs an email address.');
+      const label = this.stallLabel(markets, invite.marketSlug);
+
+      if (staff.some((person) => !person.pending && person.email.toLowerCase() === email)) {
+        throw new Error(`${email} is already on this team.`);
+      }
+      const invited: VendorStaffMember = {
+        id: `stf-invite-${this.nextInviteId}`,
+        name: email,
+        role: 'Stallholder · invited today',
+        memberRole: VendorMemberRole.Staff,
+        email,
+        phone: 'No phone yet',
+        allMarkets: false,
+        markets: [label],
+        marketSlugs: [invite.marketSlug],
+        managesStaff: false,
+        pending: true,
+        inviteId: `inv-${this.nextInviteId++}`,
+      };
+      // Re-inviting an address supersedes its outstanding offer rather than
+      // adding a second, exactly as the backend's `supersedeOutstanding` does
+      // — which is what makes *Resend* safe to press twice.
+      return [...staff.filter((person) => !(person.pending && person.email === email)), invited];
+    });
+  }
+
+  override revokeStaffInvite(vendorSlug: string, inviteId: string): Observable<void> {
+    return this.editStaff(vendorSlug, (staff) => {
+      if (!staff.some((person) => person.inviteId === inviteId)) {
+        throw new Error('That invitation could not be found.');
+      }
+      return staff.filter((person) => person.inviteId !== inviteId);
+    });
+  }
+
+  override moveStaffToMarket(
+    vendorSlug: string,
+    staffId: string,
+    marketSlug: string,
+  ): Observable<void> {
+    return this.editStaff(vendorSlug, (staff, markets) => {
+      const person = this.seatedMember(staff, staffId);
+      if (person.allMarkets) {
+        throw new Error(`${person.name} works at every market this vendor trades at.`);
+      }
+      const label = this.stallLabel(markets, marketSlug);
+      // A move, not an addition: one person holds one seat, so the new market
+      // replaces the old rather than joining it.
+      return staff.map((candidate) =>
+        candidate.id === staffId
+          ? { ...candidate, markets: [label], marketSlugs: [marketSlug] }
+          : candidate,
+      );
+    });
+  }
+
+  override removeStaff(vendorSlug: string, staffId: string): Observable<void> {
+    return this.editStaff(vendorSlug, (staff) => {
+      const person = this.seatedMember(staff, staffId);
+      if (person.memberRole === VendorMemberRole.Owner) {
+        throw new Error(
+          'The owner cannot be removed from their own business. Delete the account instead.',
+        );
+      }
+      return staff.filter((candidate) => candidate.id !== staffId);
+    });
+  }
+
+  /**
+   * The roster half of the session overrides, and the mirror of
+   * {@link editMarkets}: the vendor is resolved against the fixtures first, so
+   * an unknown slug is refused rather than recorded, and anything `edit`
+   * throws comes back as a rejection the screen can show.
+   */
+  private editStaff(
+    vendorSlug: string,
+    edit: (
+      staff: readonly VendorStaffMember[],
+      markets: readonly string[],
+    ) => readonly VendorStaffMember[],
+  ): Observable<void> {
+    const detail = this.seedDetail(vendorSlug);
+    if (!detail) {
+      return throwError(() => new Error(`No vendor matches “${vendorSlug}”.`)).pipe(delay(300));
+    }
+    try {
+      const current = this.staffOverrides.get(vendorSlug) ?? detail.staff;
+      const markets = detail.memberships.map((membership) => membership.marketSlug);
+      this.staffOverrides.set(vendorSlug, edit(current, markets));
+    } catch (cause: unknown) {
+      return throwError(() => cause).pipe(delay(300));
+    }
+    return of(undefined).pipe(delay(300));
+  }
+
+  /** A seat the vendor really holds — never an invitation, which has none. */
+  private seatedMember(staff: readonly VendorStaffMember[], staffId: string): VendorStaffMember {
+    const person = staff.find((candidate) => candidate.id === staffId && !candidate.pending);
+    if (!person) throw new Error('That person is not on this team.');
+    return person;
+  }
+
+  /**
+   * The label for a market the vendor actually trades at. Refused otherwise,
+   * the way the backend refuses a stall the business does not attend — a seat
+   * at a market it has no stall at is a mistake worth catching now.
+   */
+  private stallLabel(markets: readonly string[], marketSlug: string): string {
+    if (!markets.includes(marketSlug)) {
+      throw new Error('This vendor does not trade at that market.');
+    }
+    return MARKET_LABELS[marketSlug] ?? marketSlug;
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {

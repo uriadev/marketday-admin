@@ -192,6 +192,7 @@ export type GoogleAuthInput = {
 export type InviteVendorMemberInput = {
   email: Scalars['String']['input'];
   marketId: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 export type LoginInput = {
@@ -480,6 +481,7 @@ export type MutationRemoveProductListingArgs = {
 
 export type MutationRemoveVendorMemberArgs = {
   userId: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -510,6 +512,7 @@ export type MutationRestoreUserArgs = {
 
 export type MutationRevokeVendorInviteArgs = {
   id: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -924,6 +927,11 @@ export type QueryOrdersByTokensArgs = {
 };
 
 
+export type QueryPendingVendorInvitesArgs = {
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
 export type QueryProductArgs = {
   id: Scalars['ID']['input'];
 };
@@ -1127,6 +1135,7 @@ export type UpdateVendorInput = {
 export type UpdateVendorMemberInput = {
   marketId: Scalars['ID']['input'];
   userId: Scalars['ID']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 export type UserModel = {
@@ -1557,7 +1566,44 @@ export type AdminVendorMembersQueryVariables = Exact<{
 }>;
 
 
-export type AdminVendorMembersQuery = { __typename?: 'Query', adminVendorMembers: { __typename?: 'VendorMembersPage', totalCount: number, items: Array<{ __typename?: 'VendorMemberModel', id: string, userId: string, fullName: string, email: string, role: VendorMemberRole, market: { __typename?: 'MarketModel', id: string, name: string } | null }> } };
+export type AdminVendorMembersQuery = { __typename?: 'Query', adminVendorMembers: { __typename?: 'VendorMembersPage', totalCount: number, items: Array<{ __typename?: 'VendorMemberModel', id: string, userId: string, fullName: string, email: string, role: VendorMemberRole, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null }> } };
+
+export type PendingVendorInvitesQueryVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+}>;
+
+
+export type PendingVendorInvitesQuery = { __typename?: 'Query', pendingVendorInvites: Array<{ __typename?: 'VendorInviteModel', id: string, email: string, createdAt: string, expiresAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null }> };
+
+export type InviteVendorMemberMutationVariables = Exact<{
+  input: InviteVendorMemberInput;
+}>;
+
+
+export type InviteVendorMemberMutation = { __typename?: 'Mutation', inviteVendorMember: boolean };
+
+export type RevokeVendorInviteMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  vendorId: Scalars['ID']['input'];
+}>;
+
+
+export type RevokeVendorInviteMutation = { __typename?: 'Mutation', revokeVendorInvite: boolean };
+
+export type UpdateVendorMemberMutationVariables = Exact<{
+  input: UpdateVendorMemberInput;
+}>;
+
+
+export type UpdateVendorMemberMutation = { __typename?: 'Mutation', updateVendorMember: { __typename?: 'VendorMemberModel', id: string, userId: string } };
+
+export type RemoveVendorMemberMutationVariables = Exact<{
+  userId: Scalars['ID']['input'];
+  vendorId: Scalars['ID']['input'];
+}>;
+
+
+export type RemoveVendorMemberMutation = { __typename?: 'Mutation', removeVendorMember: boolean };
 
 export type CreateVendorMutationVariables = Exact<{
   input: CreateVendorInput;

@@ -224,10 +224,34 @@ export interface VendorStaffMember {
   allMarkets: boolean;
   /** Market short labels this person can work at. Empty when `allMarkets`. */
   markets: readonly string[];
+  /**
+   * The same markets as slugs, in the same order — what the screens route and
+   * write by. `markets` is the label a person reads; this is the key, so the
+   * "move them to another market" call does not have to match on display text.
+   */
+  marketSlugs: readonly string[];
   /** Can add, remove and re-scope other staff from the vendor app. */
   managesStaff: boolean;
   /** Invited, but the invitation has not been accepted yet. */
   pending: boolean;
+  /**
+   * The outstanding invitation behind a {@link VendorStaffMember.pending} row,
+   * for *Cancel invite*; `null` for anyone who holds a seat. A pending row is
+   * an invitation rather than a person — there is no account behind it yet, so
+   * it cannot be moved or removed, only re-sent or withdrawn.
+   */
+  inviteId: string | null;
+}
+
+/** What *Invite staff member* sends (design 1c). */
+export interface VendorStaffInvite {
+  email: string;
+  /**
+   * The market they will man. Required, not optional: a staff seat is always
+   * pinned to exactly one of the vendor's stalls, which is the database's rule
+   * as much as the form's.
+   */
+  marketSlug: string;
 }
 
 /** A note under the staff table — guidance that depends on this vendor. */

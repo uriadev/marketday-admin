@@ -4,9 +4,9 @@
       <div class="max-w-[620px]">
         <h2 class="m-0 text-title-large font-bold text-on-surface">{{ summary() }}</h2>
         <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">
-          Staff sign in to the vendor app with their own account. Each person sees only the markets
-          they have been given access to — orders, inventory and the day’s schedule for those, and
-          nothing else.
+          Staff sign in to the vendor app with their own account. Each person sees only the market
+          they have been given — orders, inventory and the day’s schedule for that one, and nothing
+          else.
         </p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -26,7 +26,15 @@
             {{ label }}
           </button>
         }
-        <button matButton="filled" type="button" disabled matTooltip="Coming soon">
+        <button
+          matButton="filled"
+          type="button"
+          [disabled]="!canInvite()"
+          [matTooltip]="
+            canInvite() ? '' : 'Put this vendor on a market first — a seat is pinned to one stall.'
+          "
+          (click)="invite()"
+        >
           <mat-icon>add</mat-icon>
           Invite staff member
         </button>
@@ -37,7 +45,7 @@
       <md-empty-state
         icon="group"
         headline="Nobody is scoped to that market"
-        body="Owners can work at every market; stallholders only at the ones they have been given."
+        body="Owners can work at every market; stallholders only at the one they have been given."
       >
         <button matButton="filled" type="button" (click)="setScope(null)">Show all staff</button>
       </md-empty-state>
@@ -85,18 +93,6 @@
                 @if (person.managesStaff) {
                   <md-status-pill tone="muted">Manages staff</md-status-pill>
                 }
-                @if (canAddMarket(person)) {
-                  <button matButton type="button" disabled matTooltip="Coming soon">
-                    <mat-icon>add</mat-icon>
-                    Add market
-                  </button>
-                }
-                @if (person.pending) {
-                  <button matButton type="button" disabled matTooltip="Coming soon">Resend</button>
-                  <button matButton type="button" disabled matTooltip="Coming soon">
-                    Cancel invite
-                  </button>
-                }
               </div>
             </td>
           </ng-container>
@@ -115,9 +111,39 @@
                 <mat-icon>more_vert</mat-icon>
               </button>
               <mat-menu #rowMenu="matMenu">
-                <button mat-menu-item type="button" disabled>Change markets</button>
-                <button mat-menu-item type="button" disabled>Make an owner</button>
-                <button mat-menu-item type="button" disabled>Remove from vendor</button>
+                @if (person.pending) {
+                  <button mat-menu-item type="button" (click)="resend(person)">
+                    Send the invitation again
+                  </button>
+                  <button mat-menu-item type="button" (click)="cancelInvite(person)">
+                    Withdraw invitation
+                  </button>
+                } @else {
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="!canMove(person)"
+                    (click)="move(person)"
+                  >
+                    Change market
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    disabled
+                    matTooltip="No endpoint yet — ownership cannot be transferred."
+                  >
+                    Make an owner
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="!canRemove(person)"
+                    (click)="remove(person)"
+                  >
+                    Remove from vendor
+                  </button>
+                }
               </mat-menu>
             </td>
           </ng-container>

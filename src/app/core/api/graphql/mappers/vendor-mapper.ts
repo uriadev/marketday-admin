@@ -13,6 +13,7 @@ import {
 import { describeSchedule } from '../../../scheduling/recurrence';
 import {
   AdminVendorMembersQuery,
+  PendingVendorInvitesQuery,
   VendorFieldsFragment,
   VendorMemberRole as GqlVendorMemberRole,
   VendorOrderState,
@@ -32,6 +33,7 @@ import {
 export type GqlVendor = VendorFieldsFragment;
 export type GqlVendorMarket = VendorFieldsFragment['markets'][number];
 export type GqlVendorMember = AdminVendorMembersQuery['adminVendorMembers']['items'][number];
+export type GqlVendorInvite = PendingVendorInvitesQuery['pendingVendorInvites'][number];
 
 /**
  * `active → trading`, deactivated → `paused`. The business-wide half is all a
@@ -59,6 +61,20 @@ function dayLabel(timestamp: string): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return 'MarketDay';
   return date.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * "just now" · "2 days ago" — how long an invitation has been outstanding.
+ * Coarse on purpose: the row is asking whether to chase or withdraw it, and
+ * the exact minute is never the answer to that.
+ */
+function agoLabel(timestamp: string): string {
+  const then = new Date(timestamp).getTime();
+  if (Number.isNaN(then)) return 'recently';
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days < 1) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
 }
 
 /**
@@ -186,42 +202,67 @@ function toMembership(
 }
 
 /**
- * Folds `adminVendorMembers` rows into design 1c's people. The backend pins a
- * `STAFF` seat to one market (`VendorMember.marketId`), so a stallholder who
- * works two markets is two rows here and one person with two `markets` entries;
- * an `OWNER` spans every market and carries none. `VendorMemberModel` has no
- * phone and no invitation state — a seat only exists once the invite is
- * accepted — so `phone` reads "No phone yet" and `pending` is always `false`,
- * the same honest narrowing the rest of this file makes.
+ * Design 1c's roster: the seats `adminVendorMembers` returns, then the
+ * invitations `pendingVendorInvites` has out, as one list of rows.
+ *
+ * A seat and an invitation are genuinely different things and the row says so.
+ * A seat is a person — an account, a name, a market they man — and can be
+ * moved or removed. An invitation is an **address that has been offered one**:
+ * there is no account behind it yet, so it has no name and no id to re-scope,
+ * and the only two things that can happen to it are re-sending and withdrawal.
+ * `inviteId` is what tells them apart, and it is what *Cancel invite* sends.
+ *
+ * One seat per person, not several: `vendor_members.userId` is a `@OneToOne`,
+ * so a stallholder mans one market at a time and `markets` holds at most one
+ * entry. `markets` keeps the label the table prints and `marketSlugs` the key
+ * the writes address, in the same order. An `OWNER` spans every market and
+ * carries neither. `VendorMemberModel` has no phone column, so `phone` reads
+ * "No phone yet" — the same honest narrowing the rest of this file makes.
  */
-export function toVendorStaff(rows: readonly GqlVendorMember[]): VendorStaffMember[] {
-  const byUser = new Map<string, { first: GqlVendorMember; markets: string[] }>();
-  for (const row of rows) {
+export function toVendorStaff(
+  rows: readonly GqlVendorMember[],
+  invites: readonly GqlVendorInvite[] = [],
+): VendorStaffMember[] {
+  const seated = rows.map((row): VendorStaffMember => {
+    const owner = row.role === GqlVendorMemberRole.Owner;
     // Only a staff seat names a market; an owner's is always null.
-    const market = row.role === GqlVendorMemberRole.Staff ? row.market?.name : undefined;
-    const entry = byUser.get(row.userId);
-    if (entry) {
-      if (market && !entry.markets.includes(market)) entry.markets.push(market);
-    } else {
-      byUser.set(row.userId, { first: row, markets: market ? [market] : [] });
-    }
-  }
-
-  return [...byUser.values()].map(({ first, markets }) => {
-    const owner = first.role === GqlVendorMemberRole.Owner;
+    const market = owner ? null : row.market;
     return {
-      id: first.userId,
-      name: first.fullName,
+      id: row.userId,
+      name: row.fullName,
       role: owner ? 'Owner · account holder' : 'Stallholder',
       memberRole: owner ? VendorMemberRole.Owner : VendorMemberRole.Staff,
-      email: first.email,
+      email: row.email,
       phone: 'No phone yet',
       allMarkets: owner,
-      markets: owner ? [] : markets,
+      markets: market ? [market.name] : [],
+      marketSlugs: market ? [market.slug] : [],
       managesStaff: owner,
       pending: false,
+      inviteId: null,
     };
   });
+
+  const pending = invites.map((invite): VendorStaffMember => ({
+    // The address is the identity: there is no account yet, so the invite's
+    // own id is all the row can be keyed and acted on by.
+    id: `invite-${invite.id}`,
+    name: invite.email,
+    role: `Stallholder · invited ${agoLabel(invite.createdAt)}`,
+    memberRole: VendorMemberRole.Staff,
+    email: invite.email,
+    phone: 'No phone yet',
+    allMarkets: false,
+    markets: invite.market ? [invite.market.name] : [],
+    marketSlugs: invite.market ? [invite.market.slug] : [],
+    managesStaff: false,
+    pending: true,
+    inviteId: invite.id,
+  }));
+
+  // Seats first: the people who actually work there are the list, and the
+  // offers out are the tail of it.
+  return [...seated, ...pending];
 }
 
 /**
@@ -240,17 +281,19 @@ export function toVendorDetail(
   members: readonly GqlVendorMember[] = [],
   windows: ReadonlyMap<string, GqlOrderWindow> = new Map(),
   now: Date = new Date(),
+  invites: readonly GqlVendorInvite[] = [],
 ): VendorDetail {
   const standing = standingOf(vendor);
   const paused = standing === 'paused';
   const memberships = vendor.markets.map((market) =>
     toMembership(market, vendor.isActive, windows.get(market.id) ?? null, now),
   );
-  const staff = toVendorStaff(members);
-  // Folded people (accounts), not seats: a stallholder at two markets is one
-  // account. Falls back to the batch-hydrated seat count when the roster read
-  // came back empty.
-  const staffCount = staff.length || vendor.memberCount;
+  const staff = toVendorStaff(members, invites);
+  // Seated people only — an outstanding invitation is an offer, not a member
+  // of the team, and counting it would have the header promise staff the
+  // vendor does not have. Falls back to the batch-hydrated seat count when the
+  // roster read came back empty.
+  const staffCount = members.length || vendor.memberCount;
 
   const badges: VendorBadge[] = [];
   if (memberships.length > 0) {

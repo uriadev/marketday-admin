@@ -7,6 +7,7 @@ import {
   VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
+  VendorStaffInvite,
   VendorSummary,
 } from '../../models/vendor.model';
 
@@ -83,6 +84,57 @@ export abstract class VendorRepository {
    * Rejects when the vendor does not trade at that market.
    */
   abstract removeFromMarket(vendorSlug: string, marketSlug: string): Observable<void>;
+
+  /* ── The team (design 1c) ─────────────────────────────────────────────────
+     Four writes over one roster. Each answers with nothing and the tab
+     reloads `detail()`, for {@link addToMarket}'s reason: a seat row on that
+     screen is a person folded together with their stall and their outstanding
+     invitation, which no single mutation returns.                          */
+
+  /**
+   * Offers someone a seat at one of the vendor's stalls. The backend mails
+   * them a 6-digit code and the row shows as *Invitation pending* until they
+   * redeem it; nothing exists for that person until they do.
+   *
+   * Sending again to the same address supersedes the outstanding code rather
+   * than adding a second invitation, which is what makes *Resend* safe to
+   * press twice. Rejects when the vendor does not trade at `marketSlug` —
+   * inviting someone to a market the business does not attend is caught now
+   * rather than when they try to accept.
+   */
+  abstract inviteStaff(vendorSlug: string, invite: VendorStaffInvite): Observable<void>;
+
+  /**
+   * Withdraws an invitation that has not been accepted — the row's *Cancel
+   * invite*. The code stops working; nothing is removed, because nobody was
+   * ever added.
+   */
+  abstract revokeStaffInvite(vendorSlug: string, inviteId: string): Observable<void>;
+
+  /**
+   * Moves a stallholder to a different one of the vendor's markets.
+   *
+   * A **move**, never an addition: one person holds at most one seat, so a
+   * stallholder works one market at a time. The owner has no market scope to
+   * change — they span every market the vendor trades at — and is refused
+   * server-side rather than silently pinned.
+   */
+  abstract moveStaffToMarket(
+    vendorSlug: string,
+    staffId: string,
+    marketSlug: string,
+  ): Observable<void>;
+
+  /**
+   * Takes someone off the team. Their seat goes and their account drops back
+   * to a plain buyer's in the same transaction, so a removed stallholder
+   * cannot keep signing in to the vendor app.
+   *
+   * The **owner cannot be removed**, by anyone: their seat is the only route
+   * back into the business. Rejects rather than leaving a vendor nobody can
+   * manage.
+   */
+  abstract removeStaff(vendorSlug: string, staffId: string): Observable<void>;
 
   /** Invitation policy and how many have gone out this month (design 1n). */
   abstract inviteSummary(): Observable<VendorInviteSummary>;
