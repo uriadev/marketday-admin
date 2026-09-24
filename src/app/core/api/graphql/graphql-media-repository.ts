@@ -53,7 +53,7 @@ export class GraphqlMediaRepository extends MediaRepository {
       switchMap((presigned) =>
         this.http
           .put(presigned.uploadUrl, file, {
-            headers: { 'Content-Type': file.type, 'x-amz-acl': 'public-read' },
+            headers: { 'Content-Type': file.type },
           })
           .pipe(map(() => presigned)),
       ),
