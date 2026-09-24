@@ -32,6 +32,7 @@ import {
   UPDATE_VENDOR_MEMBER,
   VENDOR_BY_ID,
   VENDOR_ORDER_WINDOW,
+  VENDOR_PRODUCT_COUNT,
 } from './operations/vendor';
 import { blankToNull } from './mappers/nullable';
 import { GqlOrderWindow } from './mappers/order-window-mapper';
@@ -75,6 +76,8 @@ import {
   VendorByIdQueryVariables,
   VendorOrderWindowQuery,
   VendorOrderWindowQueryVariables,
+  VendorProductCountQuery,
+  VendorProductCountQueryVariables,
 } from './generated';
 
 /** The backend's invitation policy — no query exposes it yet (gap below). */
@@ -292,10 +295,11 @@ export class GraphqlVendorRepository extends VendorRepository {
           ),
           members: this.fetchMembers(id),
           invites: this.fetchInvites(id),
+          productCount: this.fetchProductCount(id),
         }),
       ),
-      map(({ vendor: { vendor, windows }, members, invites }) =>
-        toVendorDetail(vendor, members, windows, new Date(), invites),
+      map(({ vendor: { vendor, windows }, members, invites, productCount }) =>
+        toVendorDetail(vendor, members, windows, new Date(), invites, productCount),
       ),
     );
   }
@@ -691,6 +695,21 @@ export class GraphqlVendorRepository extends VendorRepository {
    * roster in full rather than paging it. An unknown id yields an empty page,
    * the same answer a real vendor with no seats gives.
    */
+  /**
+   * The Products tab badge. Swallowed to 0 like {@link fetchInvites}: a badge
+   * is not worth keeping the whole vendor from opening. Retried on the next load.
+   */
+  private fetchProductCount(vendorId: string): Observable<number> {
+    return this.client
+      .request<VendorProductCountQuery, VendorProductCountQueryVariables>(VENDOR_PRODUCT_COUNT, {
+        vendorId,
+      })
+      .pipe(
+        map((result) => result.products.totalCount),
+        catchError(() => of(0)),
+      );
+  }
+
   private fetchMembers(id: string): Observable<readonly GqlVendorMember[]> {
     return this.client
       .request<AdminVendorMembersQuery, AdminVendorMembersQueryVariables>(ADMIN_VENDOR_MEMBERS, {

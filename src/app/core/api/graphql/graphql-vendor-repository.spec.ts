@@ -122,6 +122,13 @@ function expectOperation(operation: string) {
   return { request, variables: body.variables };
 }
 
+/** The detail shell's product count, read beside the vendor and its roster. */
+function flushProductCount(totalCount = 0) {
+  const count = expectOperation('query VendorProductCount');
+  expect(count.variables).toEqual({ vendorId: 'vnd-mcnally' });
+  count.request.flush({ data: { products: { totalCount } } });
+}
+
 /** The slug → id lookup every vendor-scoped call makes first. */
 function resolveSlug() {
   expectPost('query AdminVendors').request.flush({
@@ -578,6 +585,7 @@ describe('GraphqlVendorRepository.detail', () => {
     expectOperation('query PendingVendorInvites').request.flush({
       data: { pendingVendorInvites: [] },
     });
+    flushProductCount();
   }
 
   /** The window read for one market, by the id it was asked about. */
@@ -671,6 +679,7 @@ describe('GraphqlVendorRepository.detail', () => {
     expectOperation('query PendingVendorInvites').request.flush({
       data: { pendingVendorInvites: [] },
     });
+    flushProductCount();
 
     // `http.verify()` in afterEach catches any VendorOrderWindow post.
     expect(detail?.memberships).toEqual([]);
@@ -966,6 +975,7 @@ describe('GraphqlVendorRepository team writes', () => {
         ],
       },
     });
+    flushProductCount(12);
 
     // Seats first, then the offers out. Only the seat is a person.
     expect(detail?.staff.map((person) => person.name)).toEqual(['Cathal Byrne', 'dara@example.ie']);
@@ -983,6 +993,7 @@ describe('GraphqlVendorRepository team writes', () => {
     });
     // An offer is not a member of the team, so it is not counted as one.
     expect(detail?.staffCount).toBe(1);
+    expect(detail?.productCount).toBe(12);
   });
 
   it('still opens the tab when the invitations will not load', () => {
@@ -997,6 +1008,7 @@ describe('GraphqlVendorRepository team writes', () => {
       { errors: [{ message: 'Forbidden' }] },
       { status: 200, statusText: 'OK' },
     );
+    flushProductCount();
 
     // The seats are the screen; the offers are not worth taking it down for.
     expect(detail?.staff).toEqual([]);

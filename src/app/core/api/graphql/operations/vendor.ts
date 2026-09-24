@@ -85,6 +85,19 @@ export const VENDOR_BY_ID = gql`
 `;
 
 /**
+ * The detail shell's Products badge: how many products the vendor has, the
+ * same `products(vendorId:)` count the Products tab reads. `limit: 1` keeps
+ * the row payload to one — `totalCount` counts past it (`getManyAndCount`).
+ */
+export const VENDOR_PRODUCT_COUNT = gql`
+  query VendorProductCount($vendorId: ID!) {
+    products(vendorId: $vendorId, criteria: { limit: 1 }) {
+      totalCount
+    }
+  }
+`;
+
+/**
  * When one stall takes orders at one market — the Markets tab's per-membership
  * status (design 1b). `@Public()`, and the same `getOrderGate` checkout calls,
  * so what the console shows is what a shopper's cart is refused with.

@@ -282,6 +282,7 @@ export function toVendorDetail(
   windows: ReadonlyMap<string, GqlOrderWindow> = new Map(),
   now: Date = new Date(),
   invites: readonly GqlVendorInvite[] = [],
+  productCount = 0,
 ): VendorDetail {
   const standing = standingOf(vendor);
   const paused = standing === 'paused';
@@ -312,7 +313,7 @@ export function toVendorDetail(
     marketCount: memberships.length,
     staffCount,
     membershipCount: memberships.length,
-    productCount: 0,
+    productCount,
     pendingApplication: null,
     memberships,
     staff,

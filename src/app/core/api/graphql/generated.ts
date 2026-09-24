@@ -1553,6 +1553,13 @@ export type VendorByIdQueryVariables = Exact<{
 
 export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string, schedule: string }> } | null };
 
+export type VendorProductCountQueryVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+}>;
+
+
+export type VendorProductCountQuery = { __typename?: 'Query', products: { __typename?: 'ProductsPage', totalCount: number } };
+
 export type VendorOrderWindowQueryVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   marketId: Scalars['ID']['input'];
