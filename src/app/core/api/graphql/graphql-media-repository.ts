@@ -35,11 +35,11 @@ type UploadUrlResult = Omit<CreateAvatarUploadUrlMutation['createAvatarUploadUrl
 /**
  * Presign, then `PUT` the file straight to R2/LocalStack — never through the
  * API, never through the dev proxy. `../backend/src/storage/storage.service.ts`
- * signs the URL with an exact `Content-Type` and `x-amz-acl: public-read`
- * baked in, and it **expires in 300s**, so this must set `Content-Type` to
- * the same `mimeType` it presigned and send nothing else — no `Authorization`,
- * no `x-api-key`, both of which `authInterceptor` already withholds because
- * this URL is never `environment.api.graphqlUrl`. The bucket needs its own
+ * signs the URL for an exact `Content-Type` and it **expires in 300s**, so
+ * this must set `Content-Type` to the same `mimeType` it presigned and send
+ * nothing else: no `x-amz-acl` (R2 has no object ACLs and answers 400), and
+ * no `Authorization` or `x-api-key`, both of which `authInterceptor` already
+ * withholds because this URL is never `environment.api.graphqlUrl`. The bucket needs its own
  * CORS policy allowing `PUT` from this origin — see
  * `docs/backend-api-gaps.md` #12; check `infra/localstack/init-s3.sh` in dev.
  */
@@ -53,7 +53,7 @@ export class GraphqlMediaRepository extends MediaRepository {
       switchMap((presigned) =>
         this.http
           .put(presigned.uploadUrl, file, {
-            headers: { 'Content-Type': file.type, 'x-amz-acl': 'public-read' },
+            headers: { 'Content-Type': file.type },
           })
           .pipe(map(() => presigned)),
       ),
