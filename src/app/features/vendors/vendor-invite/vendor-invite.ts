@@ -304,8 +304,7 @@ export class VendorInvite implements OnInit {
         this.form.patchValue({ businessName: '', contactName: '', email: '', phone: '', note: '' });
         this.form.markAsUntouched();
       } else {
-        const from = this.market();
-        void this.router.navigate(from ? ['/markets', from, 'vendors'] : ['/vendors']);
+        void this.router.navigate(['/vendors', created.slug]);
       }
     });
   }
