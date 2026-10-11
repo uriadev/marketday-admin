@@ -3,6 +3,7 @@ import {
   MembershipFact,
   VendorBadge,
   VendorDetail,
+  VendorKind,
   VendorMemberRole,
   VendorMembership,
   VendorProfile,
@@ -13,8 +14,10 @@ import {
 import { describeSchedule } from '../../../scheduling/recurrence';
 import {
   AdminVendorMembersQuery,
+  MarketKind,
   PendingVendorInvitesQuery,
   VendorFieldsFragment,
+  VendorKind as GqlVendorKind,
   VendorMemberRole as GqlVendorMemberRole,
   VendorOrderState,
 } from '../generated';
@@ -98,6 +101,24 @@ function metaLine(vendor: GqlVendor): string {
   return Number.isNaN(year) ? vendor.category : `${vendor.category} · since ${year}`;
 }
 
+/**
+ * The generated enum and the model's carry the same strings; mapping by hand
+ * keeps `core/models` free of the generated types, and turns a member the
+ * console does not know yet into the kind every vendor was before trucks.
+ */
+export function toVendorKind(kind: GqlVendorKind): VendorKind {
+  return kind === GqlVendorKind.FoodTruck ? VendorKind.FoodTruck : VendorKind.StallHolder;
+}
+
+export function toGqlVendorKind(kind: VendorKind): GqlVendorKind {
+  return kind === VendorKind.FoodTruck ? GqlVendorKind.FoodTruck : GqlVendorKind.StallHolder;
+}
+
+/** One of a food truck's own stops, which `VendorModel.markets` lists beside its markets. */
+function isStop(market: GqlVendorMarket): boolean {
+  return market.kind === MarketKind.FoodTruckStop;
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
    Reads
 ──────────────────────────────────────────────────────────────────────────── */
@@ -108,8 +129,10 @@ export function toVendorSummary(vendor: GqlVendor): VendorSummary {
     id: vendor.id,
     slug: vendor.slug,
     name: vendor.name,
+    kind: toVendorKind(vendor.kind),
     meta: metaLine(vendor),
-    markets: vendor.markets.map((market) => market.name),
+    markets: vendor.markets.filter((market) => !isStop(market)).map((market) => market.name),
+    stopCount: vendor.markets.filter(isStop).length,
     // No application model server-side — docs/backend-api-gaps.md #9.
     appliedLabel: null,
     // The list carries the team's size, not its roster — the names live behind
@@ -185,6 +208,7 @@ function toMembership(
     market: market.name,
     marketSlug: market.slug,
     detail: [describeSchedule(market.schedule), market.city].filter(Boolean).join(' · '),
+    isStop: isStop(market),
   };
   if (!vendorActive) {
     return { ...base, badges: [{ label: 'Paused', tone: 'muted' }], facts: [], paused: true };
@@ -286,9 +310,14 @@ export function toVendorDetail(
 ): VendorDetail {
   const standing = standingOf(vendor);
   const paused = standing === 'paused';
-  const memberships = vendor.markets.map((market) =>
-    toMembership(market, vendor.isActive, windows.get(market.id) ?? null, now),
-  );
+  // Public markets first, then the truck's own stops — the tab draws them as
+  // two groups.
+  const memberships = vendor.markets
+    .map((market) => toMembership(market, vendor.isActive, windows.get(market.id) ?? null, now))
+    .sort((a, b) => Number(a.isStop) - Number(b.isStop));
+  const kind = toVendorKind(vendor.kind);
+  const marketCount = memberships.filter((membership) => !membership.isStop).length;
+  const stopCount = memberships.length - marketCount;
   const staff = toVendorStaff(members, invites);
   // Seated people only — an outstanding invitation is an offer, not a member
   // of the team, and counting it would have the header promise staff the
@@ -297,9 +326,15 @@ export function toVendorDetail(
   const staffCount = members.length || vendor.memberCount;
 
   const badges: VendorBadge[] = [];
-  if (memberships.length > 0) {
+  if (kind === VendorKind.FoodTruck) {
     badges.push({
-      label: `Trading at ${memberships.length} ${memberships.length === 1 ? 'market' : 'markets'}`,
+      label: `Food truck · ${stopCount} ${stopCount === 1 ? 'stop' : 'stops'}`,
+      tone: paused ? 'muted' : 'positive',
+    });
+  }
+  if (marketCount > 0) {
+    badges.push({
+      label: `Trading at ${marketCount} ${marketCount === 1 ? 'market' : 'markets'}`,
       tone: paused ? 'muted' : 'positive',
     });
   }
@@ -308,18 +343,21 @@ export function toVendorDetail(
     id: vendor.id,
     slug: vendor.slug,
     name: vendor.name,
+    kind,
     meta: `${vendor.category} · on MarketDay since ${dayLabel(vendor.createdAt)}`,
     badges,
-    marketCount: memberships.length,
+    marketCount,
     staffCount,
     membershipCount: memberships.length,
+    stopCount,
     productCount,
     pendingApplication: null,
     memberships,
     staff,
     staffNotes: [],
     stats: [
-      { label: 'Markets', value: String(memberships.length) },
+      { label: 'Markets', value: String(marketCount) },
+      ...(kind === VendorKind.FoodTruck ? [{ label: 'Stops', value: String(stopCount) }] : []),
       { label: 'Staff', value: String(staffCount) },
       { label: 'Status', value: paused ? 'Paused' : 'Trading' },
     ],

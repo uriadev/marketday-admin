@@ -12,6 +12,24 @@ export enum VendorMemberRole {
 }
 
 /**
+ * What kind of business a vendor is. Mirrors the backend's `VendorKind`
+ * (`../backend/src/common/enums/vendor-kind.enum.ts`): a `FOOD_TRUCK` keeps
+ * everything a `STALL_HOLDER` has — it can still join markets — and may also
+ * host **stops** of its own, recurring places and times its owner sets up in
+ * the vendor app (`../backend/specs/food-truck-vendors.md`). Only an admin
+ * decides which one a vendor is.
+ */
+export enum VendorKind {
+  StallHolder = 'STALL_HOLDER',
+  FoodTruck = 'FOOD_TRUCK',
+}
+
+export const VENDOR_KIND_LABELS: Record<VendorKind, string> = {
+  [VendorKind.StallHolder]: 'Stall holder',
+  [VendorKind.FoodTruck]: 'Food truck',
+};
+
+/**
  * How a vendor reads at a glance in the directory (design 1a).
  *
  * `pending` and `invited` are not the same thing: a pending vendor applied and
@@ -34,10 +52,14 @@ export interface VendorSummary {
   /** URL segment — `/vendors/mcnally-family-farm`. */
   slug: string;
   name: string;
+  kind: VendorKind;
   /** "Vegetables & eggs · since 2021". */
   meta: string;
-  /** Markets the vendor trades at, by short name. */
+  /** Markets the vendor trades at, by short name. A food truck's own stops are
+   *  not markets and are not listed here — see {@link stopCount}. */
   markets: readonly string[];
+  /** How many stops a food truck hosts; always 0 for a stall holder. */
+  stopCount: number;
   /** Pending-application chip — "+1 applied", "Temple Bar · applied". */
   appliedLabel: string | null;
   /**
@@ -75,6 +97,8 @@ export interface VendorFilters {
   multiMarket: boolean;
   feeUnpaid: boolean;
   paused: boolean;
+  /** Only vendors that are food trucks. */
+  foodTrucks: boolean;
 }
 
 export const EMPTY_VENDOR_FILTERS: VendorFilters = {
@@ -84,6 +108,7 @@ export const EMPTY_VENDOR_FILTERS: VendorFilters = {
   multiMarket: false,
   feeUnpaid: false,
   paused: false,
+  foodTrucks: false,
 };
 
 /**
@@ -128,12 +153,13 @@ export interface VendorDirectoryPage extends Page<VendorSummary> {
  * multi-market vendors who want another".
  */
 export function matchesVendorFilters(vendor: VendorSummary, filters: VendorFilters): boolean {
-  const { q, market, applications, multiMarket, feeUnpaid, paused } = filters;
+  const { q, market, applications, multiMarket, feeUnpaid, paused, foodTrucks } = filters;
   if (market !== null && !vendor.markets.includes(market)) return false;
   if (applications && vendor.appliedLabel === null) return false;
   if (multiMarket && vendor.markets.length < 2) return false;
   if (feeUnpaid && vendor.standing !== 'fee-unpaid') return false;
   if (paused && vendor.standing !== 'paused') return false;
+  if (foodTrucks && vendor.kind !== VendorKind.FoodTruck) return false;
 
   const needle = q.trim().toLowerCase();
   if (needle === '') return true;
@@ -148,18 +174,27 @@ export function matchesVendorFilters(vendor: VendorSummary, filters: VendorFilte
 
 /** Whether any filter is on — the "Clear filters" button, and the empty state. */
 export function hasVendorFilters(filters: VendorFilters): boolean {
-  const { q, market, applications, multiMarket, feeUnpaid, paused } = filters;
-  return q.trim() !== '' || market !== null || applications || multiMarket || feeUnpaid || paused;
+  const { q, market, applications, multiMarket, feeUnpaid, paused, foodTrucks } = filters;
+  return (
+    q.trim() !== '' ||
+    market !== null ||
+    applications ||
+    multiMarket ||
+    feeUnpaid ||
+    paused ||
+    foodTrucks
+  );
 }
 
 /** The toggle chips above the directory table, in the design's order. */
-export type VendorToggle = 'applications' | 'multiMarket' | 'feeUnpaid' | 'paused';
+export type VendorToggle = 'applications' | 'multiMarket' | 'feeUnpaid' | 'paused' | 'foodTrucks';
 
 export const VENDOR_TOGGLES: readonly { value: VendorToggle; label: string }[] = [
   { value: 'applications', label: 'Applications' },
   { value: 'multiMarket', label: 'At 2+ markets' },
   { value: 'feeUnpaid', label: 'Fee unpaid' },
   { value: 'paused', label: 'Paused' },
+  { value: 'foodTrucks', label: 'Food trucks' },
 ];
 
 /** A fact chip under a membership — "Fee paid · €35 · 12 Aug". */
@@ -181,6 +216,13 @@ export interface VendorMembership {
   facts: readonly MembershipFact[];
   /** A paused membership is drawn back, like the design's grey tile. */
   paused: boolean;
+  /**
+   * One of a food truck's own stops rather than a public market. A stop is
+   * created, edited and retired by the truck's owner in the vendor app — the
+   * console shows it but cannot take the truck off it (`leaveMarket` refuses
+   * the host's own stop) — and it has no market screens of its own to link to.
+   */
+  isStop: boolean;
 }
 
 /** An application waiting on a decision, shown as a banner above the list. */
@@ -274,6 +316,7 @@ export interface VendorDetail {
   id: string;
   slug: string;
   name: string;
+  kind: VendorKind;
   /** "Vegetables & eggs · Ballyboughal, Co. Dublin · Tom McNally · …". */
   meta: string;
   badges: readonly VendorBadge[];
@@ -281,6 +324,8 @@ export interface VendorDetail {
   staffCount: number;
   /** Counts the Markets tab shows — memberships plus any application. */
   membershipCount: number;
+  /** A food truck's stops, which are among {@link memberships}; 0 for a stall holder. */
+  stopCount: number;
   /** Products on the vendor's list, across every market (design 3a). */
   productCount: number;
   pendingApplication: VendorApplication | null;
@@ -396,6 +441,11 @@ export interface VendorInvite {
   /** Optional; empty string when not given. */
   phone: string;
   trade: string;
+  /**
+   * Stall holder or food truck. A food truck may add stops of its own in the
+   * vendor app, on top of any markets picked here.
+   */
+  kind: VendorKind;
   /** Slugs of the markets they may apply to. Empty means every market. */
   marketSlugs: readonly string[];
   /**
@@ -404,8 +454,11 @@ export interface VendorInvite {
    * order — until an admin activates it from the directory. It is `CreateVendorInput.isActive`, one for one.
    */
   skipApplicationReview: boolean;
-  /** Shown above the sign-up button in the invitation email. */
-  note: string;
+  /**
+   * The stall description shoppers read on every market page the vendor
+   * trades at — `CreateVendorInput.description`. Empty means none yet.
+   */
+  description: string;
 }
 
 /**
@@ -417,4 +470,13 @@ export interface VendorInviteSummary {
   sentThisMonth: number;
   linkValidDays: number;
   reminderAfterDays: number;
+}
+
+/**
+ * The onboarding link that just went to a vendor's owner — where it went and
+ * until when it works. Never the link itself: only the owner's inbox holds it.
+ */
+export interface SentOnboardingInvite {
+  email: string;
+  expiresAt: Date;
 }

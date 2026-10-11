@@ -11,6 +11,7 @@ import {
   VendorInvite,
   VendorListQuery,
   VendorProfilePatch,
+  VendorKind,
 } from '../../models/vendor.model';
 import { environment } from '../../../../environments/environment';
 
@@ -22,9 +23,10 @@ function invite(overrides: Partial<VendorInvite> = {}): VendorInvite {
     email: 'dervla@cooleacheese.ie',
     phone: '',
     trade: 'Cheese & dairy',
+    kind: VendorKind.StallHolder,
     marketSlugs: [],
     skipApplicationReview: false,
-    note: 'Dervla — we met at the Bantry organisers’ evening.',
+    description: 'Raw-milk Gouda-style cheeses, made on the farm near Coolea.',
     ...overrides,
   };
 }
@@ -34,6 +36,7 @@ const CREATED = {
   id: 'vnd-1',
   slug: 'coolea-cheese-co',
   name: 'Coolea Cheese Co.',
+  kind: 'STALL_HOLDER',
   category: 'Cheese & dairy',
   description: null,
   imageUrl: null,
@@ -49,6 +52,7 @@ const MCNALLY = {
   id: 'vnd-mcnally',
   slug: 'mcnally-family-farm',
   name: 'McNally Family Farm',
+  kind: 'STALL_HOLDER',
   category: 'Fruit & vegetables',
   description: 'Twelve acres of vegetables outside Ballyboughal.',
   imageUrl: 'https://cdn.marketday.ie/vendors/vnd-mcnally/stall.jpg',
@@ -146,9 +150,9 @@ function listQuery(
 
 /** The market index `list()` reads once and caches for the market menu. */
 function flushMarkets(
-  markets: { id: string; slug: string; name: string }[] = [
-    { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar' },
-    { id: 'mkt-1', slug: 'howth', name: 'Howth' },
+  markets: { id: string; slug: string; name: string; kind: string }[] = [
+    { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar', kind: 'PUBLIC_MARKET' },
+    { id: 'mkt-1', slug: 'howth', name: 'Howth', kind: 'PUBLIC_MARKET' },
   ],
 ) {
   expectOperation('query MarketIds').request.flush({ data: { adminMarkets: markets } });
@@ -177,6 +181,8 @@ describe('GraphqlVendorRepository.invite', () => {
       category: 'Cheese & dairy',
       ownerName: 'Dervla Ó Súilleabháin',
       ownerEmail: 'dervla@cooleacheese.ie',
+      description: 'Raw-milk Gouda-style cheeses, made on the farm near Coolea.',
+      kind: 'STALL_HOLDER',
       // The review is on by default, so the vendor is created held back.
       isActive: false,
       // No market picked: an explicit null, not an omitted key.
@@ -222,6 +228,14 @@ describe('GraphqlVendorRepository.invite', () => {
     });
 
     expect(created?.standingLabel).toBe('Paused');
+  });
+
+  it('sends a blank stall description as null', () => {
+    repository.invite(invite({ description: '   ' })).subscribe();
+
+    const { request, variables } = expectPost('mutation CreateVendor');
+    expect(variables['input']).toHaveProperty('description', null);
+    request.flush({ data: { createVendor: CREATED } });
   });
 
   it('sends marketIds as null when no market was picked', () => {
@@ -323,6 +337,120 @@ describe('GraphqlVendorRepository.invite', () => {
     let after: number | undefined;
     repository.inviteSummary().subscribe((summary) => (after = summary.sentThisMonth));
     expect(after).toBe(1);
+  });
+});
+
+describe('GraphqlVendorRepository food trucks', () => {
+  const TRUCK = {
+    ...MCNALLY,
+    id: 'vnd-arun',
+    slug: 'arun-spice-kitchen',
+    name: 'Arun Spice Kitchen',
+    kind: 'FOOD_TRUCK',
+    markets: [
+      {
+        id: 'mkt-2',
+        slug: 'temple-bar',
+        name: 'Temple Bar',
+        kind: 'PUBLIC_MARKET',
+        city: 'Dublin',
+        schedule: '',
+      },
+      {
+        id: 'stop-1',
+        slug: 'spencer-dock',
+        name: 'Spencer Dock',
+        kind: 'FOOD_TRUCK_STOP',
+        city: 'Dublin',
+        schedule: '',
+      },
+    ],
+  };
+
+  it('creates a food truck when the form asks for one', () => {
+    repository.invite(invite({ kind: VendorKind.FoodTruck })).subscribe();
+    const { request, variables } = expectPost('mutation CreateVendor');
+    expect(variables['input']).toMatchObject({ kind: 'FOOD_TRUCK' });
+    request.flush({ data: { createVendor: { ...CREATED, kind: 'FOOD_TRUCK' } } });
+  });
+
+  it('changes the kind through setVendorKind, by id', () => {
+    let done = false;
+    repository.setKind('arun-spice-kitchen', VendorKind.FoodTruck).subscribe(() => (done = true));
+    flushVendors([TRUCK], 1, 1);
+
+    const { request, variables } = expectPost('mutation SetVendorKind');
+    expect(variables).toEqual({ vendorId: 'vnd-arun', kind: 'FOOD_TRUCK' });
+    request.flush({ data: { setVendorKind: { id: 'vnd-arun', kind: 'FOOD_TRUCK' } } });
+    expect(done).toBe(true);
+  });
+
+  it('passes on the refusal to turn a truck with stops back into a stall holder', () => {
+    let error: unknown;
+    repository
+      .setKind('arun-spice-kitchen', VendorKind.StallHolder)
+      .subscribe({ error: (cause: unknown) => (error = cause) });
+    flushVendors([TRUCK], 1, 1);
+
+    expectPost('mutation SetVendorKind').request.flush({
+      data: null,
+      errors: [
+        {
+          message:
+            'This vendor still hosts food-truck stops. Remove them before changing its kind.',
+        },
+      ],
+    });
+    expect((error as Error).message).toContain('still hosts food-truck stops');
+  });
+
+  it('counts stops apart from markets on the directory row', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery()).subscribe((result) => (page = result));
+    flushVendors([TRUCK]);
+    flushMarkets();
+
+    expect(page?.items[0]).toMatchObject({
+      kind: VendorKind.FoodTruck,
+      markets: ['Temple Bar'],
+      stopCount: 1,
+    });
+  });
+
+  it('narrows to food trucks by reading the directory, since kind is not filterable', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery({ foodTrucks: true })).subscribe((result) => (page = result));
+    const { request, variables } = expectOperation('query AdminVendors');
+    // A full read: no page is cut server-side.
+    expect((variables['criteria'] as { offset?: number }).offset).toBeUndefined();
+    request.flush({
+      data: {
+        adminVendors: { totalCount: 2, items: [MCNALLY, TRUCK] },
+        directory: { totalCount: 2 },
+      },
+    });
+    flushMarkets();
+
+    expect(page?.items.map((row) => row.slug)).toEqual(['arun-spice-kitchen']);
+    expect(page?.total).toBe(1);
+  });
+
+  it('keeps stops out of the market menu but can still resolve one', () => {
+    let page: VendorDirectoryPage | undefined;
+    repository.list(listQuery()).subscribe((result) => (page = result));
+    flushVendors([MCNALLY]);
+    flushMarkets([
+      { id: 'mkt-2', slug: 'temple-bar', name: 'Temple Bar', kind: 'PUBLIC_MARKET' },
+      { id: 'stop-1', slug: 'spencer-dock', name: 'Spencer Dock', kind: 'FOOD_TRUCK_STOP' },
+    ]);
+    expect(page?.facets.markets).toEqual(['Temple Bar']);
+
+    // A truck's staff are pinned to its stops, so the slug still resolves.
+    repository
+      .inviteStaff('mcnally-family-farm', { email: 'a@b.ie', marketSlug: 'spencer-dock' })
+      .subscribe();
+    const { variables } = expectPost('mutation InviteVendorMember');
+    expect(variables['input']).toMatchObject({ marketId: 'stop-1' });
   });
 });
 

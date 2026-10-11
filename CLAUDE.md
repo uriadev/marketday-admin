@@ -56,7 +56,15 @@ Paused pill and filter mean `isActive = false`. An admin can read a stall's paus
 — `setVendorMarketAcceptingOrders` resolves the vendor from the caller's seat, which joining and
 leaving no longer do. `saveProfile` is bounded by `UpdateVendorInput` rather than by the form — the
 registered name, VAT, produce tags, contact block and address have no column at all, so the tab
-disables them and the adapter drops them. Products runs end-to-end — `products(vendorId:)`
+disables them and the adapter drops them. A vendor has a **kind** — stall holder or **food
+truck** (`../backend/specs/food-truck-vendors.md`): the invite screen sends
+`CreateVendorInput.kind`, the vendor page's ⋮ menu flips it with `setVendorKind` (refused
+server-side while the truck still hosts stops), and the directory has a Food trucks filter
+(a full read, since `kind` is not filterable on `adminVendors`). A truck's **stops** are
+`markets` rows with `kind = FOOD_TRUCK_STOP`, created by its owner in the vendor app; they
+come back in `VendorModel.markets`, so the Markets tab lists them apart and read-only
+(`leaveMarket` refuses the host's own stop), and `MarketRepository.list()` filters
+`adminMarkets` to `PUBLIC_MARKET` so they never appear as markets. Products runs end-to-end — `products(vendorId:)`
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`
 server-side) for every write; `GraphqlProductRepository` keeps a private
 `InMemoryProductRepository` primed from the real read to reconstruct the shapes the port hands

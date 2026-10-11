@@ -215,6 +215,7 @@ function membershipsOf(vendor: VendorSummary): readonly VendorMembership[] {
     facts:
       vendor.standing === 'fee-unpaid' && i === 0 ? [{ label: 'Fee due', emphasis: true }] : [],
     paused: vendor.standing === 'paused',
+    isStop: false,
   }));
 }
 

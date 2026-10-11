@@ -6,6 +6,7 @@ import { PagedCollectionStore } from '../../core/state/paged-collection-store';
 import { PageRequest } from '../../core/models/page.model';
 import {
   EMPTY_VENDOR_FILTERS,
+  SentOnboardingInvite,
   VendorDirectoryFacets,
   VendorDirectoryPage,
   VendorFilters,
@@ -34,11 +35,11 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
     applicationCount: 0,
     vendorCount: 0,
   });
-  /** Slugs with an activate / deactivate in flight, so each row stops taking clicks on its own. */
+  /** Slugs with a row-menu write in flight, so each row stops taking clicks on its own. */
   private readonly _pending = signal<ReadonlySet<string>>(new Set());
   private readonly _commandError = signal<string | null>(null);
 
-  /** Why the last activate / deactivate was refused, or `null`. */
+  /** Why the last row-menu write was refused, or `null`. */
   readonly commandError = this._commandError.asReadonly();
 
   constructor() {
@@ -81,7 +82,7 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
 
   readonly hasActiveFilters = computed(() => hasVendorFilters(this.filters()));
 
-  /** Whether this vendor's activate / deactivate is waiting on the server. */
+  /** Whether a row-menu write for this vendor is waiting on the server. */
   isPending(vendor: VendorSummary): boolean {
     return this._pending().has(vendor.slug);
   }
@@ -116,6 +117,33 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
       error: (cause: unknown) => {
         this._commandError.set(
           cause instanceof Error ? cause.message : 'That vendor could not be updated.',
+        );
+        this.markPending(vendor.slug, false);
+      },
+    });
+  }
+
+  /**
+   * Mails the vendor's owner the onboarding link, retiring any earlier one.
+   * Changes nothing in the row — the directory shows no invitation state — so
+   * there is nothing to swap in; `onDone` gets where the link went.
+   */
+  sendOnboardingInvite(
+    vendor: VendorSummary,
+    onDone: (sent: SentOnboardingInvite) => void = () => undefined,
+  ): void {
+    if (this.isPending(vendor)) return;
+    this._commandError.set(null);
+    this.markPending(vendor.slug, true);
+
+    this.repo.sendOnboardingInvite(vendor.slug).subscribe({
+      next: (sent) => {
+        this.markPending(vendor.slug, false);
+        onDone(sent);
+      },
+      error: (cause: unknown) => {
+        this._commandError.set(
+          cause instanceof Error ? cause.message : 'The onboarding invite could not be sent.',
         );
         this.markPending(vendor.slug, false);
       },

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -14,7 +14,7 @@ import {
 } from '../../../shared/components/confirm-dialog/confirm-dialog';
 import { VendorRepository } from '../../../core/api/ports/vendor-repository';
 import { MarketSummary } from '../../../core/models/market.model';
-import { VendorMembership } from '../../../core/models/vendor.model';
+import { VendorKind, VendorMembership } from '../../../core/models/vendor.model';
 import { Notifications } from '../../../core/notifications/notifications';
 import { VendorDetailFacade } from '../vendor-detail-facade';
 import { AddMarketDialog, AddMarketDialogData } from '../add-market-dialog/add-market-dialog';
@@ -30,6 +30,10 @@ import { AddMarketDialog, AddMarketDialogData } from '../add-market-dialog/add-m
  * market's own Vendors tab sends, from the other end of the relation. Pausing a
  * stall and its lead time are still the owner's to set
  * (`docs/backend-api-gaps.md` #9), so *Manage membership* stays disabled.
+ *
+ * A food truck's own stops are memberships too, but they are listed apart and
+ * read-only: the truck's owner creates and retires them in the vendor app, and
+ * `leaveMarket` refuses the host's own stop, so there is nothing to remove here.
  */
 @Component({
   selector: 'md-vendor-markets',
@@ -51,6 +55,16 @@ import { AddMarketDialog, AddMarketDialogData } from '../add-market-dialog/add-m
 export class VendorMarkets {
   protected readonly facade = inject(VendorDetailFacade);
   protected readonly vendor = this.facade.vendor;
+  protected readonly foodTruck = VendorKind.FoodTruck;
+
+  /** Public markets the vendor trades at — what Add and Remove act on. */
+  protected readonly markets = computed(
+    () => this.vendor()?.memberships.filter((membership) => !membership.isStop) ?? [],
+  );
+  /** The food truck's own stops, shown but never written from here. */
+  protected readonly stops = computed(
+    () => this.vendor()?.memberships.filter((membership) => membership.isStop) ?? [],
+  );
 
   private readonly dialog = inject(MatDialog);
   private readonly repo = inject(VendorRepository);

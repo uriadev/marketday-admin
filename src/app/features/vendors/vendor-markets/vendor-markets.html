@@ -27,7 +27,7 @@
         </button>
       </div>
 
-      @for (membership of data.memberships; track membership.id) {
+      @for (membership of markets(); track membership.id) {
         <mat-card appearance="outlined">
           <div class="flex flex-col gap-3 p-4">
             <div class="flex items-start gap-3.5">
@@ -83,6 +83,58 @@
         >
           <button matButton="filled" type="button" (click)="addMarket()">Add to a market</button>
         </md-empty-state>
+      }
+
+      @if (data.kind === foodTruck || stops().length > 0) {
+        <div class="flex flex-col gap-1">
+          <span class="text-title-medium font-bold text-on-surface">Food-truck stops</span>
+          <span class="text-body-medium text-on-surface-variant">
+            The places and times this truck trades on its own. Its owner adds, moves and removes
+            them in the vendor app.
+          </span>
+        </div>
+
+        @for (stop of stops(); track stop.id) {
+          <mat-card appearance="outlined">
+            <div class="flex flex-col gap-3 p-4">
+              <div class="flex items-start gap-3.5">
+                <md-avatar
+                  [name]="stop.market"
+                  [size]="48"
+                  shape="rounded"
+                  [tone]="stop.paused ? 'muted' : 'accent'"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-title-medium font-bold text-on-surface">{{
+                      stop.market
+                    }}</span>
+                    @for (badge of stop.badges; track badge.label) {
+                      <md-status-pill [tone]="badge.tone">{{ badge.label }}</md-status-pill>
+                    }
+                  </div>
+                  <p class="mt-1 mb-0 text-label-large text-on-surface-variant">
+                    {{ stop.detail }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="facts">
+                @for (fact of stop.facts; track fact.label) {
+                  <md-status-pill [tone]="fact.emphasis ? 'warn' : 'muted'">{{
+                    fact.label
+                  }}</md-status-pill>
+                }
+              </div>
+            </div>
+          </mat-card>
+        } @empty {
+          <md-empty-state
+            icon="local_shipping"
+            headline="No stops yet"
+            body="Once the owner adds a stop in the vendor app, shoppers can pre-order from the truck there, and it shows up here."
+          />
+        }
       }
     </div>
 

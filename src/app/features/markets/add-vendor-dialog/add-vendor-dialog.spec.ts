@@ -11,6 +11,7 @@ import {
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
+  VendorKind,
 } from '../../../core/models/vendor.model';
 import { VendorDetail } from '../../../core/models/vendor.model';
 import { AddVendorDialog, AddVendorDialogData } from './add-vendor-dialog';
@@ -22,6 +23,8 @@ function vendor(overrides: Partial<VendorSummary>): VendorSummary {
     name: 'A Vendor',
     meta: 'Cheese · since 2018',
     markets: [],
+    kind: VendorKind.StallHolder,
+    stopCount: 0,
     appliedLabel: null,
     staff: [],
     staffCount: 1,
@@ -49,6 +52,10 @@ const CLOSED = vendor({
 
 /** Records what was asked of the directory, and answers with a filtered page. */
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   readonly queries: string[] = [];
   refuse = false;
 
@@ -100,6 +107,11 @@ class StubVendorRepository extends VendorRepository {
   override removeStaff(): Observable<void> {
     return of(undefined);
   }
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({} as VendorInviteSummary);
   }

@@ -8,9 +8,11 @@ import {
   VendorFilters,
   VendorInvite,
   VendorInviteSummary,
+  VendorKind,
   VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
+  SentOnboardingInvite,
   VendorStaffInvite,
   VendorSummary,
   matchesVendorFilters,
@@ -28,6 +30,8 @@ import {
   PENDING_VENDOR_INVITES,
   REMOVE_VENDOR_MEMBER,
   REVOKE_VENDOR_INVITE,
+  SEND_VENDOR_ONBOARDING_INVITE,
+  SET_VENDOR_KIND,
   UPDATE_VENDOR,
   UPDATE_VENDOR_MEMBER,
   VENDOR_BY_ID,
@@ -40,6 +44,7 @@ import {
   GqlVendor,
   GqlVendorInvite,
   GqlVendorMember,
+  toGqlVendorKind,
   toVendorDetail,
   toVendorProfile,
   toVendorSummary,
@@ -61,6 +66,7 @@ import {
   LeaveMarketMutation,
   LeaveMarketMutationVariables,
   MarketIdsQuery,
+  MarketKind,
   OrderDirection,
   PendingVendorInvitesQuery,
   PendingVendorInvitesQueryVariables,
@@ -68,6 +74,10 @@ import {
   RemoveVendorMemberMutationVariables,
   RevokeVendorInviteMutation,
   RevokeVendorInviteMutationVariables,
+  SendVendorOnboardingInviteMutation,
+  SendVendorOnboardingInviteMutationVariables,
+  SetVendorKindMutation,
+  SetVendorKindMutationVariables,
   UpdateVendorMemberMutation,
   UpdateVendorMemberMutationVariables,
   UpdateVendorMutation,
@@ -100,11 +110,16 @@ const FULL_READ_LIMIT = 500;
  * `CriteriaInput` filter; `applications` and `feeUnpaid` ask about models the
  * backend does not have at all (`docs/backend-api-gaps.md` #5, #9), so they
  * match nothing here however they are asked — which is itself the honest
- * answer, and worth one read to give exactly.
+ * answer, and worth one read to give exactly. `foodTrucks` asks about `kind`,
+ * which is on `VendorModel` but not among the filterable fields.
  */
 function needsFullRead(filters: VendorFilters): boolean {
   return (
-    filters.market !== null || filters.multiMarket || filters.applications || filters.feeUnpaid
+    filters.market !== null ||
+    filters.multiMarket ||
+    filters.applications ||
+    filters.feeUnpaid ||
+    filters.foodTrucks
   );
 }
 
@@ -203,8 +218,8 @@ interface VendorRows {
  *
  * What it does **not** do is invite anyone. There is no endpoint that emails a
  * would-be owner (gap #9 — `inviteVendorMember` resolves the vendor from the
- * caller and only ever mints a STAFF seat), and the phone and personal note
- * have no column, so nothing is sent and those two are dropped. The new owner
+ * caller and only ever mints a STAFF seat), and the phone has no column, so
+ * nothing is sent and it is dropped. The new owner
  * reaches their account through Forgot password; the screen says so rather than
  * implying a message went out.
  */
@@ -371,6 +386,23 @@ export class GraphqlVendorRepository extends VendorRepository {
   }
 
   /**
+   * `setVendorKind` (`@Roles(ADMIN)`). The backend's refusal to turn a truck
+   * that still hosts stops back into a stall holder comes through as the
+   * rejection's message, for the screen to show as it is.
+   */
+  override setKind(slug: string, kind: VendorKind): Observable<void> {
+    return this.resolveId(slug).pipe(
+      switchMap((vendorId) =>
+        this.client.request<SetVendorKindMutation, SetVendorKindMutationVariables>(
+          SET_VENDOR_KIND,
+          { vendorId, kind: toGqlVendorKind(kind) },
+        ),
+      ),
+      map(() => undefined),
+    );
+  }
+
+  /**
    * Puts an existing vendor on a market's roster through `joinMarket`, which
    * grew an `vendorId` argument and an ADMIN branch for exactly this — until
    * then the only membership an admin could write was one `createVendor` made
@@ -507,6 +539,26 @@ export class GraphqlVendorRepository extends VendorRepository {
   }
 
   /**
+   * `sendVendorOnboardingInvite` (`@Roles(ADMIN)`). The backend's refusals —
+   * no owner seated, too many links this hour, a mail that did not go — come
+   * through as the rejection's message, for the screen to show as it is.
+   */
+  override sendOnboardingInvite(slug: string): Observable<SentOnboardingInvite> {
+    return this.resolveId(slug).pipe(
+      switchMap((vendorId) =>
+        this.client.request<
+          SendVendorOnboardingInviteMutation,
+          SendVendorOnboardingInviteMutationVariables
+        >(SEND_VENDOR_ONBOARDING_INVITE, { vendorId }),
+      ),
+      map(({ sendVendorOnboardingInvite: sent }) => ({
+        email: sent.email,
+        expiresAt: new Date(sent.expiresAt),
+      })),
+    );
+  }
+
+  /**
    * Nothing server-side counts invitations (gap #9), so the count is this
    * session's own creates rather than a month's — the screen hides the line
    * while it is zero instead of stating a number it cannot know.
@@ -536,9 +588,8 @@ export class GraphqlVendorRepository extends VendorRepository {
    * from `orderLeadHours` (left at the backend's default of 48) before each
    * market day once it is active.
    *
-   * `CreateVendorInput.description` is left unset on purpose: the form's note
-   * is a private message to the invitee, while `description` is published to
-   * shoppers on every market page the vendor trades at.
+   * `description` is the stall description, published to shoppers on every
+   * market page the vendor trades at; left blank it goes as `null`.
    */
   override invite(invite: VendorInvite): Observable<VendorSummary> {
     const name = invite.businessName.trim();
@@ -558,6 +609,8 @@ export class GraphqlVendorRepository extends VendorRepository {
             category: invite.trade,
             ownerName,
             ownerEmail,
+            description: blankToNull(invite.description),
+            kind: toGqlVendorKind(invite.kind),
             // Review required → created inactive. Always sent, `false` included:
             // omitting it would mean "live", the opposite of what was asked.
             isActive: invite.skipApplicationReview,
@@ -625,6 +678,9 @@ export class GraphqlVendorRepository extends VendorRepository {
    * fills both. A market added while the console is open is missing from the
    * menu until the next visit, which is the trade for not re-reading the market
    * list on every page turn.
+   *
+   * Food-truck stops go into the map — a truck's staff are pinned to them —
+   * but not into the menu: they are not markets anyone else trades at.
    */
   private marketNames(): Observable<readonly string[]> {
     if (this.marketNamesCache) return of(this.marketNamesCache);
@@ -634,6 +690,7 @@ export class GraphqlVendorRepository extends VendorRepository {
           this.marketIdBySlug.set(market.slug, market.id);
         }
         this.marketNamesCache = result.adminMarkets
+          .filter((market) => market.kind === MarketKind.PublicMarket)
           .map((market) => market.name)
           .sort((a, b) => a.localeCompare(b));
         return this.marketNamesCache;

@@ -24,6 +24,10 @@ import { VendorDetailFacade } from '../vendor-detail-facade';
 import { VendorStaff } from './vendor-staff';
 
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   /** The directory is not what these tests are about — an empty page satisfies
    *  the port. */
   override list(): Observable<VendorDirectoryPage> {
@@ -89,6 +93,11 @@ class StubVendorRepository extends VendorRepository {
   override removeStaff(vendorSlug: string, staffId: string): Observable<void> {
     this.removed.push([vendorSlug, staffId]);
     return of(undefined);
+  }
+
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {
@@ -361,6 +370,10 @@ describe('VendorStaff', () => {
  * on. Rare, but the shape real data can take once an owner leaves.
  */
 class StallholdersOnlyRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   /** The directory is not what these tests are about — an empty page satisfies
    *  the port. */
   override list(): Observable<VendorDirectoryPage> {
@@ -408,6 +421,11 @@ class StallholdersOnlyRepository extends VendorRepository {
 
   override removeStaff(): Observable<void> {
     return of(undefined);
+  }
+
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {

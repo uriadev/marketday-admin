@@ -12,7 +12,6 @@
     "serve:ssr:marketday-admin": "node dist/marketday-admin/server/server.mjs"
   },
   "private": true,
-  "packageManager": "pnpm@11.5.0",
   "dependencies": {
     "@angular/animations": "^22.1.4",
     "@angular/cdk": "^22.1.4",

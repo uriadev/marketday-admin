@@ -385,6 +385,7 @@ export function buildProductBoard(vendorSlug: string): VendorProductBoard | null
           detail: `Stall ${i + 1}`,
           facts: [],
           paused: vendor.standing === 'paused',
+          isStop: false,
         }));
 
   return boardFor(vendor, memberships);

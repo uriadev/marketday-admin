@@ -39,6 +39,9 @@ import {
   AdminMarketsQueryVariables,
   CreateMarketMutation,
   CreateMarketMutationVariables,
+  CriteriaInput,
+  FilterOperator,
+  MarketKind,
   GenerateMarketOccurrencesMutation,
   GenerateMarketOccurrencesMutationVariables,
   MarketByIdQuery,
@@ -73,8 +76,18 @@ export class GraphqlMarketRepository extends MarketRepository {
   /** `market(id)` and `vendor(id)` are ID-only; the console routes by slug. */
   private readonly idBySlug = new Map<string, string>();
 
+  /**
+   * Public markets only. `adminMarkets` is blind to kind, so without the
+   * filter every food truck's stops — `markets` rows hosted by the truck and
+   * run by its owner in the vendor app (`../backend/specs/food-truck-vendors.md`)
+   * — would show up here as markets with one stall, and in every picker that
+   * offers markets to join, where `joinMarket` refuses them anyway. A truck's
+   * stops are on that vendor's Markets tab instead.
+   */
   override list(): Observable<readonly MarketSummary[]> {
-    return this.fetchAdminMarkets().pipe(map((markets) => markets.map(toMarketSummary)));
+    return this.fetchAdminMarkets({
+      filters: [{ field: 'kind', operator: FilterOperator.Equal, value: MarketKind.PublicMarket }],
+    }).pipe(map((markets) => markets.map(toMarketSummary)));
   }
 
   override detail(slug: string): Observable<MarketDetail> {
@@ -204,9 +217,13 @@ export class GraphqlMarketRepository extends MarketRepository {
       .pipe(map(() => undefined));
   }
 
-  private fetchAdminMarkets(): Observable<readonly GqlMarket[]> {
+  /** Unfiltered by default: the slug → id lookup has to find a stop as well as a market. */
+  private fetchAdminMarkets(criteria?: CriteriaInput): Observable<readonly GqlMarket[]> {
     return this.client
-      .request<AdminMarketsQuery, AdminMarketsQueryVariables>(ADMIN_MARKETS, {})
+      .request<AdminMarketsQuery, AdminMarketsQueryVariables>(
+        ADMIN_MARKETS,
+        criteria ? { criteria } : {},
+      )
       .pipe(
         map((result) => {
           for (const market of result.adminMarkets) this.idBySlug.set(market.slug, market.id);

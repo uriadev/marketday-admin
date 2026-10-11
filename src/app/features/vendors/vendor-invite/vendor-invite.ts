@@ -18,6 +18,7 @@ import {
   MatAutocompleteSelectedEvent,
 } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -31,8 +32,11 @@ import { PageHeader } from '../../../shared/components/page-header/page-header';
 import { StatusPill } from '../../../shared/components/status-pill/status-pill';
 import { BrandMark } from '../../../shared/components/brand-mark/brand-mark';
 import {
+  VENDOR_KIND_LABELS,
+  VENDOR_DESCRIPTION_LIMIT,
   VENDOR_TRADES,
   VendorInvite as VendorInviteModel,
+  VendorKind,
 } from '../../../core/models/vendor.model';
 import { VendorInviteFacade } from '../vendor-invite-facade';
 
@@ -51,18 +55,25 @@ import { VendorInviteFacade } from '../vendor-invite-facade';
  * and created — without a password — if they do not. There is no role to pick,
  * because there is only one seat to give.
  *
- * What is still missing is the message. No invitation endpoint exists
+ * The stall description is `CreateVendorInput.description` — the same text the
+ * Profile tab edits later, published to shoppers on every market page.
+ *
+ * What is still missing is the email. No invitation endpoint exists
  * (`docs/backend-api-gaps.md` #9), and `CreateVendorInput` has no phone field,
- * so neither the note nor the phone number has anywhere to go; the new owner
- * gets in through Forgot password. Both are therefore **disabled** — they stay
- * on the screen, since this is the shape the form takes the day the endpoint
- * lands, but nothing is collected that would be silently dropped. The rail says
- * as much rather than letting the preview imply a message left the building.
+ * so the phone number has nowhere to go and the new owner gets in through
+ * Forgot password. The phone is therefore **disabled** — it stays on the
+ * screen, but nothing is collected that would be silently dropped. The rail
+ * says as much rather than letting the preview imply a message left the
+ * building.
  *
  * "Skip application review" is live: it is `CreateVendorInput.isActive`. On,
  * the vendor trades from the moment it exists; off, it is created inactive —
  * owned and joined to its markets but unable to take an order — until an admin
  * activates it from the directory's row menu.
+ *
+ * "Kind of business" is `CreateVendorInput.kind`: a food truck may add stops of
+ * its own in the vendor app on top of any markets picked here. It can be
+ * changed later from the vendor's page.
  */
 @Component({
   selector: 'md-vendor-invite',
@@ -76,6 +87,7 @@ import { VendorInviteFacade } from '../vendor-invite-facade';
     BrandMark,
     MatAutocompleteModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatCardModule,
     MatChipsModule,
     MatFormFieldModule,
@@ -95,12 +107,16 @@ export class VendorInvite implements OnInit {
 
   protected readonly facade = inject(VendorInviteFacade);
   protected readonly trades = VENDOR_TRADES;
+  protected readonly kinds = [VendorKind.StallHolder, VendorKind.FoodTruck].map((value) => ({
+    value,
+    label: VENDOR_KIND_LABELS[value],
+  }));
 
   /**
-   * `phone` and `note` are disabled: `createVendor` takes neither and nothing
-   * emails the note (`docs/backend-api-gaps.md` #9). They are still sent —
-   * {@link send} reads `getRawValue()` — so the day an endpoint takes them,
-   * enabling the controls is the whole change.
+   * `phone` is disabled: `createVendor` has no field for it
+   * (`docs/backend-api-gaps.md` #9). It is still sent — {@link send} reads
+   * `getRawValue()` — so the day an endpoint takes it, enabling the control is
+   * the whole change.
    *
    * `skipApplicationReview` starts off: review is the default, so a vendor an
    * admin has not chosen to wave through is created inactive.
@@ -111,8 +127,9 @@ export class VendorInvite implements OnInit {
     email: this.fb.control('', [Validators.required, Validators.email]),
     phone: this.fb.control({ value: '', disabled: true }),
     trade: this.fb.control(VENDOR_TRADES[0]!, Validators.required),
+    kind: this.fb.control(VendorKind.StallHolder),
     skipApplicationReview: this.fb.control(false),
-    note: this.fb.control({ value: '', disabled: true }, Validators.maxLength(400)),
+    description: this.fb.control('', Validators.maxLength(VENDOR_DESCRIPTION_LIMIT)),
   });
 
   /**
@@ -172,13 +189,15 @@ export class VendorInvite implements OnInit {
   protected readonly invitedBy = computed(() => this.auth.user()?.name ?? 'MarketDay');
 
   protected readonly preview = computed(() => {
-    const { businessName, email, note } = this.value();
+    const { businessName, email } = this.value();
     return {
       to: email || 'their email address',
       subject: `${this.invitedBy()} invited ${businessName || 'a vendor'} to MarketDay`,
-      note,
     };
   });
+
+  protected readonly descriptionLimit = VENDOR_DESCRIPTION_LIMIT;
+  protected readonly descriptionLength = computed(() => (this.value().description ?? '').length);
 
   /**
    * "Two markets selected · Dervla owns it" — the footer's running summary.
@@ -194,6 +213,13 @@ export class VendorInvite implements OnInit {
     const owner = this.value().contactName.trim();
     return `${scope} · ${owner ? `${owner} owns it` : 'owner not named yet'}`;
   });
+
+  /** What the chosen kind lets the business do, said under the toggle. */
+  protected readonly kindHint = computed(() =>
+    this.value().kind === VendorKind.FoodTruck
+      ? 'Its owner adds stops of their own — places and times shoppers pre-order from — in the vendor app. It can also join the markets below.'
+      : 'Trades at the markets below. You can make it a food truck later from its page.',
+  );
 
   /** Read from the value signal, not the control, so the rail follows the toggle. */
   protected readonly reviewSkipped = computed(() => this.value().skipApplicationReview);
@@ -301,7 +327,13 @@ export class VendorInvite implements OnInit {
       );
       if (addAnother) {
         // Keep the access choices, clear who it is for.
-        this.form.patchValue({ businessName: '', contactName: '', email: '', phone: '', note: '' });
+        this.form.patchValue({
+          businessName: '',
+          contactName: '',
+          email: '',
+          phone: '',
+          description: '',
+        });
         this.form.markAsUntouched();
       } else {
         void this.router.navigate(['/vendors', created.slug]);

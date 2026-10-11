@@ -26,6 +26,10 @@ import { VendorsStore } from './vendors-store';
  * the requests matter as much as the rows that come back.
  */
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   readonly queries: VendorListQuery[] = [];
   /** Every switch asked for, oldest first. */
   readonly switches: { slug: string; active: boolean }[] = [];
@@ -100,6 +104,11 @@ class StubVendorRepository extends VendorRepository {
 
   override removeStaff(): Observable<void> {
     return of(undefined);
+  }
+
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {

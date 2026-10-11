@@ -83,6 +83,10 @@ class StubPaymentRepository extends PaymentRepository {
 }
 
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   /** The directory is not what these tests are about — an empty page satisfies
    *  the port. */
   override list(): Observable<VendorDirectoryPage> {
@@ -127,6 +131,11 @@ class StubVendorRepository extends VendorRepository {
 
   override removeStaff(): Observable<void> {
     return of(undefined);
+  }
+
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {

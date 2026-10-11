@@ -4,9 +4,11 @@ import {
   VendorDirectoryPage,
   VendorInvite,
   VendorInviteSummary,
+  VendorKind,
   VendorListQuery,
   VendorProfile,
   VendorProfilePatch,
+  SentOnboardingInvite,
   VendorStaffInvite,
   VendorSummary,
 } from '../../models/vendor.model';
@@ -57,6 +59,18 @@ export abstract class VendorRepository {
    * matches `slug`.
    */
   abstract setActive(slug: string, active: boolean): Observable<VendorSummary>;
+
+  /**
+   * Makes the vendor a food truck, or a stall holder again — an admin's call,
+   * never the owner's. A food truck keeps its markets and may add stops of its
+   * own in the vendor app. Going back is refused while it still hosts a live
+   * stop, since retiring the stops would strand their open orders; the owner
+   * removes them first.
+   *
+   * Answers with nothing: the vendor page reloads `detail()`, whose badges and
+   * stop count both move with the kind.
+   */
+  abstract setKind(slug: string, kind: VendorKind): Observable<void>;
 
   /**
    * Puts a vendor that already exists on a market's roster — the market's
@@ -135,6 +149,17 @@ export abstract class VendorRepository {
    * manage.
    */
   abstract removeStaff(vendorSlug: string, staffId: string): Observable<void>;
+
+  /**
+   * Mails the vendor's owner the onboarding link — the directory's row menu.
+   * Any earlier link stops working, so this is also the resend, and pressing it
+   * twice leaves one live link rather than two.
+   *
+   * Answers with where it went. Rejects when the vendor has no owner to mail,
+   * when too many links went out to it within the hour, or when the mail
+   * itself could not be sent — the admin needs to know it did not go.
+   */
+  abstract sendOnboardingInvite(slug: string): Observable<SentOnboardingInvite>;
 
   /** Invitation policy and how many have gone out this month (design 1n). */
   abstract inviteSummary(): Observable<VendorInviteSummary>;

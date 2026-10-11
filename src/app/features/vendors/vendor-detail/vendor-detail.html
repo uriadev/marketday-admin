@@ -7,6 +7,16 @@
   </button>
   <mat-menu #more="matMenu">
     <button mat-menu-item type="button" disabled>Add to a market</button>
+    @if (vendor(); as data) {
+      <button
+        mat-menu-item
+        type="button"
+        [disabled]="facade.changingKind()"
+        (click)="changeKind(data)"
+      >
+        {{ data.kind === foodTruck ? 'Make a stall holder' : 'Make a food truck' }}
+      </button>
+    }
     <button mat-menu-item type="button" disabled>Export vendor record</button>
     <button mat-menu-item type="button" disabled>Suspend vendor</button>
   </mat-menu>

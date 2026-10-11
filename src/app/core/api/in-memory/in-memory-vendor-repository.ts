@@ -7,11 +7,13 @@ import {
   VendorDirectoryPage,
   VendorInvite,
   VendorInviteSummary,
+  VendorKind,
   VendorListQuery,
   VendorMemberRole,
   VendorMembership,
   VendorProfile,
   VendorProfilePatch,
+  SentOnboardingInvite,
   VendorStaffInvite,
   VendorStaffMember,
   VendorStaffNote,
@@ -96,6 +98,10 @@ interface VendorSeed {
   staffCount: number;
   /** Overrides the generated team, where later screens name the people. */
   staff?: readonly string[];
+  /** Stall holder unless said otherwise. */
+  kind?: VendorKind;
+  /** A food truck's own stops, as "Spencer Dock · Tuesdays 12:00–14:00". */
+  stops?: readonly string[];
 }
 
 /** The six rows design 1a draws, with its markets mapped onto the real seven. */
@@ -227,6 +233,8 @@ const REST: readonly VendorSeed[] = [
   {
     name: 'Arun Spice Kitchen',
     trade: 'Prepared food',
+    kind: VendorKind.FoodTruck,
+    stops: ['Spencer Dock · Tuesdays 12:00–14:00', 'Howth Pier · Saturdays 10:00–16:00'],
     tenure: 'since 2023',
     markets: ['Temple Bar'],
     standing: 'trading',
@@ -362,8 +370,10 @@ function toSummary(seed: VendorSeed, index: number): VendorSummary {
     id: `vnd-${slug}`,
     slug,
     name: seed.name,
+    kind: seed.kind ?? VendorKind.StallHolder,
     meta: `${seed.trade} · ${seed.tenure}`,
     markets: seed.markets,
+    stopCount: seed.stops?.length ?? 0,
     appliedLabel: seed.appliedLabel ?? null,
     staff,
     staffCount: staff.length,
@@ -383,6 +393,13 @@ function toSummary(seed: VendorSeed, index: number): VendorSummary {
  */
 export const VENDORS_FIXTURE: readonly VendorSummary[] = [...DESIGNED, ...REST].map(toSummary);
 
+/** Each food truck's stops, by vendor slug — what its Markets tab lists under Stops. */
+const STOPS_BY_SLUG: ReadonlyMap<string, readonly string[]> = new Map(
+  [...DESIGNED, ...REST]
+    .filter((seed) => seed.stops)
+    .map((seed) => [slugify(seed.name), seed.stops!] as const),
+);
+
 const MCNALLY_MEMBERSHIPS: readonly VendorMembership[] = [
   {
     id: 'mem-temple-bar',
@@ -396,6 +413,7 @@ const MCNALLY_MEMBERSHIPS: readonly VendorMembership[] = [
       { label: '3 staff can work here', emphasis: false },
     ],
     paused: false,
+    isStop: false,
   },
   {
     id: 'mem-marlay-park',
@@ -412,6 +430,7 @@ const MCNALLY_MEMBERSHIPS: readonly VendorMembership[] = [
       { label: '4 staff can work here', emphasis: false },
     ],
     paused: false,
+    isStop: false,
   },
   {
     id: 'mem-howth',
@@ -424,6 +443,7 @@ const MCNALLY_MEMBERSHIPS: readonly VendorMembership[] = [
       { label: '2 staff can work here', emphasis: false },
     ],
     paused: true,
+    isStop: false,
   },
 ];
 
@@ -519,6 +539,7 @@ export const MCNALLY_DETAIL: VendorDetail = {
   id: 'vnd-mcnally-family-farm',
   slug: 'mcnally-family-farm',
   name: 'McNally Family Farm',
+  kind: VendorKind.StallHolder,
   meta: 'Vegetables & eggs · Ballyboughal, Co. Dublin · Tom McNally · 087 244 1180 · on MarketDay since March 2021',
   badges: [
     { label: 'Trading at 3 markets', tone: 'positive' },
@@ -527,6 +548,7 @@ export const MCNALLY_DETAIL: VendorDetail = {
   marketCount: 3,
   staffCount: 5,
   membershipCount: 4,
+  stopCount: 0,
   productCount: 14,
   pendingApplication: {
     id: 'app-douglas',
@@ -695,13 +717,35 @@ function buildDetail(vendor: VendorSummary): VendorDetail {
         },
       ],
       paused,
+      isStop: false,
     };
   });
+  const marketCount = memberships.length;
+
+  const stops = (STOPS_BY_SLUG.get(vendor.slug) ?? []).map<VendorMembership>((line) => {
+    const [name = line, when = ''] = line.split(' · ');
+    return {
+      id: `stop-${slugify(name)}`,
+      market: name,
+      marketSlug: `${vendor.slug}-${slugify(name)}`,
+      badges: [
+        paused ? { label: 'Paused', tone: 'muted' } : { label: 'Trading', tone: 'positive' },
+      ],
+      detail: when,
+      facts: [{ label: 'Orders open 24h before the stop', emphasis: false }],
+      paused,
+      isStop: true,
+    };
+  });
+  memberships.push(...stops);
 
   const badges: VendorBadge[] = [];
-  if (memberships.length > 0) {
+  if (vendor.kind === VendorKind.FoodTruck) {
+    badges.push(foodTruckBadge(stops.length, paused));
+  }
+  if (marketCount > 0) {
     badges.push({
-      label: `Trading at ${memberships.length} ${memberships.length === 1 ? 'market' : 'markets'}`,
+      label: `Trading at ${marketCount} ${marketCount === 1 ? 'market' : 'markets'}`,
       tone: paused ? 'muted' : 'positive',
     });
   }
@@ -721,11 +765,13 @@ function buildDetail(vendor: VendorSummary): VendorDetail {
     id: vendor.id,
     slug: vendor.slug,
     name: vendor.name,
+    kind: vendor.kind,
     meta: `${vendor.meta} · ${vendor.staff[0] ?? 'Owner'}`,
     badges,
-    marketCount: memberships.length,
+    marketCount,
     staffCount: vendor.staff.length,
     membershipCount: memberships.length + (application ? 1 : 0),
+    stopCount: stops.length,
     productCount: GENERIC_PRODUCT_COUNT,
     pendingApplication: application,
     memberships,
@@ -745,7 +791,10 @@ function buildDetail(vendor: VendorSummary): VendorDetail {
       },
     ],
     stats: [
-      { label: 'Markets', value: `${memberships.length}` },
+      { label: 'Markets', value: `${marketCount}` },
+      ...(vendor.kind === VendorKind.FoodTruck
+        ? [{ label: 'Stops', value: `${stops.length}` }]
+        : []),
       { label: 'Staff', value: `${vendor.staff.length}` },
       { label: 'Fees due', value: `€${owed}` },
       { label: 'Days booked', value: `${memberships.length * 12}` },
@@ -760,10 +809,18 @@ function buildDetail(vendor: VendorSummary): VendorDetail {
       { id: 'doc-food-safety', label: 'Food safety cert · to Jan 2027', state: 'valid' },
     ],
     suspendNote: `Removes them from ${
-      memberships.length === 1 ? 'their market' : `all ${memberships.length} markets`
+      marketCount === 1 ? 'their market' : `all ${marketCount} markets`
     } and signs out all ${vendor.staff.length} staff ${
       vendor.staff.length === 1 ? 'account' : 'accounts'
     }.`,
+  };
+}
+
+/** "Food truck · 2 stops" — the header badge a food truck carries. */
+function foodTruckBadge(stopCount: number, paused: boolean): VendorBadge {
+  return {
+    label: `Food truck · ${stopCount} ${stopCount === 1 ? 'stop' : 'stops'}`,
+    tone: paused ? 'muted' : 'positive',
   };
 }
 
@@ -782,6 +839,9 @@ export class InMemoryVendorRepository extends VendorRepository {
    * rows are constants, so the change is laid over them rather than written in.
    */
   private readonly activeOverrides = new Map<string, boolean>();
+
+  /** Vendors whose kind an admin changed this session, keyed by slug. */
+  private readonly kindOverrides = new Map<string, VendorKind>();
 
   /**
    * Market memberships added and dropped this session, keyed by vendor slug and
@@ -819,7 +879,43 @@ export class InMemoryVendorRepository extends VendorRepository {
     if (!detail) {
       return throwError(() => new Error(`No vendor matches “${slug}”.`)).pipe(delay(300));
     }
-    return of(this.withStaffOverride(detail)).pipe(delay(300));
+    return of(this.withKindOverride(this.withStaffOverride(detail))).pipe(delay(300));
+  }
+
+  /** The detail with any kind change this session laid over it, badge included. */
+  private withKindOverride(detail: VendorDetail): VendorDetail {
+    const kind = this.kindOverrides.get(detail.slug);
+    if (kind === undefined || kind === detail.kind) return detail;
+    const paused = detail.memberships.some((membership) => membership.paused);
+    const others = detail.badges.filter((badge) => !badge.label.startsWith('Food truck'));
+    return {
+      ...detail,
+      kind,
+      badges:
+        kind === VendorKind.FoodTruck
+          ? [foodTruckBadge(detail.stopCount, paused), ...others]
+          : others,
+    };
+  }
+
+  override setKind(slug: string, kind: VendorKind): Observable<void> {
+    const vendor =
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.invited.get(slug);
+    if (!vendor && slug !== MCNALLY_DETAIL.slug) {
+      return throwError(() => new Error(`No vendor matches “${slug}”.`)).pipe(delay(300));
+    }
+    // The backend's `StillHostsStops`: retiring the stops silently would strand
+    // their open orders.
+    if (kind === VendorKind.StallHolder && (STOPS_BY_SLUG.get(slug)?.length ?? 0) > 0) {
+      return throwError(
+        () =>
+          new Error(
+            'This vendor still hosts food-truck stops. Remove them before changing its kind.',
+          ),
+      ).pipe(delay(300));
+    }
+    this.kindOverrides.set(slug, kind);
+    return of(undefined).pipe(delay(300));
   }
 
   /** The detail a slug reads as before this session touched its team. */
@@ -894,7 +990,11 @@ export class InMemoryVendorRepository extends VendorRepository {
    */
   private withActiveOverride(vendor: VendorSummary): VendorSummary {
     const markets = this.marketOverrides.get(vendor.slug);
-    const row = markets === undefined ? vendor : { ...vendor, markets };
+    const kind = this.kindOverrides.get(vendor.slug);
+    const row =
+      markets === undefined && kind === undefined
+        ? vendor
+        : { ...vendor, ...(markets === undefined ? {} : { markets }), ...(kind ? { kind } : {}) };
     const active = this.activeOverrides.get(vendor.slug);
     if (active === undefined || active === row.isActive) return row;
     const standing: VendorStanding = active ? 'trading' : 'paused';
@@ -1097,6 +1197,17 @@ export class InMemoryVendorRepository extends VendorRepository {
     return MARKET_LABELS[marketSlug] ?? marketSlug;
   }
 
+  /** Answers as if the mail went to a made-up owner address, valid for the policy's days. */
+  override sendOnboardingInvite(slug: string): Observable<SentOnboardingInvite> {
+    const vendor =
+      VENDORS_FIXTURE.find((candidate) => candidate.slug === slug) ?? this.invited.get(slug);
+    if (!vendor) {
+      return throwError(() => new Error(`No vendor matches “${slug}”.`)).pipe(delay(300));
+    }
+    const expiresAt = new Date(Date.now() + INVITE_POLICY.linkValidDays * 24 * 60 * 60 * 1000);
+    return of({ email: `owner@${slug}.ie`, expiresAt }).pipe(delay(300));
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({
       sentThisMonth: INVITES_SENT_THIS_MONTH + this.invited.size,
@@ -1119,9 +1230,11 @@ export class InMemoryVendorRepository extends VendorRepository {
       id: `vnd-${slug}`,
       slug,
       name: invite.businessName,
+      kind: invite.kind,
       meta: `${invite.trade} · invited just now`,
       // They cannot trade anywhere until they sign up and are approved.
       markets: [],
+      stopCount: 0,
       appliedLabel: null,
       staff: invite.contactName ? [invite.contactName] : [],
       staffCount: invite.contactName ? 1 : 0,

@@ -26,6 +26,10 @@ import { Vendors } from './vendors';
 import { VendorsStore } from '../vendors-store';
 
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   /** What has been switched, laid over the fixture so the next `list()` sees it. */
   private readonly switched = new Map<string, boolean>();
 
@@ -97,6 +101,11 @@ class StubVendorRepository extends VendorRepository {
     return of(undefined);
   }
 
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: 14, linkValidDays: 14, reminderAfterDays: 5 });
   }
@@ -108,6 +117,13 @@ class StubVendorRepository extends VendorRepository {
       standing: 'invited',
       standingLabel: 'Invitation pending',
     });
+  }
+}
+
+/** A backend with no owner seated to mail. */
+class OwnerlessRepository extends StubVendorRepository {
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return throwError(() => new Error('This vendor has no owner to invite.'));
   }
 }
 
@@ -327,6 +343,37 @@ describe('Vendors', () => {
 
     expect(rowOf(host, 'McNally Family Farm').textContent).toContain('Trading');
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('forbidden');
+    expect(success).not.toHaveBeenCalled();
+  });
+
+  it('sends the onboarding invite from the row menu and says where it went', () => {
+    const fixture = TestBed.createComponent(Vendors);
+    const success = vi.spyOn(TestBed.inject(Notifications), 'success');
+    fixture.detectChanges();
+
+    openRowMenu(fixture, 'McNally Family Farm');
+    menuItem('Send onboarding invite').click();
+    fixture.detectChanges();
+
+    expect(success).toHaveBeenCalledWith(
+      'Onboarding invite for McNally Family Farm sent to owner@example.ie.',
+    );
+  });
+
+  it('says why the onboarding invite did not go', () => {
+    TestBed.overrideProvider(VendorRepository, { useValue: new OwnerlessRepository() });
+    const fixture = TestBed.createComponent(Vendors);
+    const success = vi.spyOn(TestBed.inject(Notifications), 'success');
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    openRowMenu(fixture, 'McNally Family Farm');
+    menuItem('Send onboarding invite').click();
+    fixture.detectChanges();
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'This vendor has no owner to invite.',
+    );
     expect(success).not.toHaveBeenCalled();
   });
 

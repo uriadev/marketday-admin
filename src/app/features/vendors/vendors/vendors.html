@@ -125,9 +125,14 @@
             <div class="flex items-center gap-3.5">
               <md-avatar [name]="vendor.name" />
               <div class="min-w-0">
-                <a class="vendor-name" [routerLink]="['/vendors', vendor.slug]">{{
-                  vendor.name
-                }}</a>
+                <div class="flex flex-wrap items-center gap-2">
+                  <a class="vendor-name" [routerLink]="['/vendors', vendor.slug]">{{
+                    vendor.name
+                  }}</a>
+                  @if (vendor.kind === foodTruck) {
+                    <md-status-pill tone="muted">Food truck</md-status-pill>
+                  }
+                </div>
                 <div class="text-label-large text-on-surface-variant">{{ vendor.meta }}</div>
               </div>
             </div>
@@ -143,6 +148,9 @@
               }
               @if (marketOverflow(vendor); as extra) {
                 <md-status-pill tone="muted">+{{ extra }}</md-status-pill>
+              }
+              @if (vendor.kind === foodTruck) {
+                <md-status-pill tone="muted">{{ stopsLabel(vendor) }}</md-status-pill>
               }
               @if (vendor.appliedLabel; as applied) {
                 <md-status-pill tone="warn">{{ applied }}</md-status-pill>
@@ -203,6 +211,14 @@
                 (click)="toggleActive(vendor)"
               >
                 {{ vendor.isActive ? 'Deactivate vendor' : 'Activate vendor' }}
+              </button>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.isPending(vendor)"
+                (click)="sendOnboardingInvite(vendor)"
+              >
+                Send onboarding invite
               </button>
               <button mat-menu-item type="button" disabled>Message vendor</button>
               <button mat-menu-item type="button" disabled>Suspend vendor</button>

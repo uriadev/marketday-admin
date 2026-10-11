@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
-import { VendorDetail } from '../../core/models/vendor.model';
+import { VendorDetail, VendorKind } from '../../core/models/vendor.model';
 import { LoadStatus } from '../../core/state/collection-store';
 
 /**
@@ -24,6 +24,10 @@ export class VendorDetailFacade {
   readonly isLoading = computed(() => this._status() === 'loading');
   readonly hasError = computed(() => this._status() === 'error');
 
+  private readonly _changingKind = signal(false);
+  /** A kind change is in flight — the menu item stays disabled until it lands. */
+  readonly changingKind = this._changingKind.asReadonly();
+
   load(slug: string): void {
     this._status.set('loading');
     this._error.set(null);
@@ -41,6 +45,32 @@ export class VendorDetailFacade {
             cause instanceof Error ? cause.message : 'That vendor could not be loaded.',
           );
           this._status.set('error');
+        },
+      });
+  }
+
+  /**
+   * Makes the loaded vendor a food truck or a stall holder, then reloads the
+   * detail so the badges and stop count follow. `onDone` gets the error
+   * message, or `null` once it has landed — a refusal (a truck that still
+   * hosts stops) is something to tell the admin, not a broken page.
+   */
+  setKind(kind: VendorKind, onDone: (error: string | null) => void): void {
+    const vendor = this._vendor();
+    if (!vendor || this._changingKind()) return;
+    this._changingKind.set(true);
+    this.repo
+      .setKind(vendor.slug, kind)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this._changingKind.set(false);
+          this.load(vendor.slug);
+          onDone(null);
+        },
+        error: (cause: unknown) => {
+          this._changingKind.set(false);
+          onDone(cause instanceof Error ? cause.message : 'That vendor could not be changed.');
         },
       });
   }

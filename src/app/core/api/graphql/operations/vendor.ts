@@ -18,12 +18,19 @@ import { gql } from '../gql-tag';
  * (`../backend/specs/per-market-order-windows.md`), and `VendorModel.orderWindow`
  * is null on every read here because none of them is scoped to a market. The
  * detail read asks {@link VENDOR_ORDER_WINDOW} once per membership instead.
+ *
+ * `kind` is whether the vendor is a stall holder or a food truck
+ * (`../backend/specs/food-truck-vendors.md`). A food truck's own stops are
+ * `markets` rows too — `kind: FOOD_TRUCK_STOP`, hosted by it — and `markets`
+ * returns them beside the public markets it joined, so each market's `kind`
+ * is selected to tell the two apart.
  */
 const VENDOR_FIELDS = gql`
   fragment VendorFields on VendorModel {
     id
     slug
     name
+    kind
     category
     description
     imageUrl
@@ -35,6 +42,7 @@ const VENDOR_FIELDS = gql`
       id
       slug
       name
+      kind
       city
       schedule
     }
@@ -222,6 +230,21 @@ export const INVITE_VENDOR_MEMBER = gql`
   }
 `;
 
+/**
+ * Mails the owner `createVendor` seated the link that lets them take their
+ * passwordless account over in the vendor app — `@Roles(ADMIN)`. It retires
+ * any earlier link, so it is also the resend. Answers where it went, never the
+ * token (`../backend/specs/vendor-onboarding.md`).
+ */
+export const SEND_VENDOR_ONBOARDING_INVITE = gql`
+  mutation SendVendorOnboardingInvite($vendorId: ID!) {
+    sendVendorOnboardingInvite(vendorId: $vendorId) {
+      email
+      expiresAt
+    }
+  }
+`;
+
 export const REVOKE_VENDOR_INVITE = gql`
   mutation RevokeVendorInvite($id: ID!, $vendorId: ID!) {
     revokeVendorInvite(id: $id, vendorId: $vendorId)
@@ -257,6 +280,9 @@ export const REMOVE_VENDOR_MEMBER = gql`
  * live, false creates it held back until an admin switches it on
  * ({@link UPDATE_VENDOR}). It is always sent — omitting it would mean live.
  *
+ * `kind` is sent too: whether the business is a stall holder or a food truck is
+ * an admin's decision, made here or later through {@link SET_VENDOR_KIND}.
+ *
  * `CreateVendorInput` covers those plus `name`, `slug`, `category`,
  * `description`, `imageUrl`, `marketIds` and `orderLeadHours` and nothing else,
  * so the invitation's own half (the note, the phone) has nowhere to go and no
@@ -273,6 +299,23 @@ export const CREATE_VENDOR = gql`
 `;
 
 /**
+ * Makes a vendor a food truck or a stall holder again — `@Roles(ADMIN)`, and
+ * deliberately not on `UpdateVendorInput`, which the owner edits: whether a
+ * business may host stops of its own is the platform's call. A food truck keeps
+ * every right a stall holder has and gains stops, which its owner adds in the
+ * vendor app. Going back to `STALL_HOLDER` is refused (`StillHostsStops`) while
+ * the vendor hosts a live stop, since retiring them would strand open orders.
+ */
+export const SET_VENDOR_KIND = gql`
+  mutation SetVendorKind($vendorId: ID!, $kind: VendorKind!) {
+    setVendorKind(vendorId: $vendorId, kind: $kind) {
+      id
+      kind
+    }
+  }
+`;
+
+/**
  * The market index the vendor screens need, in one cached read: slug → id for
  * the markets an invitee may apply to (`CreateVendorInput` takes `marketIds`
  * and the console picks markets by slug), and the names the directory's
@@ -283,6 +326,10 @@ export const CREATE_VENDOR = gql`
  * also means it offers a market no vendor has joined yet. Deliberately a
  * three-field projection rather than a reuse of `operations/market.ts`'s fat
  * `MarketFields`, since nothing else on a market is wanted.
+ *
+ * `adminMarkets` is blind to kind, so this also returns every food truck's
+ * stops. They stay in the slug → id map — a truck's staff are pinned to its
+ * stops exactly as to a market — but `kind` keeps them out of the menu.
  */
 export const MARKET_IDS = gql`
   query MarketIds {
@@ -290,6 +337,7 @@ export const MARKET_IDS = gql`
       id
       slug
       name
+      kind
     }
   }
 `;

@@ -23,6 +23,7 @@ import { FacePile } from '../../../shared/components/face-pile/face-pile';
 import {
   VENDOR_TOGGLES,
   VendorFilters,
+  VendorKind,
   VendorSummary,
   VendorToggle,
 } from '../../../core/models/vendor.model';
@@ -75,8 +76,10 @@ export class Vendors {
   readonly multiMarket = input<string>();
   readonly feeUnpaid = input<string>();
   readonly paused = input<string>();
+  readonly foodTrucks = input<string>();
 
   protected readonly toggles = VENDOR_TOGGLES;
+  protected readonly foodTruck = VendorKind.FoodTruck;
   protected readonly columns = ['vendor', 'markets', 'staff', 'status', 'actions'];
 
   protected readonly filters = computed<VendorFilters>(() => ({
@@ -86,6 +89,7 @@ export class Vendors {
     multiMarket: this.multiMarket() === 'true',
     feeUnpaid: this.feeUnpaid() === 'true',
     paused: this.paused() === 'true',
+    foodTrucks: this.foodTrucks() === 'true',
   }));
 
   /** Counts the directory, not the page — the filters narrow the table below it. */
@@ -123,6 +127,7 @@ export class Vendors {
       multiMarket: null,
       feeUnpaid: null,
       paused: null,
+      foodTrucks: null,
     });
   }
 
@@ -176,6 +181,11 @@ export class Vendors {
     return 'muted';
   }
 
+  /** "2 stops" — a food truck's own pitches, beside the markets it joined. */
+  protected stopsLabel(vendor: VendorSummary): string {
+    return `${vendor.stopCount} ${vendor.stopCount === 1 ? 'stop' : 'stops'}`;
+  }
+
   protected staffLabel(vendor: VendorSummary): string {
     return `${vendor.staffCount} staff`;
   }
@@ -196,6 +206,13 @@ export class Vendors {
       this.notifications.success(
         `${updated.name} is now ${updated.isActive ? 'active' : 'inactive'}.`,
       ),
+    );
+  }
+
+  /** Mails the owner the onboarding link; any earlier link stops working. */
+  protected sendOnboardingInvite(vendor: VendorSummary): void {
+    this.store.sendOnboardingInvite(vendor, (sent) =>
+      this.notifications.success(`Onboarding invite for ${vendor.name} sent to ${sent.email}.`),
     );
   }
 }

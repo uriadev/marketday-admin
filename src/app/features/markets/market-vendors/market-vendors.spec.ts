@@ -32,6 +32,7 @@ import {
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
+  VendorKind,
 } from '../../../core/models/vendor.model';
 import { VendorDetail as VendorDetailModel } from '../../../core/models/vendor.model';
 import { MarketDetailFacade } from '../market-detail-facade';
@@ -45,6 +46,8 @@ const OUTSIDER: VendorSummary = {
   name: 'Nine Bean Rows',
   meta: 'Bakery · since 2019',
   markets: [],
+  kind: VendorKind.StallHolder,
+  stopCount: 0,
   appliedLabel: null,
   staff: [],
   staffCount: 1,
@@ -55,6 +58,10 @@ const OUTSIDER: VendorSummary = {
 
 /** Records the membership writes; nothing else on this port is reached here. */
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   readonly added: [string, string][] = [];
   readonly removed: [string, string][] = [];
   /** Set to make the next write fail, the way a refusal arrives. */
@@ -107,6 +114,11 @@ class StubVendorRepository extends VendorRepository {
   override setActive(): Observable<VendorSummary> {
     return of(OUTSIDER);
   }
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({} as VendorInviteSummary);
   }

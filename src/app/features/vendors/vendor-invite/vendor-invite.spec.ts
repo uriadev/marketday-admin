@@ -36,6 +36,7 @@ import {
   VendorProfile,
   VendorProfilePatch,
   VendorSummary,
+  VendorKind,
 } from '../../../core/models/vendor.model';
 import { VendorInvite } from './vendor-invite';
 
@@ -91,6 +92,10 @@ class StubMarketRepository extends MarketRepository {
 
 /** Records what was sent, and answers synchronously. */
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   sent: VendorInviteModel | undefined;
   refuse = false;
   addedSoFar = 14;
@@ -141,6 +146,11 @@ class StubVendorRepository extends VendorRepository {
     return of(undefined);
   }
 
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
+  }
+
   override inviteSummary(): Observable<VendorInviteSummary> {
     return of({ sentThisMonth: this.addedSoFar, linkValidDays: 14, reminderAfterDays: 5 });
   }
@@ -154,6 +164,8 @@ class StubVendorRepository extends VendorRepository {
       slug: 'coolea-cheese-co',
       name: invite.businessName,
       meta: `${invite.trade} · invited just now`,
+      kind: VendorKind.StallHolder,
+      stopCount: 0,
       markets: [],
       appliedLabel: null,
       staff: [invite.contactName],
@@ -338,20 +350,19 @@ describe('VendorInvite', () => {
     expect(text).toContain('Link expires');
   });
 
-  it('greys out the phone and the note, which nothing carries', () => {
-    // `CreateVendorInput` has no phone field and no endpoint emails the note
-    // (docs/backend-api-gaps.md #9), so neither is collected — a field that
-    // takes what is typed and drops it is the thing to avoid here.
+  it('greys out the phone, which nothing carries', () => {
+    // `CreateVendorInput` has no phone field (docs/backend-api-gaps.md #9), so
+    // it is not collected — a field that takes what is typed and drops it is
+    // the thing to avoid here. The stall description has a column, so it is live.
     const fixture = open();
 
     expect(field(fixture, 'Phone').disabled).toBe(true);
-    expect(field(fixture, 'Personal note').disabled).toBe(true);
+    expect(field(fixture, 'Stall description').disabled).toBe(false);
     expect(field(fixture, 'Business name').disabled).toBe(false);
     expect(field(fixture, 'Owner’s email').disabled).toBe(false);
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('A vendor has no phone number in the API yet');
-    expect(text).toContain('nothing is emailed yet');
   });
 
   it('reads no markets picked as every market, and names the owner', () => {
@@ -472,7 +483,7 @@ describe('VendorInvite', () => {
     const form = fixture.componentInstance['form'];
     expect(form.controls.businessName.value).toBe('');
     expect(form.controls.email.value).toBe('');
-    expect(form.controls.note.value).toBe('');
+    expect(form.controls.description.value).toBe('');
     // The scope survives, because the next invitation is usually the same batch.
     expect(fixture.componentInstance['selectedMarkets']()).toEqual(['bantry-friday']);
     expect(navigate).not.toHaveBeenCalled();

@@ -50,6 +50,22 @@
         </mat-form-field>
       </div>
 
+      <div class="flex flex-col gap-2">
+        <span class="text-label-large text-on-surface-variant" id="vendor-invite-kind-label">
+          Kind of business
+        </span>
+        <mat-button-toggle-group
+          formControlName="kind"
+          aria-labelledby="vendor-invite-kind-label"
+          class="self-start"
+        >
+          @for (kind of kinds; track kind.value) {
+            <mat-button-toggle [value]="kind.value">{{ kind.label }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+        <span class="text-body-small text-on-surface-variant">{{ kindHint() }}</span>
+      </div>
+
       <div class="pair">
         <mat-form-field>
           <mat-label>Phone (optional)</mat-label>
@@ -129,12 +145,18 @@
         </mat-card-content>
       </mat-card>
 
-      <h3 class="section-title section-title--divided">Message</h3>
+      <h3 class="section-title section-title--divided">Stall description</h3>
 
       <mat-form-field>
-        <mat-label>Personal note (optional)</mat-label>
-        <textarea matInput rows="3" formControlName="note" maxlength="400"></textarea>
-        <mat-hint>Would appear above the sign-up button — nothing is emailed yet.</mat-hint>
+        <mat-label>Stall description (optional)</mat-label>
+        <textarea
+          matInput
+          rows="4"
+          formControlName="description"
+          [maxlength]="descriptionLimit"
+        ></textarea>
+        <mat-hint>Shown to shoppers on every market page this vendor trades at</mat-hint>
+        <mat-hint align="end">{{ descriptionLength() }} / {{ descriptionLimit }}</mat-hint>
       </mat-form-field>
     </div>
   </form>
@@ -153,9 +175,6 @@
             <span class="text-body-medium font-bold text-on-surface">MarketDay</span>
           </div>
           <p class="m-0 text-title-small font-bold text-on-surface">{{ preview().subject }}</p>
-          @if (preview().note; as note) {
-            <p class="m-0 text-body-medium text-on-surface-variant">{{ note }}</p>
-          }
           <div class="email-cta">Set up your account</div>
           <span class="text-label-medium text-on-surface-variant">
             Link expires {{ facade.linkExpiry() }}.

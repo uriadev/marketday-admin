@@ -13,6 +13,7 @@ import {
   VendorDirectoryPage,
   VendorInvite as VendorInviteModel,
   VendorInviteSummary,
+  VendorKind,
   VendorMembership,
   VendorProfile,
   VendorProfilePatch,
@@ -27,6 +28,10 @@ import { VendorDetailFacade } from '../vendor-detail-facade';
 import { VendorMarkets } from './vendor-markets';
 
 class StubVendorRepository extends VendorRepository {
+  override setKind(): Observable<void> {
+    return of(undefined);
+  }
+
   /** The directory is not what these tests are about — an empty page satisfies
    *  the port. */
   override list(): Observable<VendorDirectoryPage> {
@@ -78,6 +83,11 @@ class StubVendorRepository extends VendorRepository {
 
   override removeStaff(): Observable<void> {
     return of(undefined);
+  }
+
+  /** Not a write this screen makes; present so the port is satisfied. */
+  override sendOnboardingInvite(): Observable<{ email: string; expiresAt: Date }> {
+    return of({ email: 'owner@example.ie', expiresAt: new Date(0) });
   }
 
   override inviteSummary(): Observable<VendorInviteSummary> {
@@ -213,6 +223,43 @@ describe('VendorMarkets tab', () => {
 
     // Each membership links through to the market's own screens.
     expect(host.querySelector('a[href="/markets/marlay-park"]')).not.toBeNull();
+  });
+
+  it('lists a food truck’s own stops apart, without a way to remove them', () => {
+    const stop: VendorMembership = {
+      id: 'mem-spencer-dock',
+      market: 'Spencer Dock',
+      marketSlug: 'spencer-dock',
+      badges: [{ label: 'Taking orders', tone: 'positive' }],
+      detail: 'Tuesdays 12:00–14:00 · Dublin',
+      facts: [],
+      paused: false,
+      isStop: true,
+    };
+    vi.spyOn(TestBed.inject(VendorRepository), 'detail').mockReturnValue(
+      of({
+        ...MCNALLY_DETAIL,
+        kind: VendorKind.FoodTruck,
+        memberships: [...MCNALLY_DETAIL.memberships, stop],
+        stopCount: 1,
+      }),
+    );
+    TestBed.inject(VendorDetailFacade).load('mcnally-family-farm');
+
+    const fixture = TestBed.createComponent(VendorMarkets);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Food-truck stops');
+    const card = Array.from(host.querySelectorAll('mat-card')).find((candidate) =>
+      candidate.textContent?.includes('Spencer Dock'),
+    );
+    expect(card?.textContent).toContain('Tuesdays 12:00–14:00');
+    // `leaveMarket` refuses the host's own stop, and a stop has no market screens.
+    expect(card?.querySelector('button[aria-label^="Remove"]')).toBeNull();
+    expect(host.querySelector('a[href="/markets/spencer-dock"]')).toBeNull();
+    // The three public markets keep their remove buttons.
+    expect(host.querySelectorAll('button[aria-label^="Remove from"]').length).toBe(3);
   });
 
   it('renders the rail: stats, next days, documents and the suspend card', () => {
