@@ -8,13 +8,20 @@ export interface UploadedImage {
 }
 
 /**
- * Which presigned-upload mutation to ask for. The backend has five distinct
+ * Which presigned-upload mutation to ask for. The backend has seven distinct
  * ones (`createMarketImageUploadUrl`, `createMarketBannerUploadUrl`,
  * `createVendorImageUploadUrl`, `createProductImageUploadUrl`,
- * `createAvatarUploadUrl`) — this is how a caller picks between them.
+ * `createAvatarUploadUrl`, `createEventImageUploadUrl`,
+ * `createPromotionImageUploadUrl`) — this is how a caller picks between them.
  */
 export type MediaKind =
-  'market-image' | 'market-banner' | 'vendor-image' | 'product-image' | 'avatar';
+  | 'market-image'
+  | 'market-banner'
+  | 'vendor-image'
+  | 'product-image'
+  | 'avatar'
+  | 'event-image'
+  | 'promotion-image';
 
 /**
  * Port for binary uploads. Declared as an abstract class so it doubles as its

@@ -69,3 +69,28 @@ export const CREATE_AVATAR_UPLOAD_URL = gql`
     }
   }
 `;
+
+/**
+ * The two What's On presigns. Keyed by the calling admin rather than the
+ * record (`events/{adminUserId}/…`, `promotions/{adminUserId}/…`), because the
+ * event or promotion does not exist yet when the form uploads.
+ */
+export const CREATE_EVENT_IMAGE_UPLOAD_URL = gql`
+  mutation CreateEventImageUploadUrl($mimeType: String!) {
+    createEventImageUploadUrl(mimeType: $mimeType) {
+      key
+      publicUrl
+      uploadUrl
+    }
+  }
+`;
+
+export const CREATE_PROMOTION_IMAGE_UPLOAD_URL = gql`
+  mutation CreatePromotionImageUploadUrl($mimeType: String!) {
+    createPromotionImageUploadUrl(mimeType: $mimeType) {
+      key
+      publicUrl
+      uploadUrl
+    }
+  }
+`;

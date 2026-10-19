@@ -289,6 +289,25 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
     nor a default `limit` — an omitted `criteria` is an unbounded scan. `vendors`/`products`
     already return `{ items, totalCount }` via `Paginated<T>`; `adminMarkets` should too.
 
+15. ~~**No single-record admin read for events or promotions.**~~ **Closed.** The What's On
+    context (`../backend/specs/market-events-proposal.md`) shipped with `adminEvents` /
+    `adminPromotions` pages and every write, but the only single-event read was the public
+    `event(id)`, which answers `null` for a draft, an ended event or one whose venue is not live
+    — by design, so it cannot be used to learn a draft exists. `id` is not in either read
+    model's `FILTERABLE_FIELDS`, so the page could not stand in. The edit forms
+    (`/events/:id`, `/promotions/:id`) therefore had nothing to load a draft from on a reload or
+    a shared link. Closing it was a **backend** change, made here: `adminEvent(id)` and
+    `adminPromotion(id)` (`@Roles(ADMIN)`, nullable, status-blind) over the `adminById` both read
+    models already had, asserted in `whats-on-authorization.spec.ts`.
+
+    Events and Promotions are otherwise **fully wired**, with no fixture:
+    `GraphqlEventRepository` and `GraphqlPromotionRepository` page server-side and push every
+    filter down. Two input rules found in the backend's domain shape the mappers, and both are
+    exceptions to the explicit-`null` rule: a `MARKET` event's `latitude`/`longitude` and a
+    nationwide promotion's `reachLatitude`/`reachLongitude`/`reachRadiusKm` must be **omitted**,
+    because the backend refuses those keys when they are `!== undefined` — `null` included. And
+    `UpdateEventInput.areaName` is never sent as `null`, since `revise` trims it.
+
 ## Deployment precondition
 
 12. **No CORS configuration**, and the global `ApiKeyGuard` requires `x-api-key` on every
@@ -358,6 +377,15 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
     backend grows the three things above, only that adapter changes. What would close it: a
     listing filter (or `soldOut` / `carriedAt` arguments on `products`), a stock-summary query
     per vendor, and `setVendorMarketListings`-style bulk mutations.
+
+16. **A promotion's serving state cannot be filtered on.** `AdminPromotionModel.servingState`
+    (`DRAFT | UPCOMING | LIVE | PAUSED | ENDED | SUBJECT_HIDDEN`) is derived per row from the
+    clock and the subject's visibility, not stored, so it is not in `FILTERABLE_FIELDS`. The
+    Promotions list filters, and counts, on the stored `status` (`DRAFT | SCHEDULED | PAUSED`),
+    and shows the serving state as each row's pill. "Show me everything live" or "everything
+    whose subject went hidden" (the state an admin needs most) would need a `servingState`
+    argument on `adminPromotions` that applies the visibility fragments in SQL, the way
+    `promotions` already does for serving.
 
 ## Bugs found while reading (not missing features)
 

@@ -1,3 +1,4 @@
+import { MARKET_TIME_ZONE } from '../../../time/market-time';
 import { VendorOrderWindowQuery } from '../generated';
 
 /**
@@ -6,15 +7,6 @@ import { VendorOrderWindowQuery } from '../generated';
  * schema via codegen, the way every other mapper does.
  */
 export type GqlOrderWindow = VendorOrderWindowQuery['vendorOrderWindow'];
-
-/**
- * The zone market days are traded in. The backend returns real instants, so
- * this is only about how they read: "pre-orders open Fri 09:00" means 09:00 at
- * the market, whatever zone the admin's laptop is set to. Mirrors the
- * backend's own `MARKET_TIME_ZONE` — one constant there, one here, until
- * `markets` grows a `timeZone` column.
- */
-const MARKET_TIME_ZONE = 'Europe/Dublin';
 
 const MOMENT = new Intl.DateTimeFormat('en-IE', {
   timeZone: MARKET_TIME_ZONE,

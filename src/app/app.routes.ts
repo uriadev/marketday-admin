@@ -29,6 +29,16 @@ export const routes: Routes = [
           import('./features/vendors/vendors.routes').then((m) => m.VENDORS_ROUTES),
       },
       {
+        path: 'events',
+        loadChildren: () =>
+          import('./features/events/events.routes').then((m) => m.EVENTS_ROUTES),
+      },
+      {
+        path: 'promotions',
+        loadChildren: () =>
+          import('./features/promotions/promotions.routes').then((m) => m.PROMOTIONS_ROUTES),
+      },
+      {
         path: 'users',
         loadChildren: () => import('./features/users/users.routes').then((m) => m.USERS_ROUTES),
       },

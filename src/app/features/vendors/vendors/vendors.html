@@ -46,16 +46,18 @@
     </div>
   </div>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <button
-      matButton="tonal"
-      type="button"
-      [disabled]="!store.hasActiveFilters()"
-      (click)="clearFilters()"
-    >
-      <mat-icon>check</mat-icon>
-      {{ store.hasActiveFilters() ? 'Clear filters' : 'All vendors' }}
-    </button>
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <md-search-select
+      class="market-filter"
+      label="Market"
+      placeholder="Any market"
+      emptyText="No market by that name"
+      [options]="marketOptions()"
+      [selected]="selectedMarket()"
+      (query)="marketQuery.set($event)"
+      (picked)="setParam({ market: $event.id })"
+      (cleared)="setParam({ market: null })"
+    />
 
     <mat-chip-listbox
       multiple
@@ -73,18 +75,12 @@
       }
     </mat-chip-listbox>
 
-    <button matButton="outlined" type="button" [matMenuTriggerFor]="marketMenu">
-      Market: {{ filters().market ?? 'any' }}
-      <mat-icon iconPositionEnd>expand_more</mat-icon>
-    </button>
-    <mat-menu #marketMenu="matMenu">
-      <button mat-menu-item type="button" (click)="setParam({ market: null })">Any market</button>
-      @for (option of store.markets(); track option) {
-        <button mat-menu-item type="button" (click)="setParam({ market: option })">
-          {{ option }}
-        </button>
-      }
-    </mat-menu>
+    @if (store.hasActiveFilters()) {
+      <button matButton type="button" (click)="clearFilters()">
+        <mat-icon>filter_alt_off</mat-icon>
+        Clear filters
+      </button>
+    }
   </div>
 </div>
 

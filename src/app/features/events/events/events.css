@@ -1,0 +1,119 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.search {
+  inline-size: 300px;
+  max-inline-size: 40vw;
+}
+
+/* Heading, actions and filters stay put; only the table scrolls. */
+.intro {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 0;
+}
+
+.scroller {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 16px 24px 24px;
+}
+
+/* A filter that is on says so without needing its menu opened. */
+.filter--on {
+  --mat-outlined-button-label-text-color: var(--mat-sys-primary);
+  --mat-outlined-button-outline-color: var(--mat-sys-primary);
+}
+
+.table-card {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.events {
+  inline-size: 100%;
+  background: transparent;
+}
+.events .mat-column-event {
+  inline-size: 34%;
+}
+.events .mat-column-status {
+  inline-size: 130px;
+}
+.events .mat-column-actions {
+  inline-size: 56px;
+  text-align: end;
+}
+.events td.mat-mdc-cell {
+  padding-block: 10px;
+}
+
+/* An ended event is still listed under "Past", but it is history. */
+.row--ended td.mat-mdc-cell {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.event-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.event-link:hover .font-semibold {
+  text-decoration: underline;
+}
+
+.thumb {
+  flex: none;
+  inline-size: 56px;
+  block-size: 40px;
+  border-radius: var(--mat-sys-corner-small);
+  object-fit: cover;
+}
+.thumb--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mat-sys-surface-container-high);
+  --mat-icon-color: var(--mat-sys-on-surface-variant);
+}
+
+.featured {
+  --mat-icon-color: var(--mat-sys-tertiary);
+  vertical-align: text-bottom;
+  font-size: 18px;
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.venue-icon {
+  flex: none;
+  --mat-icon-color: var(--mat-sys-on-surface-variant);
+}
+
+.venue-link {
+  color: var(--mat-sys-on-surface);
+  text-decoration: none;
+}
+.venue-link:hover {
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

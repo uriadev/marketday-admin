@@ -11,7 +11,7 @@ flow (`/login`, `/login/verify`, `/forgot-password`) and a console shell over Ov
 Markets (list / manage / add-market wizard), Vendors (directory / detail tabs / application
 dialog), Users, Support inbox and Account.
 
-Data is a **hybrid**: Auth, Passkeys, Markets, Profile, Media, Vendors, Products and Users are wired to
+Data is a **hybrid**: Auth, Passkeys, Markets, Profile, Media, Vendors, Products, Users, Events and Promotions are wired to
 `../backend`'s real GraphQL API (`core/api/graphql/`) — the ports the schema genuinely covers
 for an admin. Vendors is partial: `adminVendors` + `vendor(id)` back the directory list, the
 detail shell and the Profile tab's read — the directory **pages server-side** (`limit`/`offset`
@@ -79,7 +79,22 @@ filter pushed down, the header's and menus' counts as aliases in the same docume
 suspension signs the account out and is enforced at `AuthService.issueTokens` and `JwtStrategy`;
 "Send password reset" is the public `requestPasswordReset`. Organiser / support agent have no
 column behind them (every `ADMIN` reads as a platform admin), and Change role, Invite team
-member and Export stay disabled (`docs/backend-api-gaps.md` §1). The other
+member and Export stay disabled (`docs/backend-api-gaps.md` §1). **Events** and **Promotions** (the backend's What's On context,
+`../backend/specs/market-events-proposal.md`) run end-to-end with no fixture: `features/events`
+and `features/promotions` are each a server-paged list (`adminEvents` / `adminPromotions`, every
+filter pushed down, header counts as aliases) and one full-page form for new and existing records
+(`adminEvent(id)` / `adminPromotion(id)`, added server-side for those forms because the public
+`event(id)` hides drafts). Only admins author either. An event's venue (`market` / `vendor` /
+`place`) and a promotion's subject are create-only, and the forms show them as fixed text once the
+record exists. Session and period times are typed in **Irish time** through `core/time/market-time.ts`,
+whatever zone the browser is in, and are sent as instants. Event and promotion-reach points are
+snapped server-side to about 1 km, and the app never shows an exact point. A promotion's status
+moves only through `setPromotionStatus` (Schedule / Pause / Resume in the row menu and the form
+header), never through the form save, so a save cannot resume a paused booking. Two wire rules are
+exceptions to the explicit-`null` rule, and the mappers encode them: a `MARKET` event's coordinates
+and a nationwide promotion's reach fields are **omitted**, because the backend refuses them even as
+`null`. `UpdateEventInput.areaName` is never `null`. The list filters on stored `status`;
+`servingState` is derived and not filterable (`docs/backend-api-gaps.md` §15–16). The other
 four ports (Payments, Activity, Support, Dashboard) still run on the
 `InMemory*Repository` fixtures under `core/api/in-memory/`, bound in
 `core/api/api.providers.ts`. See `docs/backend-api-gaps.md` for exactly what's missing
@@ -94,7 +109,7 @@ Two documents outside this repo drive the work:
   Google Maps adapter under `core/maps/`.
 - **`../backend`** (package `marketday-api`) — the API this console calls: NestJS + GraphQL
   (Apollo over Fastify), TypeORM / PostgreSQL / PostGIS, JWT + Google OAuth.
-  `core/api/ports/*` are abstract-class ports; `core/api/graphql/*` implements the eight the
+  `core/api/ports/*` are abstract-class ports; `core/api/graphql/*` implements the ten the
   schema covers (Vendors partially), `core/api/in-memory/*` the rest — see
   `core/api/api.providers.ts` for the `useClass` bindings. `core/models/*.model.ts` mirrors
   the backend enums.
@@ -172,8 +187,9 @@ Package manager is **pnpm** (pinned via `packageManager`, pnpm@11.5.0) — not n
 - Watch build (dev config): `pnpm run watch`
 - Serve the SSR build: `pnpm run serve:ssr:marketday-admin` (`node dist/marketday-admin/server/server.mjs`, listens on `PORT`, default 4000)
 - All unit tests: `pnpm test` (`ng test` → `@angular/build:unit-test` builder, Vitest + jsdom)
-- Single test file: `pnpm test -- --include=src/app/app.spec.ts`
-- CI-style (no watch): `pnpm test -- --watch=false`
+- Single test file: `pnpm test --include=src/app/app.spec.ts` (pnpm 11 forwards flags as-is — a
+  `--` separator makes `ng test` reject the arguments)
+- CI-style (no watch): `pnpm test --watch=false`
 - Regenerate GraphQL operation types from `schema.gql`: `pnpm gql:generate`
 - Format: `npx prettier --write .` (no npm script defined for it)
 

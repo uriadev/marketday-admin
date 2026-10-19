@@ -10,6 +10,11 @@
   max-inline-size: 40vw;
 }
 
+.market-filter {
+  inline-size: 280px;
+  max-inline-size: 100%;
+}
+
 /* Heading, actions and filters stay put; only the table scrolls. */
 .intro {
   flex: none;
@@ -46,7 +51,8 @@
 
 /* The design's column rhythm: identity, then everything it trades under. */
 .directory .mat-column-vendor {
-  inline-size: 260px;
+  inline-size: 34%;
+  min-inline-size: 280px;
 }
 .directory .mat-column-staff {
   inline-size: 160px;

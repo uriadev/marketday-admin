@@ -30,6 +30,12 @@ html {
    outlined-container-shape: 20px,
   ));
 
+  // A disabled nav item ("coming soon") reads from its dimmed text alone,
+  // without Material's 12% state layer painting a grey pill behind it.
+  @include mat.list-overrides((
+    list-item-disabled-state-layer-opacity: 0,
+  ));
+
   @include mat.card-overrides((
     outlined-container-color: #fff
     // title-text-size: 1.2rem,

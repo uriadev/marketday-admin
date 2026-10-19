@@ -3,31 +3,63 @@ export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
-export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = {
-  [_ in K]?: never;
-};
-export type Incremental<T> =
-  T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
-  ID: { input: string; output: string };
-  String: { input: string; output: string };
-  Boolean: { input: boolean; output: boolean };
-  Int: { input: number; output: number };
-  Float: { input: number; output: number };
+  ID: { input: string; output: string; }
+  String: { input: string; output: string; }
+  Boolean: { input: boolean; output: boolean; }
+  Int: { input: number; output: number; }
+  Float: { input: number; output: number; }
   /** A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format. */
-  DateTime: { input: string; output: string };
+  DateTime: { input: string; output: string; }
   /** A GeoJSON object as defined by RFC 7946: https://datatracker.ietf.org/doc/html/rfc7946 */
-  GeoJSON: {
-    input: { type: string; coordinates: number[] };
-    output: { type: string; coordinates: number[] };
-  };
+  GeoJSON: { input: { type: string; coordinates: number[] }; output: { type: string; coordinates: number[] }; }
   /** The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf). */
-  JSON: { input: unknown; output: unknown };
+  JSON: { input: unknown; output: unknown; }
 };
 
 export type AccountDeletionLinkInput = {
   token: Scalars['String']['input'];
+};
+
+export type AdminPromotionModel = {
+  __typename?: 'AdminPromotionModel';
+  body: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  ctaLabel: Maybe<Scalars['String']['output']>;
+  /** Server-authored — "Sponsored" or "From MarketDay". Render verbatim; never omit. */
+  disclosure: Scalars['String']['output'];
+  endsAt: Scalars['DateTime']['output'];
+  event: Maybe<EventModel>;
+  /** The creative's, else the subject's name or title. */
+  headline: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  /** The creative's, else the subject's image. */
+  imageUrl: Maybe<Scalars['String']['output']>;
+  isHouse: Scalars['Boolean']['output'];
+  isNationwide: Scalars['Boolean']['output'];
+  linkUrl: Maybe<Scalars['String']['output']>;
+  market: Maybe<MarketModel>;
+  marketIds: Array<Scalars['ID']['output']>;
+  placement: PromotionPlacement;
+  priority: Scalars['Int']['output'];
+  product: Maybe<ProductModel>;
+  /** Approximate. */
+  reachLatitude: Maybe<Scalars['Float']['output']>;
+  /** Approximate. */
+  reachLongitude: Maybe<Scalars['Float']['output']>;
+  reachRadiusKm: Maybe<Scalars['Int']['output']>;
+  /** Derived from the clock and the subject. SUBJECT_HIDDEN: booked, but its subject is not publicly visible. */
+  servingState: PromotionServingState;
+  sponsorName: Scalars['String']['output'];
+  sponsorVendorId: Maybe<Scalars['ID']['output']>;
+  startsAt: Scalars['DateTime']['output'];
+  status: PromotionStatus;
+  targetKind: PromotionTargetKind;
+  updatedAt: Scalars['DateTime']['output'];
+  vendor: Maybe<VendorModel>;
 };
 
 export type AdminUserModel = {
@@ -50,7 +82,7 @@ export type AdminUserModel = {
 export enum AdminUserStatus {
   Active = 'ACTIVE',
   Invited = 'INVITED',
-  Suspended = 'SUSPENDED',
+  Suspended = 'SUSPENDED'
 }
 
 export type AdminUsersPage = {
@@ -108,7 +140,7 @@ export enum BillingInvoiceStatus {
   Open = 'OPEN',
   Paid = 'PAID',
   Uncollectible = 'UNCOLLECTIBLE',
-  Void = 'VOID',
+  Void = 'VOID'
 }
 
 export type BillingOverviewModel = {
@@ -157,8 +189,27 @@ export type ClaimVendorOnboardingInviteInput = {
 
 export enum ContactRole {
   Shopper = 'shopper',
-  Vendor = 'vendor',
+  Vendor = 'vendor'
 }
+
+export type CreateEventInput = {
+  address?: InputMaybe<Scalars['String']['input']>;
+  /** Required except for MARKET events, which default to the market's town. */
+  areaName?: InputMaybe<Scalars['String']['input']>;
+  category?: InputMaybe<EventCategory>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  externalUrl?: InputMaybe<Scalars['String']['input']>;
+  imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isFeatured?: InputMaybe<Scalars['Boolean']['input']>;
+  latitude?: InputMaybe<Scalars['Float']['input']>;
+  longitude?: InputMaybe<Scalars['Float']['input']>;
+  marketId?: InputMaybe<Scalars['ID']['input']>;
+  sessions: Array<EventSessionInput>;
+  status?: InputMaybe<EventStatus>;
+  title: Scalars['String']['input'];
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
+  venueKind: EventVenueKind;
+};
 
 export type CreateFoodTruckStopInput = {
   address: Scalars['String']['input'];
@@ -225,6 +276,32 @@ export type CreateProductInput = {
   unit?: InputMaybe<ProductUnit>;
 };
 
+export type CreatePromotionInput = {
+  body?: InputMaybe<Scalars['String']['input']>;
+  ctaLabel?: InputMaybe<Scalars['String']['input']>;
+  endsAt: Scalars['DateTime']['input'];
+  eventId?: InputMaybe<Scalars['ID']['input']>;
+  headline?: InputMaybe<Scalars['String']['input']>;
+  imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isHouse?: InputMaybe<Scalars['Boolean']['input']>;
+  isNationwide?: InputMaybe<Scalars['Boolean']['input']>;
+  linkUrl?: InputMaybe<Scalars['String']['input']>;
+  marketId?: InputMaybe<Scalars['ID']['input']>;
+  marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  placement: PromotionPlacement;
+  priority?: InputMaybe<Scalars['Int']['input']>;
+  productId?: InputMaybe<Scalars['ID']['input']>;
+  reachLatitude?: InputMaybe<Scalars['Float']['input']>;
+  reachLongitude?: InputMaybe<Scalars['Float']['input']>;
+  reachRadiusKm?: InputMaybe<Scalars['Int']['input']>;
+  sponsorName: Scalars['String']['input'];
+  sponsorVendorId?: InputMaybe<Scalars['ID']['input']>;
+  startsAt: Scalars['DateTime']['input'];
+  status?: InputMaybe<PromotionStatus>;
+  targetKind: PromotionTargetKind;
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
+};
+
 export type CreateSupportMessageInput = {
   attachmentKeys?: InputMaybe<Array<Scalars['String']['input']>>;
   category: SupportCategory;
@@ -265,6 +342,83 @@ export type DeleteAccountInput = {
   password?: InputMaybe<Scalars['String']['input']>;
 };
 
+export enum EventCategory {
+  Community = 'COMMUNITY',
+  FarmOpenDay = 'FARM_OPEN_DAY',
+  Festival = 'FESTIVAL',
+  Kids = 'KIDS',
+  Music = 'MUSIC',
+  Other = 'OTHER',
+  Tasting = 'TASTING',
+  Workshop = 'WORKSHOP'
+}
+
+export type EventModel = {
+  __typename?: 'EventModel';
+  /** Only when the organiser chose to publish one. */
+  address: Maybe<Scalars['String']['output']>;
+  /** A human-readable area, shown when there is no address. */
+  areaName: Scalars['String']['output'];
+  category: EventCategory;
+  createdAt: Scalars['DateTime']['output'];
+  description: Maybe<Scalars['String']['output']>;
+  /** Set by upcomingEvents only, rounded to the kilometre. */
+  distanceKm: Maybe<Scalars['Int']['output']>;
+  endsAt: Scalars['DateTime']['output'];
+  externalUrl: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  imageUrl: Maybe<Scalars['String']['output']>;
+  isFeatured: Scalars['Boolean']['output'];
+  /** Approximate — snapped to a ~1 km grid. Never a pin. */
+  latitude: Scalars['Float']['output'];
+  /** Draw a circle of this radius around the point, not a pin. */
+  locationAccuracyM: Scalars['Int']['output'];
+  /** Approximate — snapped to a ~1 km grid. Never a pin. */
+  longitude: Scalars['Float']['output'];
+  /** MARKET events only. */
+  market: Maybe<MarketModel>;
+  /** Ordered by startsAt. */
+  sessions: Array<EventSessionModel>;
+  startsAt: Scalars['DateTime']['output'];
+  status: EventStatus;
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  /** VENDOR events only. */
+  vendor: Maybe<VendorModel>;
+  venueKind: EventVenueKind;
+};
+
+export type EventSessionInput = {
+  endsAt: Scalars['DateTime']['input'];
+  label?: InputMaybe<Scalars['String']['input']>;
+  startsAt: Scalars['DateTime']['input'];
+};
+
+export type EventSessionModel = {
+  __typename?: 'EventSessionModel';
+  endsAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  label: Maybe<Scalars['String']['output']>;
+  startsAt: Scalars['DateTime']['output'];
+};
+
+export enum EventStatus {
+  Draft = 'DRAFT',
+  Published = 'PUBLISHED'
+}
+
+export enum EventVenueKind {
+  Market = 'MARKET',
+  Place = 'PLACE',
+  Vendor = 'VENDOR'
+}
+
+export type EventsPage = {
+  __typename?: 'EventsPage';
+  items: Array<EventModel>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type FilterInput = {
   field: Scalars['String']['input'];
   operator: FilterOperator;
@@ -280,7 +434,7 @@ export enum FilterOperator {
   Lt = 'LT',
   Lte = 'LTE',
   NotContains = 'NOT_CONTAINS',
-  NotEqual = 'NOT_EQUAL',
+  NotEqual = 'NOT_EQUAL'
 }
 
 export type FoodTruckDayCountModel = {
@@ -338,6 +492,13 @@ export type GoogleAuthInput = {
   idToken: Scalars['String']['input'];
 };
 
+export type ImageUploadTarget = {
+  __typename?: 'ImageUploadTarget';
+  key: Scalars['String']['output'];
+  publicUrl: Scalars['String']['output'];
+  uploadUrl: Scalars['String']['output'];
+};
+
 export type InviteVendorMemberInput = {
   email: Scalars['String']['input'];
   marketId: Scalars['ID']['input'];
@@ -365,7 +526,7 @@ export type MarketImageUploadUrlModel = {
 
 export enum MarketKind {
   FoodTruckStop = 'FOOD_TRUCK_STOP',
-  PublicMarket = 'PUBLIC_MARKET',
+  PublicMarket = 'PUBLIC_MARKET'
 }
 
 export type MarketModel = {
@@ -406,7 +567,7 @@ export type MarketOccurrenceModel = {
 
 export enum MarketStatus {
   Draft = 'DRAFT',
-  Published = 'PUBLISHED',
+  Published = 'PUBLISHED'
 }
 
 export enum MarketType {
@@ -414,7 +575,7 @@ export enum MarketType {
   Farmers = 'FARMERS',
   FoodProduce = 'FOOD_PRODUCE',
   Mixed = 'MIXED',
-  Vintage = 'VINTAGE',
+  Vintage = 'VINTAGE'
 }
 
 export type MoveFoodTruckStopDayInput = {
@@ -438,6 +599,8 @@ export type Mutation = {
   completeVendorOnboarding: VendorOnboardingModel;
   confirmAccountDeletion: Scalars['Boolean']['output'];
   createAvatarUploadUrl: AvatarUploadUrlModel;
+  createEvent: EventModel;
+  createEventImageUploadUrl: ImageUploadTarget;
   createFoodTruckStop: VendorMarketModel;
   createMarket: MarketModel;
   createMarketBannerUploadUrl: MarketBannerUploadUrlModel;
@@ -445,13 +608,17 @@ export type Mutation = {
   createOrder: CreateOrderPayload;
   createProduct: ProductModel;
   createProductImageUploadUrl: ProductImageUploadUrlModel;
+  createPromotion: AdminPromotionModel;
+  createPromotionImageUploadUrl: ImageUploadTarget;
   createSupportAttachmentUploadUrl: SupportAttachmentUploadUrlModel;
   createVendor: VendorModel;
   createVendorBannerUploadUrl: VendorImageUploadUrlModel;
   createVendorImageUploadUrl: VendorImageUploadUrlModel;
   delayFoodTruckStopDay: FoodTruckStopDayModel;
   deleteAccount: Scalars['Boolean']['output'];
+  deleteEvent: Scalars['Boolean']['output'];
   deletePasskey: Scalars['Boolean']['output'];
+  deletePromotion: Scalars['Boolean']['output'];
   generateOccurrences: MarketModel;
   googleAuth: AuthResponse;
   inviteVendorMember: Scalars['Boolean']['output'];
@@ -484,6 +651,7 @@ export type Mutation = {
   setProductFavorite: Scalars['Boolean']['output'];
   setProductListing: ProductListingModel;
   setProductSoldOut: ProductListingModel;
+  setPromotionStatus: AdminPromotionModel;
   setRole: UserModel;
   setStallPickupSlots: VendorMarketModel;
   setVendorComplimentaryAccess: VendorSubscriptionModel;
@@ -500,28 +668,34 @@ export type Mutation = {
   submitSupportMessage: SupportMessageModel;
   suspendUser: AdminUserModel;
   toggleProduct: ProductModel;
+  updateEvent: EventModel;
   updateFoodTruckStop: FoodTruckStopUpdatePayload;
   updateMarket: MarketModel;
   updateMe: UserModel;
   updateOrderStatus: OrderModel;
   updateProduct: ProductModel;
+  updatePromotion: AdminPromotionModel;
   updateVendor: VendorModel;
   updateVendorMember: VendorMemberModel;
   verifyPasskeyRegistration: PasskeyModel;
   verifyPasswordResetCode: Scalars['Boolean']['output'];
 };
 
+
 export type MutationAcceptVendorInviteArgs = {
   code: Scalars['String']['input'];
 };
+
 
 export type MutationAcceptVendorOnboardingInviteArgs = {
   token: Scalars['String']['input'];
 };
 
+
 export type MutationAppleAuthArgs = {
   input: AppleAuthInput;
 };
+
 
 export type MutationCancelFoodTruckStopDayArgs = {
   message?: InputMaybe<Scalars['String']['input']>;
@@ -529,78 +703,116 @@ export type MutationCancelFoodTruckStopDayArgs = {
   reason: StopCancellationReason;
 };
 
+
 export type MutationCancelOrderArgs = {
   id: Scalars['ID']['input'];
   trackingToken?: InputMaybe<Scalars['String']['input']>;
 };
 
+
 export type MutationChangePasswordArgs = {
   input: ChangePasswordInput;
 };
+
 
 export type MutationClaimVendorOnboardingInviteArgs = {
   input: ClaimVendorOnboardingInviteInput;
 };
 
+
 export type MutationClearVendorComplimentaryAccessArgs = {
   vendorId: Scalars['ID']['input'];
 };
+
 
 export type MutationConfirmAccountDeletionArgs = {
   input: AccountDeletionLinkInput;
 };
 
+
 export type MutationCreateAvatarUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
 };
+
+
+export type MutationCreateEventArgs = {
+  input: CreateEventInput;
+};
+
+
+export type MutationCreateEventImageUploadUrlArgs = {
+  mimeType: Scalars['String']['input'];
+};
+
 
 export type MutationCreateFoodTruckStopArgs = {
   input: CreateFoodTruckStopInput;
 };
 
+
 export type MutationCreateMarketArgs = {
   input: CreateMarketInput;
 };
+
 
 export type MutationCreateMarketBannerUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
 };
 
+
 export type MutationCreateMarketImageUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
 };
 
+
 export type MutationCreateOrderArgs = {
   input: CreateOrderInput;
 };
+
 
 export type MutationCreateProductArgs = {
   input: CreateProductInput;
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationCreateProductImageUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
+export type MutationCreatePromotionArgs = {
+  input: CreatePromotionInput;
+};
+
+
+export type MutationCreatePromotionImageUploadUrlArgs = {
+  mimeType: Scalars['String']['input'];
+};
+
+
 export type MutationCreateSupportAttachmentUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
 };
 
+
 export type MutationCreateVendorArgs = {
   input: CreateVendorInput;
 };
+
 
 export type MutationCreateVendorBannerUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationCreateVendorImageUploadUrlArgs = {
   mimeType: Scalars['String']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
+
 
 export type MutationDelayFoodTruckStopDayArgs = {
   message?: InputMaybe<Scalars['String']['input']>;
@@ -608,121 +820,159 @@ export type MutationDelayFoodTruckStopDayArgs = {
   occurrenceId: Scalars['ID']['input'];
 };
 
+
 export type MutationDeleteAccountArgs = {
   input: DeleteAccountInput;
 };
+
+
+export type MutationDeleteEventArgs = {
+  id: Scalars['ID']['input'];
+};
+
 
 export type MutationDeletePasskeyArgs = {
   id: Scalars['ID']['input'];
 };
 
+
+export type MutationDeletePromotionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationGenerateOccurrencesArgs = {
   id: Scalars['ID']['input'];
 };
+
 
 export type MutationGoogleAuthArgs = {
   input: GoogleAuthInput;
 };
 
+
 export type MutationInviteVendorMemberArgs = {
   input: InviteVendorMemberInput;
 };
+
 
 export type MutationJoinMarketArgs = {
   marketId: Scalars['ID']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationLeaveMarketArgs = {
   marketId: Scalars['ID']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationLoginArgs = {
   input: LoginInput;
 };
 
+
 export type MutationMarkNotificationReadArgs = {
   id: Scalars['ID']['input'];
 };
+
 
 export type MutationMoveFoodTruckStopDayArgs = {
   input: MoveFoodTruckStopDayInput;
   occurrenceId: Scalars['ID']['input'];
 };
 
+
 export type MutationPasskeyAuthArgs = {
   input: PasskeyAuthInput;
 };
+
 
 export type MutationRefreshTokenArgs = {
   input: RefreshTokenInput;
 };
 
+
 export type MutationRegisterArgs = {
   input: RegisterInput;
 };
+
 
 export type MutationRegisterPushTokenArgs = {
   token: Scalars['String']['input'];
 };
 
+
 export type MutationRemoveFoodTruckStopArgs = {
   id: Scalars['ID']['input'];
 };
+
 
 export type MutationRemoveProductListingArgs = {
   marketId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
 };
 
+
 export type MutationRemoveVendorMemberArgs = {
   userId: Scalars['ID']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationRenamePasskeyArgs = {
   input: RenamePasskeyInput;
 };
+
 
 export type MutationRequestAccountDeletionLinkArgs = {
   input: RequestAccountDeletionLinkInput;
 };
 
+
 export type MutationRequestPasswordResetArgs = {
   input: RequestPasswordResetInput;
 };
+
 
 export type MutationResetPasswordArgs = {
   input: ResetPasswordInput;
 };
 
+
 export type MutationRestoreUserArgs = {
   userId: Scalars['ID']['input'];
 };
+
 
 export type MutationRevokeVendorInviteArgs = {
   id: Scalars['ID']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type MutationSendVendorOnboardingInviteArgs = {
   vendorId: Scalars['ID']['input'];
 };
+
 
 export type MutationSetMarketFavoriteArgs = {
   favorite: Scalars['Boolean']['input'];
   marketId: Scalars['ID']['input'];
 };
 
+
 export type MutationSetProductFavoriteArgs = {
   favorite: Scalars['Boolean']['input'];
   productId: Scalars['ID']['input'];
 };
 
+
 export type MutationSetProductListingArgs = {
   input: SetProductListingInput;
 };
+
 
 export type MutationSetProductSoldOutArgs = {
   marketId: Scalars['ID']['input'];
@@ -730,9 +980,17 @@ export type MutationSetProductSoldOutArgs = {
   soldOut: Scalars['Boolean']['input'];
 };
 
+
+export type MutationSetPromotionStatusArgs = {
+  id: Scalars['ID']['input'];
+  status: PromotionStatus;
+};
+
+
 export type MutationSetRoleArgs = {
   input: SetRoleInput;
 };
+
 
 export type MutationSetStallPickupSlotsArgs = {
   marketId: Scalars['ID']['input'];
@@ -741,102 +999,142 @@ export type MutationSetStallPickupSlotsArgs = {
   slotMinutes?: InputMaybe<Scalars['Int']['input']>;
 };
 
+
 export type MutationSetVendorComplimentaryAccessArgs = {
   input: SetVendorComplimentaryAccessInput;
 };
 
+
 export type MutationSetVendorDaySummaryEmailArgs = {
   enabled: Scalars['Boolean']['input'];
 };
+
 
 export type MutationSetVendorFavoriteArgs = {
   favorite: Scalars['Boolean']['input'];
   vendorId: Scalars['ID']['input'];
 };
 
+
 export type MutationSetVendorFollowAlertsArgs = {
   input: VendorFollowAlertsInput;
   vendorId: Scalars['ID']['input'];
 };
+
 
 export type MutationSetVendorKindArgs = {
   kind: VendorKind;
   vendorId: Scalars['ID']['input'];
 };
 
+
 export type MutationSetVendorMarketAcceptingOrdersArgs = {
   accepting: Scalars['Boolean']['input'];
   marketId: Scalars['ID']['input'];
 };
+
 
 export type MutationSetVendorMarketOrderLeadHoursArgs = {
   hours: Scalars['Int']['input'];
   marketId: Scalars['ID']['input'];
 };
 
+
 export type MutationSetVendorOrdersPausedUntilArgs = {
   input: SetVendorOrdersPausedUntilInput;
 };
+
 
 export type MutationSetVendorTrialEndArgs = {
   input: SetVendorTrialEndInput;
 };
 
+
 export type MutationSubmitContactMessageArgs = {
   input: SubmitContactMessageInput;
 };
+
 
 export type MutationSubmitSupportMessageArgs = {
   input: CreateSupportMessageInput;
 };
 
+
 export type MutationSuspendUserArgs = {
   input: SuspendUserInput;
 };
 
+
 export type MutationToggleProductArgs = {
   id: Scalars['ID']['input'];
 };
+
+
+export type MutationUpdateEventArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateEventInput;
+};
+
 
 export type MutationUpdateFoodTruckStopArgs = {
   id: Scalars['ID']['input'];
   input: UpdateFoodTruckStopInput;
 };
 
+
 export type MutationUpdateMarketArgs = {
   id: Scalars['ID']['input'];
   input: UpdateMarketInput;
 };
 
+
 export type MutationUpdateMeArgs = {
   input: UpdateUserInput;
 };
+
 
 export type MutationUpdateOrderStatusArgs = {
   id: Scalars['ID']['input'];
   input: UpdateOrderStatusInput;
 };
 
+
 export type MutationUpdateProductArgs = {
   id: Scalars['ID']['input'];
   input: UpdateProductInput;
 };
+
+
+export type MutationUpdatePromotionArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdatePromotionInput;
+};
+
 
 export type MutationUpdateVendorArgs = {
   id: Scalars['ID']['input'];
   input: UpdateVendorInput;
 };
 
+
 export type MutationUpdateVendorMemberArgs = {
   input: UpdateVendorMemberInput;
 };
+
 
 export type MutationVerifyPasskeyRegistrationArgs = {
   input: VerifyPasskeyRegistrationInput;
 };
 
+
 export type MutationVerifyPasswordResetCodeArgs = {
   input: VerifyPasswordResetCodeInput;
+};
+
+export type NearInput = {
+  latitude: Scalars['Float']['input'];
+  longitude: Scalars['Float']['input'];
+  radiusKm?: Scalars['Float']['input'];
 };
 
 export type Notification = {
@@ -859,7 +1157,7 @@ export enum NotificationType {
   StopDayChanged = 'STOP_DAY_CHANGED',
   TruckNewStop = 'TRUCK_NEW_STOP',
   TruckServingToday = 'TRUCK_SERVING_TODAY',
-  TruckWeeklySchedule = 'TRUCK_WEEKLY_SCHEDULE',
+  TruckWeeklySchedule = 'TRUCK_WEEKLY_SCHEDULE'
 }
 
 export type NotificationsPage = {
@@ -871,19 +1169,19 @@ export type NotificationsPage = {
 /** Whether the invited account can already sign in. NEW: offer "create a password" beside Google and Apple. EXISTING: offer sign-in. */
 export enum OnboardingAccountState {
   Existing = 'EXISTING',
-  New = 'NEW',
+  New = 'NEW'
 }
 
 export enum OrderDirection {
   Asc = 'ASC',
-  Desc = 'DESC',
+  Desc = 'DESC'
 }
 
 export enum OrderEventSource {
   BuyerApp = 'BUYER_APP',
   Checkout = 'CHECKOUT',
   Migrated = 'MIGRATED',
-  VendorApp = 'VENDOR_APP',
+  VendorApp = 'VENDOR_APP'
 }
 
 export type OrderItemInput = {
@@ -928,7 +1226,7 @@ export enum OrderStatus {
   Pending = 'PENDING',
   Preparing = 'PREPARING',
   Ready = 'READY',
-  Rejected = 'REJECTED',
+  Rejected = 'REJECTED'
 }
 
 export type OrderStatusEventModel = {
@@ -987,7 +1285,7 @@ export enum ProductCategory {
   Other = 'OTHER',
   Pantry = 'PANTRY',
   Seafood = 'SEAFOOD',
-  Vegetable = 'VEGETABLE',
+  Vegetable = 'VEGETABLE'
 }
 
 export type ProductImageUploadUrlModel = {
@@ -1040,7 +1338,7 @@ export enum ProductUnit {
   Ml = 'ML',
   Oz = 'OZ',
   Pint = 'PINT',
-  Quart = 'QUART',
+  Quart = 'QUART'
 }
 
 export type ProductsPage = {
@@ -1049,16 +1347,79 @@ export type ProductsPage = {
   totalCount: Scalars['Int']['output'];
 };
 
+export type PromotionModel = {
+  __typename?: 'PromotionModel';
+  body: Maybe<Scalars['String']['output']>;
+  ctaLabel: Maybe<Scalars['String']['output']>;
+  /** Server-authored — "Sponsored" or "From MarketDay". Render verbatim; never omit. */
+  disclosure: Scalars['String']['output'];
+  event: Maybe<EventModel>;
+  /** The creative's, else the subject's name or title. */
+  headline: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  /** The creative's, else the subject's image. */
+  imageUrl: Maybe<Scalars['String']['output']>;
+  linkUrl: Maybe<Scalars['String']['output']>;
+  market: Maybe<MarketModel>;
+  placement: PromotionPlacement;
+  product: Maybe<ProductModel>;
+  sponsorName: Scalars['String']['output'];
+  targetKind: PromotionTargetKind;
+  vendor: Maybe<VendorModel>;
+};
+
+export enum PromotionPlacement {
+  EventsFeed = 'EVENTS_FEED',
+  HomeFeed = 'HOME_FEED',
+  MarketPage = 'MARKET_PAGE',
+  Search = 'SEARCH'
+}
+
+export enum PromotionServingState {
+  Draft = 'DRAFT',
+  Ended = 'ENDED',
+  Live = 'LIVE',
+  Paused = 'PAUSED',
+  SubjectHidden = 'SUBJECT_HIDDEN',
+  Upcoming = 'UPCOMING'
+}
+
+export enum PromotionStatus {
+  Draft = 'DRAFT',
+  Paused = 'PAUSED',
+  Scheduled = 'SCHEDULED'
+}
+
+export enum PromotionTargetKind {
+  Event = 'EVENT',
+  Link = 'LINK',
+  Market = 'MARKET',
+  Product = 'PRODUCT',
+  Vendor = 'VENDOR'
+}
+
+export type PromotionsPage = {
+  __typename?: 'PromotionsPage';
+  items: Array<AdminPromotionModel>;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   accountDeletionLinkValid: Scalars['Boolean']['output'];
+  adminEvent: Maybe<EventModel>;
+  adminEvents: EventsPage;
   adminMarkets: Array<MarketModel>;
+  adminPromotion: Maybe<AdminPromotionModel>;
+  adminPromotions: PromotionsPage;
   adminUsers: AdminUsersPage;
   adminVendorMembers: VendorMembersPage;
   adminVendorSubscription: VendorSubscriptionModel;
   adminVendors: VendorsPage;
   billingInvoices: BillingInvoicePageModel;
   billingOverview: BillingOverviewModel;
+  event: Maybe<EventModel>;
+  events: Array<EventModel>;
   /** Find 5 nearby markets */
   findNearby: Array<MarketModel>;
   /** Find upcoming 5 markets */
@@ -1088,11 +1449,13 @@ export type Query = {
   pendingVendorInvites: Array<VendorInviteModel>;
   product: Maybe<ProductModel>;
   products: ProductsPage;
+  promotions: Array<PromotionModel>;
   scheduleMarkets: Array<MarketModel>;
   search: SearchResults;
   stallPickupSlots: PickupSlotsModel;
   stopDaySales: Array<StopDaySaleModel>;
   unreadNotificationCount: Scalars['Int']['output'];
+  upcomingEvents: Array<EventModel>;
   vendor: Maybe<VendorModel>;
   vendorMembers: Array<VendorMemberModel>;
   vendorOnboardingInvite: VendorOnboardingInvitePreviewModel;
@@ -1101,13 +1464,36 @@ export type Query = {
   vendors: VendorsPage;
 };
 
+
 export type QueryAccountDeletionLinkValidArgs = {
   input: AccountDeletionLinkInput;
 };
 
+
+export type QueryAdminEventArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminEventsArgs = {
+  criteria?: InputMaybe<CriteriaInput>;
+};
+
+
 export type QueryAdminMarketsArgs = {
   criteria?: InputMaybe<CriteriaInput>;
 };
+
+
+export type QueryAdminPromotionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminPromotionsArgs = {
+  criteria?: InputMaybe<CriteriaInput>;
+};
+
 
 export type QueryAdminUsersArgs = {
   criteria?: InputMaybe<CriteriaInput>;
@@ -1115,27 +1501,45 @@ export type QueryAdminUsersArgs = {
   status?: InputMaybe<AdminUserStatus>;
 };
 
+
 export type QueryAdminVendorMembersArgs = {
   criteria?: InputMaybe<CriteriaInput>;
 };
+
 
 export type QueryAdminVendorSubscriptionArgs = {
   vendorId: Scalars['ID']['input'];
 };
 
+
 export type QueryAdminVendorsArgs = {
   criteria?: InputMaybe<CriteriaInput>;
 };
+
 
 export type QueryBillingInvoicesArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   first?: Scalars['Int']['input'];
 };
 
+
+export type QueryEventArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryEventsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  marketId?: InputMaybe<Scalars['ID']['input']>;
+  vendorId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
 export type QueryFindNearbyArgs = {
   latitude: Scalars['Float']['input'];
   longitude: Scalars['Float']['input'];
 };
+
 
 export type QueryFoodTruckDayCountsArgs = {
   days?: Scalars['Int']['input'];
@@ -1145,9 +1549,11 @@ export type QueryFoodTruckDayCountsArgs = {
   withinKm?: Scalars['Float']['input'];
 };
 
+
 export type QueryMarketArgs = {
   id: Scalars['ID']['input'];
 };
+
 
 export type QueryMarketsArgs = {
   city?: InputMaybe<Scalars['String']['input']>;
@@ -1155,13 +1561,16 @@ export type QueryMarketsArgs = {
   isActive?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
+
 export type QueryMyFavoriteProductsArgs = {
   marketId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type QueryMyFavoriteVendorsArgs = {
   marketId?: InputMaybe<Scalars['ID']['input']>;
 };
+
 
 export type QueryMyNotificationsArgs = {
   limit?: Scalars['Int']['input'];
@@ -1169,14 +1578,17 @@ export type QueryMyNotificationsArgs = {
   unreadOnly?: Scalars['Boolean']['input'];
 };
 
+
 export type QueryMyStopScheduleArgs = {
   from: Scalars['String']['input'];
   to: Scalars['String']['input'];
 };
 
+
 export type QueryMyVendorFollowAlertsArgs = {
   vendorId: Scalars['ID']['input'];
 };
+
 
 export type QueryNearbyFoodTrucksArgs = {
   latitude: Scalars['Float']['input'];
@@ -1185,25 +1597,31 @@ export type QueryNearbyFoodTrucksArgs = {
   withinKm?: Scalars['Float']['input'];
 };
 
+
 export type QueryOrderByTokenArgs = {
   token: Scalars['String']['input'];
 };
+
 
 export type QueryOrderStatusHistoryArgs = {
   orderId: Scalars['ID']['input'];
 };
 
+
 export type QueryOrdersByTokensArgs = {
   tokens: Array<Scalars['String']['input']>;
 };
+
 
 export type QueryPendingVendorInvitesArgs = {
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 };
 
+
 export type QueryProductArgs = {
   id: Scalars['ID']['input'];
 };
+
 
 export type QueryProductsArgs = {
   criteria?: InputMaybe<CriteriaInput>;
@@ -1212,10 +1630,21 @@ export type QueryProductsArgs = {
   vendorId: Scalars['ID']['input'];
 };
 
+
+export type QueryPromotionsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  marketId?: InputMaybe<Scalars['ID']['input']>;
+  marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  near?: InputMaybe<NearInput>;
+  placement: PromotionPlacement;
+};
+
+
 export type QueryScheduleMarketsArgs = {
   end: Scalars['DateTime']['input'];
   start: Scalars['DateTime']['input'];
 };
+
 
 export type QuerySearchArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1223,32 +1652,49 @@ export type QuerySearchArgs = {
   types?: InputMaybe<Array<SearchType>>;
 };
 
+
 export type QueryStallPickupSlotsArgs = {
   marketId: Scalars['ID']['input'];
   vendorId: Scalars['ID']['input'];
 };
 
+
 export type QueryStopDaySalesArgs = {
   occurrenceId: Scalars['ID']['input'];
 };
+
+
+export type QueryUpcomingEventsArgs = {
+  categories?: InputMaybe<Array<EventCategory>>;
+  from?: InputMaybe<Scalars['DateTime']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  near: NearInput;
+  to?: InputMaybe<Scalars['DateTime']['input']>;
+};
+
 
 export type QueryVendorArgs = {
   id: Scalars['ID']['input'];
 };
 
+
 export type QueryVendorOnboardingInviteArgs = {
   token: Scalars['String']['input'];
 };
+
 
 export type QueryVendorOrderWindowArgs = {
   marketId: Scalars['ID']['input'];
   vendorId: Scalars['ID']['input'];
 };
 
+
 export type QueryVendorOrdersArgs = {
   marketId?: InputMaybe<Scalars['ID']['input']>;
   pickupOn?: InputMaybe<Scalars['String']['input']>;
 };
+
 
 export type QueryVendorsArgs = {
   criteria?: InputMaybe<CriteriaInput>;
@@ -1294,7 +1740,7 @@ export type SearchResults = {
 export enum SearchType {
   Market = 'MARKET',
   Product = 'PRODUCT',
-  Vendor = 'VENDOR',
+  Vendor = 'VENDOR'
 }
 
 export type SetProductListingInput = {
@@ -1329,7 +1775,7 @@ export enum StopCancellationReason {
   Equipment = 'EQUIPMENT',
   Other = 'OTHER',
   SoldOut = 'SOLD_OUT',
-  Weather = 'WEATHER',
+  Weather = 'WEATHER'
 }
 
 export type StopDaySaleModel = {
@@ -1340,7 +1786,7 @@ export type StopDaySaleModel = {
 
 export enum StopRepeats {
   OneOff = 'ONE_OFF',
-  Weekly = 'WEEKLY',
+  Weekly = 'WEEKLY'
 }
 
 export type StopScheduleDayModel = {
@@ -1365,7 +1811,7 @@ export enum StopWeekday {
   Su = 'SU',
   Th = 'TH',
   Tu = 'TU',
-  We = 'WE',
+  We = 'WE'
 }
 
 export type SubmitContactMessageInput = {
@@ -1395,7 +1841,7 @@ export enum SupportCategory {
   Bug = 'BUG',
   Orders = 'ORDERS',
   Other = 'OTHER',
-  Payments = 'PAYMENTS',
+  Payments = 'PAYMENTS'
 }
 
 export type SupportMessageModel = {
@@ -1411,6 +1857,21 @@ export type SupportMessageModel = {
 export type SuspendUserInput = {
   reason: Scalars['String']['input'];
   userId: Scalars['ID']['input'];
+};
+
+export type UpdateEventInput = {
+  address?: InputMaybe<Scalars['String']['input']>;
+  areaName?: InputMaybe<Scalars['String']['input']>;
+  category?: InputMaybe<EventCategory>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  externalUrl?: InputMaybe<Scalars['String']['input']>;
+  imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isFeatured?: InputMaybe<Scalars['Boolean']['input']>;
+  latitude?: InputMaybe<Scalars['Float']['input']>;
+  longitude?: InputMaybe<Scalars['Float']['input']>;
+  sessions?: InputMaybe<Array<EventSessionInput>>;
+  status?: InputMaybe<EventStatus>;
+  title?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateFoodTruckStopInput = {
@@ -1458,6 +1919,25 @@ export type UpdateProductInput = {
   name?: InputMaybe<Scalars['String']['input']>;
   price?: InputMaybe<Scalars['Float']['input']>;
   unit?: InputMaybe<ProductUnit>;
+};
+
+export type UpdatePromotionInput = {
+  body?: InputMaybe<Scalars['String']['input']>;
+  ctaLabel?: InputMaybe<Scalars['String']['input']>;
+  endsAt?: InputMaybe<Scalars['DateTime']['input']>;
+  headline?: InputMaybe<Scalars['String']['input']>;
+  imageUrl?: InputMaybe<Scalars['String']['input']>;
+  isHouse?: InputMaybe<Scalars['Boolean']['input']>;
+  isNationwide?: InputMaybe<Scalars['Boolean']['input']>;
+  marketIds?: InputMaybe<Array<Scalars['ID']['input']>>;
+  placement?: InputMaybe<PromotionPlacement>;
+  priority?: InputMaybe<Scalars['Int']['input']>;
+  reachLatitude?: InputMaybe<Scalars['Float']['input']>;
+  reachLongitude?: InputMaybe<Scalars['Float']['input']>;
+  reachRadiusKm?: InputMaybe<Scalars['Int']['input']>;
+  sponsorName?: InputMaybe<Scalars['String']['input']>;
+  sponsorVendorId?: InputMaybe<Scalars['ID']['input']>;
+  startsAt?: InputMaybe<Scalars['DateTime']['input']>;
 };
 
 export type UpdateUserInput = {
@@ -1527,7 +2007,7 @@ export type UserProfileModel = {
 export enum UserRole {
   Admin = 'ADMIN',
   Buyer = 'BUYER',
-  Vendor = 'VENDOR',
+  Vendor = 'VENDOR'
 }
 
 export type VendorFollowAlertsInput = {
@@ -1562,7 +2042,7 @@ export type VendorInviteModel = {
 
 export enum VendorKind {
   FoodTruck = 'FOOD_TRUCK',
-  StallHolder = 'STALL_HOLDER',
+  StallHolder = 'STALL_HOLDER'
 }
 
 export type VendorMarketModel = {
@@ -1595,7 +2075,7 @@ export type VendorMemberModel = {
 
 export enum VendorMemberRole {
   Owner = 'OWNER',
-  Staff = 'STAFF',
+  Staff = 'STAFF'
 }
 
 export type VendorMembersPage = {
@@ -1628,6 +2108,7 @@ export type VendorModel = {
   updatedAt: Scalars['DateTime']['output'];
   websiteUrl: Maybe<Scalars['String']['output']>;
 };
+
 
 export type VendorModelUpcomingStopDaysArgs = {
   limit?: Scalars['Int']['input'];
@@ -1671,7 +2152,7 @@ export enum VendorOrderState {
   NoMarketDay = 'NO_MARKET_DAY',
   Open = 'OPEN',
   Paused = 'PAUSED',
-  VendorUnavailable = 'VENDOR_UNAVAILABLE',
+  VendorUnavailable = 'VENDOR_UNAVAILABLE'
 }
 
 export type VendorOrderWindowModel = {
@@ -1708,7 +2189,7 @@ export enum VendorSubscriptionStatus {
   Complimentary = 'COMPLIMENTARY',
   Inactive = 'INACTIVE',
   PastDue = 'PAST_DUE',
-  Trial = 'TRIAL',
+  Trial = 'TRIAL'
 }
 
 export type VendorsPage = {
@@ -1728,19 +2209,7 @@ export type VerifyPasswordResetCodeInput = {
   email: Scalars['String']['input'];
 };
 
-export type AdminUserFieldsFragment = {
-  __typename?: 'AdminUserModel';
-  id: string;
-  email: string;
-  fullName: string;
-  role: UserRole;
-  status: AdminUserStatus;
-  createdAt: string;
-  lastSeenAt: string | null;
-  suspensionReason: string | null;
-  suspendedByName: string | null;
-  vendor: { __typename?: 'VendorModel'; id: string; slug: string; name: string } | null;
-};
+export type AdminUserFieldsFragment = { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null };
 
 export type AdminUsersQueryVariables = Exact<{
   search?: InputMaybe<Scalars['String']['input']>;
@@ -1748,987 +2217,529 @@ export type AdminUsersQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type AdminUsersQuery = {
-  __typename?: 'Query';
-  adminUsers: {
-    __typename?: 'AdminUsersPage';
-    totalCount: number;
-    items: Array<{
-      __typename?: 'AdminUserModel';
-      id: string;
-      email: string;
-      fullName: string;
-      role: UserRole;
-      status: AdminUserStatus;
-      createdAt: string;
-      lastSeenAt: string | null;
-      suspensionReason: string | null;
-      suspendedByName: string | null;
-      vendor: { __typename?: 'VendorModel'; id: string; slug: string; name: string } | null;
-    }>;
-  };
-  everyone: { __typename?: 'AdminUsersPage'; totalCount: number };
-  shoppers: { __typename?: 'AdminUsersPage'; totalCount: number };
-  vendorStaff: { __typename?: 'AdminUsersPage'; totalCount: number };
-  admins: { __typename?: 'AdminUsersPage'; totalCount: number };
-  suspended: { __typename?: 'AdminUsersPage'; totalCount: number };
-  invited: { __typename?: 'AdminUsersPage'; totalCount: number };
-};
+
+export type AdminUsersQuery = { __typename?: 'Query', adminUsers: { __typename?: 'AdminUsersPage', totalCount: number, items: Array<{ __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null }> }, everyone: { __typename?: 'AdminUsersPage', totalCount: number }, shoppers: { __typename?: 'AdminUsersPage', totalCount: number }, vendorStaff: { __typename?: 'AdminUsersPage', totalCount: number }, admins: { __typename?: 'AdminUsersPage', totalCount: number }, suspended: { __typename?: 'AdminUsersPage', totalCount: number }, invited: { __typename?: 'AdminUsersPage', totalCount: number } };
 
 export type SuspendUserMutationVariables = Exact<{
   input: SuspendUserInput;
 }>;
 
-export type SuspendUserMutation = {
-  __typename?: 'Mutation';
-  suspendUser: {
-    __typename?: 'AdminUserModel';
-    id: string;
-    email: string;
-    fullName: string;
-    role: UserRole;
-    status: AdminUserStatus;
-    createdAt: string;
-    lastSeenAt: string | null;
-    suspensionReason: string | null;
-    suspendedByName: string | null;
-    vendor: { __typename?: 'VendorModel'; id: string; slug: string; name: string } | null;
-  };
-};
+
+export type SuspendUserMutation = { __typename?: 'Mutation', suspendUser: { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null } };
 
 export type RestoreUserMutationVariables = Exact<{
   userId: Scalars['ID']['input'];
 }>;
 
-export type RestoreUserMutation = {
-  __typename?: 'Mutation';
-  restoreUser: {
-    __typename?: 'AdminUserModel';
-    id: string;
-    email: string;
-    fullName: string;
-    role: UserRole;
-    status: AdminUserStatus;
-    createdAt: string;
-    lastSeenAt: string | null;
-    suspensionReason: string | null;
-    suspendedByName: string | null;
-    vendor: { __typename?: 'VendorModel'; id: string; slug: string; name: string } | null;
-  };
-};
+
+export type RestoreUserMutation = { __typename?: 'Mutation', restoreUser: { __typename?: 'AdminUserModel', id: string, email: string, fullName: string, role: UserRole, status: AdminUserStatus, createdAt: string, lastSeenAt: string | null, suspensionReason: string | null, suspendedByName: string | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null } };
 
 export type LoginMutationVariables = Exact<{
   input: LoginInput;
 }>;
 
-export type LoginMutation = {
-  __typename?: 'Mutation';
-  login: {
-    __typename?: 'AuthResponse';
-    accessToken: string;
-    refreshToken: string;
-    user: { __typename?: 'UserModel'; id: string; fullName: string; email: string; role: UserRole };
-  };
-};
 
-export type PasskeyAuthenticationOptionsMutationVariables = Exact<{ [key: string]: never }>;
+export type LoginMutation = { __typename?: 'Mutation', login: { __typename?: 'AuthResponse', accessToken: string, refreshToken: string, user: { __typename?: 'UserModel', id: string, fullName: string, email: string, role: UserRole } } };
 
-export type PasskeyAuthenticationOptionsMutation = {
-  __typename?: 'Mutation';
-  passkeyAuthenticationOptions: {
-    __typename?: 'PasskeyOptions';
-    challengeId: string;
-    options: unknown;
-  };
-};
+export type PasskeyAuthenticationOptionsMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PasskeyAuthenticationOptionsMutation = { __typename?: 'Mutation', passkeyAuthenticationOptions: { __typename?: 'PasskeyOptions', challengeId: string, options: unknown } };
 
 export type PasskeyAuthMutationVariables = Exact<{
   input: PasskeyAuthInput;
 }>;
 
-export type PasskeyAuthMutation = {
-  __typename?: 'Mutation';
-  passkeyAuth: {
-    __typename?: 'AuthResponse';
-    accessToken: string;
-    refreshToken: string;
-    user: { __typename?: 'UserModel'; id: string; fullName: string; email: string; role: UserRole };
-  };
-};
+
+export type PasskeyAuthMutation = { __typename?: 'Mutation', passkeyAuth: { __typename?: 'AuthResponse', accessToken: string, refreshToken: string, user: { __typename?: 'UserModel', id: string, fullName: string, email: string, role: UserRole } } };
 
 export type RefreshSessionMutationVariables = Exact<{
   input: RefreshTokenInput;
 }>;
 
-export type RefreshSessionMutation = {
-  __typename?: 'Mutation';
-  session: { __typename?: 'AuthResponse'; accessToken: string; refreshToken: string };
-};
 
-export type LogoutMutationVariables = Exact<{ [key: string]: never }>;
+export type RefreshSessionMutation = { __typename?: 'Mutation', session: { __typename?: 'AuthResponse', accessToken: string, refreshToken: string } };
 
-export type LogoutMutation = { __typename?: 'Mutation'; logout: boolean };
+export type LogoutMutationVariables = Exact<{ [key: string]: never; }>;
 
-export type MarketFieldsFragment = {
-  __typename?: 'MarketModel';
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  address: string;
-  city: string;
-  status: MarketStatus;
-  marketType: MarketType | null;
-  schedule: string;
-  duration: number;
-  location: { type: string; coordinates: number[] } | null;
-  tags: Array<string> | null;
-  isActive: boolean;
-  organiserName: string | null;
-  organiserPhone: string | null;
-  stallFeePerDay: number | null;
-  reviewApplications: boolean;
-  imageUrl: string | null;
-  bannerImageUrl: string | null;
-  occurrences: Array<{
-    __typename?: 'MarketOccurrenceModel';
-    id: string;
-    occursOn: string;
-    endsOn: string | null;
-  }> | null;
-};
+
+export type LogoutMutation = { __typename?: 'Mutation', logout: boolean };
+
+export type EventFieldsFragment = { __typename?: 'EventModel', id: string, venueKind: EventVenueKind, areaName: string, address: string | null, latitude: number, longitude: number, title: string, description: string | null, category: EventCategory, imageUrl: string | null, externalUrl: string | null, isFeatured: boolean, status: EventStatus, startsAt: string, endsAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null, sessions: Array<{ __typename?: 'EventSessionModel', id: string, startsAt: string, endsAt: string, label: string | null }> };
+
+export type AdminEventsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+  now: Scalars['JSON']['input'];
+}>;
+
+
+export type AdminEventsQuery = { __typename?: 'Query', adminEvents: { __typename?: 'EventsPage', totalCount: number, items: Array<{ __typename?: 'EventModel', id: string, venueKind: EventVenueKind, areaName: string, address: string | null, latitude: number, longitude: number, title: string, description: string | null, category: EventCategory, imageUrl: string | null, externalUrl: string | null, isFeatured: boolean, status: EventStatus, startsAt: string, endsAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null, sessions: Array<{ __typename?: 'EventSessionModel', id: string, startsAt: string, endsAt: string, label: string | null }> }> }, everyEvent: { __typename?: 'EventsPage', totalCount: number }, currentEvents: { __typename?: 'EventsPage', totalCount: number }, draftEvents: { __typename?: 'EventsPage', totalCount: number } };
+
+export type EventFormQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+  withEvent: Scalars['Boolean']['input'];
+}>;
+
+
+export type EventFormQuery = { __typename?: 'Query', adminEvent?: { __typename?: 'EventModel', id: string, venueKind: EventVenueKind, areaName: string, address: string | null, latitude: number, longitude: number, title: string, description: string | null, category: EventCategory, imageUrl: string | null, externalUrl: string | null, isFeatured: boolean, status: EventStatus, startsAt: string, endsAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null, sessions: Array<{ __typename?: 'EventSessionModel', id: string, startsAt: string, endsAt: string, label: string | null }> } | null, adminMarkets: Array<{ __typename?: 'MarketModel', id: string, name: string, city: string, status: MarketStatus, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', occursOn: string, endsOn: string | null }> | null }> };
+
+export type CreateEventMutationVariables = Exact<{
+  input: CreateEventInput;
+}>;
+
+
+export type CreateEventMutation = { __typename?: 'Mutation', createEvent: { __typename?: 'EventModel', id: string, venueKind: EventVenueKind, areaName: string, address: string | null, latitude: number, longitude: number, title: string, description: string | null, category: EventCategory, imageUrl: string | null, externalUrl: string | null, isFeatured: boolean, status: EventStatus, startsAt: string, endsAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null, sessions: Array<{ __typename?: 'EventSessionModel', id: string, startsAt: string, endsAt: string, label: string | null }> } };
+
+export type UpdateEventMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  input: UpdateEventInput;
+}>;
+
+
+export type UpdateEventMutation = { __typename?: 'Mutation', updateEvent: { __typename?: 'EventModel', id: string, venueKind: EventVenueKind, areaName: string, address: string | null, latitude: number, longitude: number, title: string, description: string | null, category: EventCategory, imageUrl: string | null, externalUrl: string | null, isFeatured: boolean, status: EventStatus, startsAt: string, endsAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string } | null, sessions: Array<{ __typename?: 'EventSessionModel', id: string, startsAt: string, endsAt: string, label: string | null }> } };
+
+export type DeleteEventMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DeleteEventMutation = { __typename?: 'Mutation', deleteEvent: boolean };
+
+export type EventVendorOptionsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
+
+
+export type EventVendorOptionsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', items: Array<{ __typename?: 'VendorModel', id: string, name: string, category: string, isActive: boolean }> } };
+
+export type MarketFieldsFragment = { __typename?: 'MarketModel', id: string, slug: string, name: string, description: string | null, address: string, city: string, status: MarketStatus, marketType: MarketType | null, schedule: string, duration: number, location: { type: string; coordinates: number[] } | null, tags: Array<string> | null, isActive: boolean, organiserName: string | null, organiserPhone: string | null, stallFeePerDay: number | null, reviewApplications: boolean, imageUrl: string | null, bannerImageUrl: string | null, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null };
 
 export type AdminMarketsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type AdminMarketsQuery = {
-  __typename?: 'Query';
-  adminMarkets: Array<{
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    address: string;
-    city: string;
-    status: MarketStatus;
-    marketType: MarketType | null;
-    schedule: string;
-    duration: number;
-    location: { type: string; coordinates: number[] } | null;
-    tags: Array<string> | null;
-    isActive: boolean;
-    organiserName: string | null;
-    organiserPhone: string | null;
-    stallFeePerDay: number | null;
-    reviewApplications: boolean;
-    imageUrl: string | null;
-    bannerImageUrl: string | null;
-    occurrences: Array<{
-      __typename?: 'MarketOccurrenceModel';
-      id: string;
-      occursOn: string;
-      endsOn: string | null;
-    }> | null;
-  }>;
-};
+
+export type AdminMarketsQuery = { __typename?: 'Query', adminMarkets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, description: string | null, address: string, city: string, status: MarketStatus, marketType: MarketType | null, schedule: string, duration: number, location: { type: string; coordinates: number[] } | null, tags: Array<string> | null, isActive: boolean, organiserName: string | null, organiserPhone: string | null, stallFeePerDay: number | null, reviewApplications: boolean, imageUrl: string | null, bannerImageUrl: string | null, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null }> };
 
 export type MarketByIdQueryVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
-export type MarketByIdQuery = {
-  __typename?: 'Query';
-  market: {
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    address: string;
-    city: string;
-    status: MarketStatus;
-    marketType: MarketType | null;
-    schedule: string;
-    duration: number;
-    location: { type: string; coordinates: number[] } | null;
-    tags: Array<string> | null;
-    isActive: boolean;
-    organiserName: string | null;
-    organiserPhone: string | null;
-    stallFeePerDay: number | null;
-    reviewApplications: boolean;
-    imageUrl: string | null;
-    bannerImageUrl: string | null;
-    occurrences: Array<{
-      __typename?: 'MarketOccurrenceModel';
-      id: string;
-      occursOn: string;
-      endsOn: string | null;
-    }> | null;
-  } | null;
-};
+
+export type MarketByIdQuery = { __typename?: 'Query', market: { __typename?: 'MarketModel', id: string, slug: string, name: string, description: string | null, address: string, city: string, status: MarketStatus, marketType: MarketType | null, schedule: string, duration: number, location: { type: string; coordinates: number[] } | null, tags: Array<string> | null, isActive: boolean, organiserName: string | null, organiserPhone: string | null, stallFeePerDay: number | null, reviewApplications: boolean, imageUrl: string | null, bannerImageUrl: string | null, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null } | null };
 
 export type CreateMarketMutationVariables = Exact<{
   input: CreateMarketInput;
 }>;
 
-export type CreateMarketMutation = {
-  __typename?: 'Mutation';
-  createMarket: {
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    address: string;
-    city: string;
-    status: MarketStatus;
-    marketType: MarketType | null;
-    schedule: string;
-    duration: number;
-    location: { type: string; coordinates: number[] } | null;
-    tags: Array<string> | null;
-    isActive: boolean;
-    organiserName: string | null;
-    organiserPhone: string | null;
-    stallFeePerDay: number | null;
-    reviewApplications: boolean;
-    imageUrl: string | null;
-    bannerImageUrl: string | null;
-    occurrences: Array<{
-      __typename?: 'MarketOccurrenceModel';
-      id: string;
-      occursOn: string;
-      endsOn: string | null;
-    }> | null;
-  };
-};
+
+export type CreateMarketMutation = { __typename?: 'Mutation', createMarket: { __typename?: 'MarketModel', id: string, slug: string, name: string, description: string | null, address: string, city: string, status: MarketStatus, marketType: MarketType | null, schedule: string, duration: number, location: { type: string; coordinates: number[] } | null, tags: Array<string> | null, isActive: boolean, organiserName: string | null, organiserPhone: string | null, stallFeePerDay: number | null, reviewApplications: boolean, imageUrl: string | null, bannerImageUrl: string | null, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null } };
 
 export type UpdateMarketMutationVariables = Exact<{
   id: Scalars['ID']['input'];
   input: UpdateMarketInput;
 }>;
 
-export type UpdateMarketMutation = {
-  __typename?: 'Mutation';
-  updateMarket: {
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    address: string;
-    city: string;
-    status: MarketStatus;
-    marketType: MarketType | null;
-    schedule: string;
-    duration: number;
-    location: { type: string; coordinates: number[] } | null;
-    tags: Array<string> | null;
-    isActive: boolean;
-    organiserName: string | null;
-    organiserPhone: string | null;
-    stallFeePerDay: number | null;
-    reviewApplications: boolean;
-    imageUrl: string | null;
-    bannerImageUrl: string | null;
-    occurrences: Array<{
-      __typename?: 'MarketOccurrenceModel';
-      id: string;
-      occursOn: string;
-      endsOn: string | null;
-    }> | null;
-  };
-};
+
+export type UpdateMarketMutation = { __typename?: 'Mutation', updateMarket: { __typename?: 'MarketModel', id: string, slug: string, name: string, description: string | null, address: string, city: string, status: MarketStatus, marketType: MarketType | null, schedule: string, duration: number, location: { type: string; coordinates: number[] } | null, tags: Array<string> | null, isActive: boolean, organiserName: string | null, organiserPhone: string | null, stallFeePerDay: number | null, reviewApplications: boolean, imageUrl: string | null, bannerImageUrl: string | null, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null } };
 
 export type GenerateMarketOccurrencesMutationVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
-export type GenerateMarketOccurrencesMutation = {
-  __typename?: 'Mutation';
-  generateOccurrences: {
-    __typename?: 'MarketModel';
-    id: string;
-    occurrences: Array<{
-      __typename?: 'MarketOccurrenceModel';
-      id: string;
-      occursOn: string;
-      endsOn: string | null;
-    }> | null;
-  };
-};
+
+export type GenerateMarketOccurrencesMutation = { __typename?: 'Mutation', generateOccurrences: { __typename?: 'MarketModel', id: string, occurrences: Array<{ __typename?: 'MarketOccurrenceModel', id: string, occursOn: string, endsOn: string | null }> | null } };
 
 export type MarketVendorsForRosterQueryVariables = Exact<{
   marketId: Scalars['ID']['input'];
 }>;
 
-export type MarketVendorsForRosterQuery = {
-  __typename?: 'Query';
-  vendors: {
-    __typename?: 'VendorsPage';
-    totalCount: number;
-    items: Array<{
-      __typename?: 'VendorModel';
-      id: string;
-      slug: string;
-      name: string;
-      category: string;
-      isActive: boolean;
-      orderWindow: {
-        __typename?: 'VendorOrderWindowModel';
-        state: VendorOrderState;
-        pausedUntil: string | null;
-      } | null;
-    }>;
-  };
-};
+
+export type MarketVendorsForRosterQuery = { __typename?: 'Query', vendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, category: string, isActive: boolean, orderWindow: { __typename?: 'VendorOrderWindowModel', state: VendorOrderState, pausedUntil: string | null } | null }> } };
 
 export type CreateMarketImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
 }>;
 
-export type CreateMarketImageUploadUrlMutation = {
-  __typename?: 'Mutation';
-  createMarketImageUploadUrl: {
-    __typename?: 'MarketImageUploadUrlModel';
-    key: string;
-    publicUrl: string;
-    uploadUrl: string;
-  };
-};
+
+export type CreateMarketImageUploadUrlMutation = { __typename?: 'Mutation', createMarketImageUploadUrl: { __typename?: 'MarketImageUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
 
 export type CreateMarketBannerUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
 }>;
 
-export type CreateMarketBannerUploadUrlMutation = {
-  __typename?: 'Mutation';
-  createMarketBannerUploadUrl: {
-    __typename?: 'MarketBannerUploadUrlModel';
-    key: string;
-    publicUrl: string;
-    uploadUrl: string;
-  };
-};
+
+export type CreateMarketBannerUploadUrlMutation = { __typename?: 'Mutation', createMarketBannerUploadUrl: { __typename?: 'MarketBannerUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
 
 export type CreateVendorImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 }>;
 
-export type CreateVendorImageUploadUrlMutation = {
-  __typename?: 'Mutation';
-  createVendorImageUploadUrl: {
-    __typename?: 'VendorImageUploadUrlModel';
-    key: string;
-    publicUrl: string;
-    uploadUrl: string;
-  };
-};
+
+export type CreateVendorImageUploadUrlMutation = { __typename?: 'Mutation', createVendorImageUploadUrl: { __typename?: 'VendorImageUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
 
 export type CreateProductImageUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
   vendorId?: InputMaybe<Scalars['ID']['input']>;
 }>;
 
-export type CreateProductImageUploadUrlMutation = {
-  __typename?: 'Mutation';
-  createProductImageUploadUrl: {
-    __typename?: 'ProductImageUploadUrlModel';
-    key: string;
-    publicUrl: string;
-    uploadUrl: string;
-  };
-};
+
+export type CreateProductImageUploadUrlMutation = { __typename?: 'Mutation', createProductImageUploadUrl: { __typename?: 'ProductImageUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
 
 export type CreateAvatarUploadUrlMutationVariables = Exact<{
   mimeType: Scalars['String']['input'];
 }>;
 
-export type CreateAvatarUploadUrlMutation = {
-  __typename?: 'Mutation';
-  createAvatarUploadUrl: {
-    __typename?: 'AvatarUploadUrlModel';
-    key: string;
-    publicUrl: string;
-    uploadUrl: string;
-  };
-};
 
-export type PasskeyFieldsFragment = {
-  __typename?: 'PasskeyModel';
-  id: string;
-  name: string;
-  backedUp: boolean;
-  createdAt: string;
-  lastUsedAt: string | null;
-};
+export type CreateAvatarUploadUrlMutation = { __typename?: 'Mutation', createAvatarUploadUrl: { __typename?: 'AvatarUploadUrlModel', key: string, publicUrl: string, uploadUrl: string } };
 
-export type MyPasskeysQueryVariables = Exact<{ [key: string]: never }>;
+export type CreateEventImageUploadUrlMutationVariables = Exact<{
+  mimeType: Scalars['String']['input'];
+}>;
 
-export type MyPasskeysQuery = {
-  __typename?: 'Query';
-  myPasskeys: Array<{
-    __typename?: 'PasskeyModel';
-    id: string;
-    name: string;
-    backedUp: boolean;
-    createdAt: string;
-    lastUsedAt: string | null;
-  }>;
-};
 
-export type PasskeyRegistrationOptionsMutationVariables = Exact<{ [key: string]: never }>;
+export type CreateEventImageUploadUrlMutation = { __typename?: 'Mutation', createEventImageUploadUrl: { __typename?: 'ImageUploadTarget', key: string, publicUrl: string, uploadUrl: string } };
 
-export type PasskeyRegistrationOptionsMutation = {
-  __typename?: 'Mutation';
-  passkeyRegistrationOptions: {
-    __typename?: 'PasskeyOptions';
-    challengeId: string;
-    options: unknown;
-  };
-};
+export type CreatePromotionImageUploadUrlMutationVariables = Exact<{
+  mimeType: Scalars['String']['input'];
+}>;
+
+
+export type CreatePromotionImageUploadUrlMutation = { __typename?: 'Mutation', createPromotionImageUploadUrl: { __typename?: 'ImageUploadTarget', key: string, publicUrl: string, uploadUrl: string } };
+
+export type PasskeyFieldsFragment = { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null };
+
+export type MyPasskeysQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MyPasskeysQuery = { __typename?: 'Query', myPasskeys: Array<{ __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null }> };
+
+export type PasskeyRegistrationOptionsMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PasskeyRegistrationOptionsMutation = { __typename?: 'Mutation', passkeyRegistrationOptions: { __typename?: 'PasskeyOptions', challengeId: string, options: unknown } };
 
 export type VerifyPasskeyRegistrationMutationVariables = Exact<{
   input: VerifyPasskeyRegistrationInput;
 }>;
 
-export type VerifyPasskeyRegistrationMutation = {
-  __typename?: 'Mutation';
-  verifyPasskeyRegistration: {
-    __typename?: 'PasskeyModel';
-    id: string;
-    name: string;
-    backedUp: boolean;
-    createdAt: string;
-    lastUsedAt: string | null;
-  };
-};
+
+export type VerifyPasskeyRegistrationMutation = { __typename?: 'Mutation', verifyPasskeyRegistration: { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null } };
 
 export type RenamePasskeyMutationVariables = Exact<{
   input: RenamePasskeyInput;
 }>;
 
-export type RenamePasskeyMutation = {
-  __typename?: 'Mutation';
-  renamePasskey: {
-    __typename?: 'PasskeyModel';
-    id: string;
-    name: string;
-    backedUp: boolean;
-    createdAt: string;
-    lastUsedAt: string | null;
-  };
-};
+
+export type RenamePasskeyMutation = { __typename?: 'Mutation', renamePasskey: { __typename?: 'PasskeyModel', id: string, name: string, backedUp: boolean, createdAt: string, lastUsedAt: string | null } };
 
 export type DeletePasskeyMutationVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
-export type DeletePasskeyMutation = { __typename?: 'Mutation'; deletePasskey: boolean };
 
-export type ProductFieldsFragment = {
-  __typename?: 'ProductModel';
-  id: string;
-  name: string;
-  category: ProductCategory | null;
-  unit: ProductUnit;
-  price: number;
-  description: string | null;
-  imageUrl: string | null;
-  isAvailable: boolean;
-  listings: Array<{ __typename?: 'ProductListingModel'; marketId: string; isAvailable: boolean }>;
-};
+export type DeletePasskeyMutation = { __typename?: 'Mutation', deletePasskey: boolean };
+
+export type ProductFieldsFragment = { __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> };
 
 export type VendorProductsQueryVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type VendorProductsQuery = {
-  __typename?: 'Query';
-  vendor: {
-    __typename?: 'VendorModel';
-    id: string;
-    slug: string;
-    name: string;
-    isActive: boolean;
-    markets: Array<{
-      __typename?: 'MarketModel';
-      id: string;
-      slug: string;
-      name: string;
-      city: string;
-    }>;
-  } | null;
-  products: {
-    __typename?: 'ProductsPage';
-    totalCount: number;
-    items: Array<{
-      __typename?: 'ProductModel';
-      id: string;
-      name: string;
-      category: ProductCategory | null;
-      unit: ProductUnit;
-      price: number;
-      description: string | null;
-      imageUrl: string | null;
-      isAvailable: boolean;
-      listings: Array<{
-        __typename?: 'ProductListingModel';
-        marketId: string;
-        isAvailable: boolean;
-      }>;
-    }>;
-  };
-};
+
+export type VendorProductsQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, isActive: boolean, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, city: string }> } | null, products: { __typename?: 'ProductsPage', totalCount: number, items: Array<{ __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> }> } };
 
 export type AdminVendorIdsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type AdminVendorIdsQuery = {
-  __typename?: 'Query';
-  adminVendors: {
-    __typename?: 'VendorsPage';
-    totalCount: number;
-    items: Array<{ __typename?: 'VendorModel'; id: string; slug: string }>;
-  };
-};
+
+export type AdminVendorIdsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string }> } };
 
 export type CreateProductMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   input: CreateProductInput;
 }>;
 
-export type CreateProductMutation = {
-  __typename?: 'Mutation';
-  createProduct: {
-    __typename?: 'ProductModel';
-    id: string;
-    name: string;
-    category: ProductCategory | null;
-    unit: ProductUnit;
-    price: number;
-    description: string | null;
-    imageUrl: string | null;
-    isAvailable: boolean;
-    listings: Array<{ __typename?: 'ProductListingModel'; marketId: string; isAvailable: boolean }>;
-  };
-};
+
+export type CreateProductMutation = { __typename?: 'Mutation', createProduct: { __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> } };
 
 export type UpdateProductMutationVariables = Exact<{
   id: Scalars['ID']['input'];
   input: UpdateProductInput;
 }>;
 
-export type UpdateProductMutation = {
-  __typename?: 'Mutation';
-  updateProduct: {
-    __typename?: 'ProductModel';
-    id: string;
-    name: string;
-    category: ProductCategory | null;
-    unit: ProductUnit;
-    price: number;
-    description: string | null;
-    imageUrl: string | null;
-    isAvailable: boolean;
-    listings: Array<{ __typename?: 'ProductListingModel'; marketId: string; isAvailable: boolean }>;
-  };
-};
+
+export type UpdateProductMutation = { __typename?: 'Mutation', updateProduct: { __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> } };
 
 export type ToggleProductMutationVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
-export type ToggleProductMutation = {
-  __typename?: 'Mutation';
-  toggleProduct: {
-    __typename?: 'ProductModel';
-    id: string;
-    name: string;
-    category: ProductCategory | null;
-    unit: ProductUnit;
-    price: number;
-    description: string | null;
-    imageUrl: string | null;
-    isAvailable: boolean;
-    listings: Array<{ __typename?: 'ProductListingModel'; marketId: string; isAvailable: boolean }>;
-  };
-};
+
+export type ToggleProductMutation = { __typename?: 'Mutation', toggleProduct: { __typename?: 'ProductModel', id: string, name: string, category: ProductCategory | null, unit: ProductUnit, price: number, description: string | null, imageUrl: string | null, isAvailable: boolean, listings: Array<{ __typename?: 'ProductListingModel', marketId: string, isAvailable: boolean }> } };
 
 export type SetProductListingMutationVariables = Exact<{
   input: SetProductListingInput;
 }>;
 
-export type SetProductListingMutation = {
-  __typename?: 'Mutation';
-  setProductListing: {
-    __typename?: 'ProductListingModel';
-    id: string;
-    productId: string;
-    marketId: string;
-    isAvailable: boolean;
-  };
-};
+
+export type SetProductListingMutation = { __typename?: 'Mutation', setProductListing: { __typename?: 'ProductListingModel', id: string, productId: string, marketId: string, isAvailable: boolean } };
 
 export type RemoveProductListingMutationVariables = Exact<{
   productId: Scalars['ID']['input'];
   marketId: Scalars['ID']['input'];
 }>;
 
-export type RemoveProductListingMutation = {
-  __typename?: 'Mutation';
-  removeProductListing: boolean;
-};
 
-export type MeQueryVariables = Exact<{ [key: string]: never }>;
+export type RemoveProductListingMutation = { __typename?: 'Mutation', removeProductListing: boolean };
 
-export type MeQuery = {
-  __typename?: 'Query';
-  me: {
-    __typename?: 'UserProfileModel';
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string | null;
-    avatarUrl: string | null;
-    role: UserRole;
-    hasPassword: boolean;
-  };
-};
+export type MeQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MeQuery = { __typename?: 'Query', me: { __typename?: 'UserProfileModel', id: string, fullName: string, email: string, phone: string | null, avatarUrl: string | null, role: UserRole, hasPassword: boolean } };
 
 export type UpdateMeMutationVariables = Exact<{
   input: UpdateUserInput;
 }>;
 
-export type UpdateMeMutation = {
-  __typename?: 'Mutation';
-  updateMe: {
-    __typename?: 'UserModel';
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string | null;
-    avatarUrl: string | null;
-    role: UserRole;
-    hasPassword: boolean;
-  };
-};
+
+export type UpdateMeMutation = { __typename?: 'Mutation', updateMe: { __typename?: 'UserModel', id: string, fullName: string, email: string, phone: string | null, avatarUrl: string | null, role: UserRole, hasPassword: boolean } };
 
 export type RequestPasswordResetMutationVariables = Exact<{
   input: RequestPasswordResetInput;
 }>;
 
-export type RequestPasswordResetMutation = {
-  __typename?: 'Mutation';
-  requestPasswordReset: boolean;
-};
 
-export type VendorFieldsFragment = {
-  __typename?: 'VendorModel';
-  id: string;
-  slug: string;
-  name: string;
-  kind: VendorKind;
-  category: string;
-  description: string | null;
-  imageUrl: string | null;
-  isActive: boolean;
-  memberCount: number;
-  createdAt: string;
-  updatedAt: string;
-  markets: Array<{
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    kind: MarketKind;
-    city: string;
-    schedule: string;
-  }>;
-};
+export type RequestPasswordResetMutation = { __typename?: 'Mutation', requestPasswordReset: boolean };
+
+export type AdminPromotionFieldsFragment = { __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null };
+
+export type AdminPromotionsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
+
+
+export type AdminPromotionsQuery = { __typename?: 'Query', adminPromotions: { __typename?: 'PromotionsPage', totalCount: number, items: Array<{ __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null }> }, everyPromotion: { __typename?: 'PromotionsPage', totalCount: number }, draftPromotions: { __typename?: 'PromotionsPage', totalCount: number }, scheduledPromotions: { __typename?: 'PromotionsPage', totalCount: number }, pausedPromotions: { __typename?: 'PromotionsPage', totalCount: number } };
+
+export type PromotionFormQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+  withPromotion: Scalars['Boolean']['input'];
+}>;
+
+
+export type PromotionFormQuery = { __typename?: 'Query', adminPromotion?: { __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null } | null, adminMarkets: Array<{ __typename?: 'MarketModel', id: string, name: string, status: MarketStatus, location: { type: string; coordinates: number[] } | null }> };
+
+export type CreatePromotionMutationVariables = Exact<{
+  input: CreatePromotionInput;
+}>;
+
+
+export type CreatePromotionMutation = { __typename?: 'Mutation', createPromotion: { __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null } };
+
+export type UpdatePromotionMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  input: UpdatePromotionInput;
+}>;
+
+
+export type UpdatePromotionMutation = { __typename?: 'Mutation', updatePromotion: { __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null } };
+
+export type SetPromotionStatusMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  status: PromotionStatus;
+}>;
+
+
+export type SetPromotionStatusMutation = { __typename?: 'Mutation', setPromotionStatus: { __typename?: 'AdminPromotionModel', id: string, targetKind: PromotionTargetKind, linkUrl: string | null, placement: PromotionPlacement, status: PromotionStatus, servingState: PromotionServingState, startsAt: string, endsAt: string, priority: number, headline: string, body: string | null, imageUrl: string | null, ctaLabel: string | null, sponsorName: string, sponsorVendorId: string | null, isHouse: boolean, disclosure: string, isNationwide: boolean, reachLatitude: number | null, reachLongitude: number | null, reachRadiusKm: number | null, marketIds: Array<string>, event: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null, market: { __typename?: 'MarketModel', id: string, slug: string, name: string, imageUrl: string | null } | null, vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null, product: { __typename?: 'ProductModel', id: string, name: string, imageUrl: string | null, vendorId: string, vendor: { __typename?: 'VendorModel', slug: string } | null } | null } };
+
+export type DeletePromotionMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DeletePromotionMutation = { __typename?: 'Mutation', deletePromotion: boolean };
+
+export type PromotionEventOptionsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
+
+
+export type PromotionEventOptionsQuery = { __typename?: 'Query', adminEvents: { __typename?: 'EventsPage', items: Array<{ __typename?: 'EventModel', id: string, title: string, status: EventStatus, startsAt: string, endsAt: string, areaName: string }> } };
+
+export type PromotionVendorOptionsQueryVariables = Exact<{
+  criteria?: InputMaybe<CriteriaInput>;
+}>;
+
+
+export type PromotionVendorOptionsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', items: Array<{ __typename?: 'VendorModel', id: string, name: string, category: string, isActive: boolean }> } };
+
+export type PromotionProductOptionsQueryVariables = Exact<{
+  vendorId: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionProductOptionsQuery = { __typename?: 'Query', products: { __typename?: 'ProductsPage', items: Array<{ __typename?: 'ProductModel', id: string, name: string, isAvailable: boolean }> } };
+
+export type PromotionEventPointQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionEventPointQuery = { __typename?: 'Query', adminEvent: { __typename?: 'EventModel', latitude: number, longitude: number } | null };
+
+export type PromotionVendorPointsQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionVendorPointsQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', markets: Array<{ __typename?: 'MarketModel', kind: MarketKind, location: { type: string; coordinates: number[] } | null }> } | null };
+
+export type PromotionProductPointsQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionProductPointsQuery = { __typename?: 'Query', product: { __typename?: 'ProductModel', vendor: { __typename?: 'VendorModel', markets: Array<{ __typename?: 'MarketModel', kind: MarketKind, location: { type: string; coordinates: number[] } | null }> } | null } | null };
+
+export type PromotionPrefillEventQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionPrefillEventQuery = { __typename?: 'Query', adminEvent: { __typename?: 'EventModel', id: string, title: string, imageUrl: string | null } | null };
+
+export type PromotionPrefillVendorQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type PromotionPrefillVendorQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, imageUrl: string | null } | null };
+
+export type VendorFieldsFragment = { __typename?: 'VendorModel', id: string, slug: string, name: string, kind: VendorKind, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind, city: string, schedule: string }> };
 
 export type AdminVendorsQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type AdminVendorsQuery = {
-  __typename?: 'Query';
-  adminVendors: {
-    __typename?: 'VendorsPage';
-    totalCount: number;
-    items: Array<{
-      __typename?: 'VendorModel';
-      id: string;
-      slug: string;
-      name: string;
-      kind: VendorKind;
-      category: string;
-      description: string | null;
-      imageUrl: string | null;
-      isActive: boolean;
-      memberCount: number;
-      createdAt: string;
-      updatedAt: string;
-      markets: Array<{
-        __typename?: 'MarketModel';
-        id: string;
-        slug: string;
-        name: string;
-        kind: MarketKind;
-        city: string;
-        schedule: string;
-      }>;
-    }>;
-  };
-  directory: { __typename?: 'VendorsPage'; totalCount: number };
-};
+
+export type AdminVendorsQuery = { __typename?: 'Query', adminVendors: { __typename?: 'VendorsPage', totalCount: number, items: Array<{ __typename?: 'VendorModel', id: string, slug: string, name: string, kind: VendorKind, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind, city: string, schedule: string }> }> }, directory: { __typename?: 'VendorsPage', totalCount: number } };
 
 export type VendorByIdQueryVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
-export type VendorByIdQuery = {
-  __typename?: 'Query';
-  vendor: {
-    __typename?: 'VendorModel';
-    id: string;
-    slug: string;
-    name: string;
-    kind: VendorKind;
-    category: string;
-    description: string | null;
-    imageUrl: string | null;
-    isActive: boolean;
-    memberCount: number;
-    createdAt: string;
-    updatedAt: string;
-    markets: Array<{
-      __typename?: 'MarketModel';
-      id: string;
-      slug: string;
-      name: string;
-      kind: MarketKind;
-      city: string;
-      schedule: string;
-    }>;
-  } | null;
-};
+
+export type VendorByIdQuery = { __typename?: 'Query', vendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, kind: VendorKind, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind, city: string, schedule: string }> } | null };
 
 export type VendorProductCountQueryVariables = Exact<{
   vendorId: Scalars['ID']['input'];
 }>;
 
-export type VendorProductCountQuery = {
-  __typename?: 'Query';
-  products: { __typename?: 'ProductsPage'; totalCount: number };
-};
+
+export type VendorProductCountQuery = { __typename?: 'Query', products: { __typename?: 'ProductsPage', totalCount: number } };
 
 export type VendorOrderWindowQueryVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   marketId: Scalars['ID']['input'];
 }>;
 
-export type VendorOrderWindowQuery = {
-  __typename?: 'Query';
-  vendorOrderWindow: {
-    __typename?: 'VendorOrderWindowModel';
-    marketId: string;
-    state: VendorOrderState;
-    occursOn: string | null;
-    opensAt: string | null;
-    closesAt: string | null;
-    pausedUntil: string | null;
-    orderLeadHours: number;
-  };
-};
+
+export type VendorOrderWindowQuery = { __typename?: 'Query', vendorOrderWindow: { __typename?: 'VendorOrderWindowModel', marketId: string, state: VendorOrderState, occursOn: string | null, opensAt: string | null, closesAt: string | null, pausedUntil: string | null, orderLeadHours: number } };
 
 export type AdminVendorMembersQueryVariables = Exact<{
   criteria?: InputMaybe<CriteriaInput>;
 }>;
 
-export type AdminVendorMembersQuery = {
-  __typename?: 'Query';
-  adminVendorMembers: {
-    __typename?: 'VendorMembersPage';
-    totalCount: number;
-    items: Array<{
-      __typename?: 'VendorMemberModel';
-      id: string;
-      userId: string;
-      fullName: string;
-      email: string;
-      role: VendorMemberRole;
-      market: { __typename?: 'MarketModel'; id: string; slug: string; name: string } | null;
-    }>;
-  };
-};
+
+export type AdminVendorMembersQuery = { __typename?: 'Query', adminVendorMembers: { __typename?: 'VendorMembersPage', totalCount: number, items: Array<{ __typename?: 'VendorMemberModel', id: string, userId: string, fullName: string, email: string, role: VendorMemberRole, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null }> } };
 
 export type PendingVendorInvitesQueryVariables = Exact<{
   vendorId: Scalars['ID']['input'];
 }>;
 
-export type PendingVendorInvitesQuery = {
-  __typename?: 'Query';
-  pendingVendorInvites: Array<{
-    __typename?: 'VendorInviteModel';
-    id: string;
-    email: string;
-    createdAt: string;
-    expiresAt: string;
-    market: { __typename?: 'MarketModel'; id: string; slug: string; name: string } | null;
-  }>;
-};
+
+export type PendingVendorInvitesQuery = { __typename?: 'Query', pendingVendorInvites: Array<{ __typename?: 'VendorInviteModel', id: string, email: string, createdAt: string, expiresAt: string, market: { __typename?: 'MarketModel', id: string, slug: string, name: string } | null }> };
 
 export type InviteVendorMemberMutationVariables = Exact<{
   input: InviteVendorMemberInput;
 }>;
 
-export type InviteVendorMemberMutation = { __typename?: 'Mutation'; inviteVendorMember: boolean };
+
+export type InviteVendorMemberMutation = { __typename?: 'Mutation', inviteVendorMember: boolean };
 
 export type SendVendorOnboardingInviteMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
 }>;
 
-export type SendVendorOnboardingInviteMutation = {
-  __typename?: 'Mutation';
-  sendVendorOnboardingInvite: {
-    __typename?: 'VendorOnboardingInviteModel';
-    email: string;
-    expiresAt: string;
-  };
-};
+
+export type SendVendorOnboardingInviteMutation = { __typename?: 'Mutation', sendVendorOnboardingInvite: { __typename?: 'VendorOnboardingInviteModel', email: string, expiresAt: string } };
 
 export type RevokeVendorInviteMutationVariables = Exact<{
   id: Scalars['ID']['input'];
   vendorId: Scalars['ID']['input'];
 }>;
 
-export type RevokeVendorInviteMutation = { __typename?: 'Mutation'; revokeVendorInvite: boolean };
+
+export type RevokeVendorInviteMutation = { __typename?: 'Mutation', revokeVendorInvite: boolean };
 
 export type UpdateVendorMemberMutationVariables = Exact<{
   input: UpdateVendorMemberInput;
 }>;
 
-export type UpdateVendorMemberMutation = {
-  __typename?: 'Mutation';
-  updateVendorMember: { __typename?: 'VendorMemberModel'; id: string; userId: string };
-};
+
+export type UpdateVendorMemberMutation = { __typename?: 'Mutation', updateVendorMember: { __typename?: 'VendorMemberModel', id: string, userId: string } };
 
 export type RemoveVendorMemberMutationVariables = Exact<{
   userId: Scalars['ID']['input'];
   vendorId: Scalars['ID']['input'];
 }>;
 
-export type RemoveVendorMemberMutation = { __typename?: 'Mutation'; removeVendorMember: boolean };
+
+export type RemoveVendorMemberMutation = { __typename?: 'Mutation', removeVendorMember: boolean };
 
 export type CreateVendorMutationVariables = Exact<{
   input: CreateVendorInput;
 }>;
 
-export type CreateVendorMutation = {
-  __typename?: 'Mutation';
-  createVendor: {
-    __typename?: 'VendorModel';
-    id: string;
-    slug: string;
-    name: string;
-    kind: VendorKind;
-    category: string;
-    description: string | null;
-    imageUrl: string | null;
-    isActive: boolean;
-    memberCount: number;
-    createdAt: string;
-    updatedAt: string;
-    markets: Array<{
-      __typename?: 'MarketModel';
-      id: string;
-      slug: string;
-      name: string;
-      kind: MarketKind;
-      city: string;
-      schedule: string;
-    }>;
-  };
-};
+
+export type CreateVendorMutation = { __typename?: 'Mutation', createVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, kind: VendorKind, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind, city: string, schedule: string }> } };
 
 export type SetVendorKindMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   kind: VendorKind;
 }>;
 
-export type SetVendorKindMutation = {
-  __typename?: 'Mutation';
-  setVendorKind: { __typename?: 'VendorModel'; id: string; kind: VendorKind };
-};
 
-export type MarketIdsQueryVariables = Exact<{ [key: string]: never }>;
+export type SetVendorKindMutation = { __typename?: 'Mutation', setVendorKind: { __typename?: 'VendorModel', id: string, kind: VendorKind } };
 
-export type MarketIdsQuery = {
-  __typename?: 'Query';
-  adminMarkets: Array<{
-    __typename?: 'MarketModel';
-    id: string;
-    slug: string;
-    name: string;
-    kind: MarketKind;
-  }>;
-};
+export type MarketIdsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MarketIdsQuery = { __typename?: 'Query', adminMarkets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind }> };
 
 export type UpdateVendorMutationVariables = Exact<{
   id: Scalars['ID']['input'];
   input: UpdateVendorInput;
 }>;
 
-export type UpdateVendorMutation = {
-  __typename?: 'Mutation';
-  updateVendor: {
-    __typename?: 'VendorModel';
-    id: string;
-    slug: string;
-    name: string;
-    kind: VendorKind;
-    category: string;
-    description: string | null;
-    imageUrl: string | null;
-    isActive: boolean;
-    memberCount: number;
-    createdAt: string;
-    updatedAt: string;
-    markets: Array<{
-      __typename?: 'MarketModel';
-      id: string;
-      slug: string;
-      name: string;
-      kind: MarketKind;
-      city: string;
-      schedule: string;
-    }>;
-  };
-};
+
+export type UpdateVendorMutation = { __typename?: 'Mutation', updateVendor: { __typename?: 'VendorModel', id: string, slug: string, name: string, kind: VendorKind, category: string, description: string | null, imageUrl: string | null, isActive: boolean, memberCount: number, createdAt: string, updatedAt: string, markets: Array<{ __typename?: 'MarketModel', id: string, slug: string, name: string, kind: MarketKind, city: string, schedule: string }> } };
 
 export type JoinMarketMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   marketId: Scalars['ID']['input'];
 }>;
 
-export type JoinMarketMutation = {
-  __typename?: 'Mutation';
-  joinMarket: { __typename?: 'VendorModel'; id: string; slug: string };
-};
+
+export type JoinMarketMutation = { __typename?: 'Mutation', joinMarket: { __typename?: 'VendorModel', id: string, slug: string } };
 
 export type LeaveMarketMutationVariables = Exact<{
   vendorId: Scalars['ID']['input'];
   marketId: Scalars['ID']['input'];
 }>;
 
-export type LeaveMarketMutation = {
-  __typename?: 'Mutation';
-  leaveMarket: { __typename?: 'VendorModel'; id: string; slug: string };
-};
+
+export type LeaveMarketMutation = { __typename?: 'Mutation', leaveMarket: { __typename?: 'VendorModel', id: string, slug: string } };

@@ -6,20 +6,26 @@ import { MediaKind, MediaRepository, UploadedImage } from '../ports/media-reposi
 import { GraphqlClient } from './graphql-client';
 import {
   CREATE_AVATAR_UPLOAD_URL,
+  CREATE_EVENT_IMAGE_UPLOAD_URL,
   CREATE_MARKET_BANNER_UPLOAD_URL,
   CREATE_MARKET_IMAGE_UPLOAD_URL,
   CREATE_PRODUCT_IMAGE_UPLOAD_URL,
+  CREATE_PROMOTION_IMAGE_UPLOAD_URL,
   CREATE_VENDOR_IMAGE_UPLOAD_URL,
 } from './operations/media';
 import {
   CreateAvatarUploadUrlMutation,
   CreateAvatarUploadUrlMutationVariables,
+  CreateEventImageUploadUrlMutation,
+  CreateEventImageUploadUrlMutationVariables,
   CreateMarketBannerUploadUrlMutation,
   CreateMarketBannerUploadUrlMutationVariables,
   CreateMarketImageUploadUrlMutation,
   CreateMarketImageUploadUrlMutationVariables,
   CreateProductImageUploadUrlMutation,
   CreateProductImageUploadUrlMutationVariables,
+  CreatePromotionImageUploadUrlMutation,
+  CreatePromotionImageUploadUrlMutationVariables,
   CreateVendorImageUploadUrlMutation,
   CreateVendorImageUploadUrlMutationVariables,
 } from './generated';
@@ -61,7 +67,7 @@ export class GraphqlMediaRepository extends MediaRepository {
     );
   }
 
-  /** Five distinct mutations, five distinct result types — schema.gql has no shared interface. */
+  /** Seven distinct mutations, five distinct result types — schema.gql has no shared interface. */
   private presign(file: File, kind: MediaKind, vendorId?: string): Observable<UploadUrlResult> {
     const mimeType = file.type;
     switch (kind) {
@@ -100,6 +106,20 @@ export class GraphqlMediaRepository extends MediaRepository {
             { mimeType },
           )
           .pipe(map((r): UploadUrlResult => r.createAvatarUploadUrl));
+      case 'event-image':
+        return this.client
+          .request<CreateEventImageUploadUrlMutation, CreateEventImageUploadUrlMutationVariables>(
+            CREATE_EVENT_IMAGE_UPLOAD_URL,
+            { mimeType },
+          )
+          .pipe(map((r): UploadUrlResult => r.createEventImageUploadUrl));
+      case 'promotion-image':
+        return this.client
+          .request<
+            CreatePromotionImageUploadUrlMutation,
+            CreatePromotionImageUploadUrlMutationVariables
+          >(CREATE_PROMOTION_IMAGE_UPLOAD_URL, { mimeType })
+          .pipe(map((r): UploadUrlResult => r.createPromotionImageUploadUrl));
     }
   }
 }

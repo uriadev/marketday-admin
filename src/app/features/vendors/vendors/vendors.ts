@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -20,6 +28,8 @@ import { StatusPill } from '../../../shared/components/status-pill/status-pill';
 import { EmptyState } from '../../../shared/components/empty-state/empty-state';
 import { Avatar } from '../../../shared/components/avatar/avatar';
 import { FacePile } from '../../../shared/components/face-pile/face-pile';
+import { SearchSelect } from '../../../shared/components/search-select/search-select';
+import { PickerOption } from '../../../core/models/picker-option.model';
 import {
   VENDOR_TOGGLES,
   VendorFilters,
@@ -49,6 +59,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     EmptyState,
     Avatar,
     FacePile,
+    SearchSelect,
     MatButtonModule,
     MatChipsModule,
     MatIconModule,
@@ -96,6 +107,26 @@ export class Vendors {
   protected readonly heading = computed(() => {
     const total = this.store.vendorCount();
     return `${total} ${total === 1 ? 'vendor' : 'vendors'}`;
+  });
+
+  /** What is typed into the Market filter — narrows the list, does not filter the table. */
+  protected readonly marketQuery = signal('');
+
+  /**
+   * The Market filter's suggestions. The names are already in memory (the
+   * repository hands them over with every page), so the narrowing is local.
+   */
+  protected readonly marketOptions = computed<readonly PickerOption[]>(() => {
+    const needle = this.marketQuery().trim().toLowerCase();
+    return this.store
+      .markets()
+      .filter((name) => name.toLowerCase().includes(needle))
+      .map(toMarketOption);
+  });
+
+  protected readonly selectedMarket = computed(() => {
+    const market = this.filters().market;
+    return market === null ? null : toMarketOption(market);
   });
 
   private readonly typed = new Subject<string>();
@@ -215,4 +246,9 @@ export class Vendors {
       this.notifications.success(`Onboarding invite for ${vendor.name} sent to ${sent.email}.`),
     );
   }
+}
+
+/** The directory filters on the market's name, so the name is its id here too. */
+function toMarketOption(name: string): PickerOption {
+  return { id: name, label: name, detail: '' };
 }

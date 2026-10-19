@@ -1,0 +1,292 @@
+<md-page-header heading="Events" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search event titles"
+      aria-label="Search event titles"
+      [value]="filters().q"
+      (input)="onSearch($event)"
+    />
+  </mat-form-field>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading events" />
+}
+
+<div class="intro">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ store.heading() }}</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
+    </div>
+    <a matButton="filled" routerLink="/events/new">
+      <mat-icon>add</mat-icon>
+      New event
+    </a>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="whenMenu"
+      [class.filter--on]="filters().when !== 'current'"
+    >
+      {{ whenLabels[filters().when] }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #whenMenu="matMenu">
+      @for (option of whens; track option) {
+        <button mat-menu-item type="button" (click)="setWhen(option)">
+          {{ whenLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="statusMenu"
+      [class.filter--on]="filters().status !== null"
+    >
+      {{ statusLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #statusMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setStatus(null)">Any status</button>
+      @for (option of statuses; track option) {
+        <button mat-menu-item type="button" (click)="setStatus(option)">
+          {{ statusLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="venueMenu"
+      [class.filter--on]="filters().venueKind !== null"
+    >
+      {{ venueLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #venueMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setVenue(null)">Any venue</button>
+      @for (option of venueKinds; track option) {
+        <button mat-menu-item type="button" (click)="setVenue(option)">
+          <mat-icon>{{ venueKindIcons[option] }}</mat-icon>
+          {{ venueKindLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="categoryMenu"
+      [class.filter--on]="filters().category !== null"
+    >
+      {{ categoryLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #categoryMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setCategory(null)">Any category</button>
+      @for (option of categories; track option) {
+        <button mat-menu-item type="button" (click)="setCategory(option)">
+          {{ categoryLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    @if (store.hasActiveFilters()) {
+      <button matButton type="button" (click)="clearFilters()">
+        <mat-icon>close</mat-icon>
+        Clear filters
+      </button>
+    }
+  </div>
+</div>
+
+<div class="scroller">
+  @if (store.commandError(); as message) {
+    <div
+      class="mb-4 flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ message }}</span>
+    </div>
+  }
+
+  @if (store.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ store.error() }}</span>
+      <button matButton type="button" (click)="store.load()">Retry</button>
+    </div>
+  } @else if (store.isWhollyEmpty()) {
+    <md-empty-state
+      icon="event"
+      headline="No events yet"
+      body="A band at a market, a farm open day, a town festival — add one and it shows in the app near where it happens."
+    >
+      <a matButton="filled" routerLink="/events/new">New event</a>
+    </md-empty-state>
+  } @else if (store.isFilteredEmpty()) {
+    <md-empty-state
+      icon="event_busy"
+      headline="No events match those filters"
+      body="Try another venue or category, or clear the filters to see every upcoming event."
+    >
+      <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+    </md-empty-state>
+  } @else {
+    <div class="table-card">
+      <table mat-table [dataSource]="store.items()" class="events">
+        <ng-container matColumnDef="event">
+          <th mat-header-cell *matHeaderCellDef scope="col">Event</th>
+          <td mat-cell *matCellDef="let event">
+            <a class="event-link" [routerLink]="['/events', event.id]">
+              @if (event.imageUrl) {
+                <img class="thumb" [src]="event.imageUrl" alt="" />
+              } @else {
+                <span class="thumb thumb--empty"><mat-icon>event</mat-icon></span>
+              }
+              <span class="min-w-0">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ event.title }}
+                  @if (event.isFeatured) {
+                    <mat-icon
+                      class="featured"
+                      matTooltip="Featured — headlines the market-day reminder"
+                      aria-label="Featured"
+                      >star</mat-icon
+                    >
+                  }
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  {{ categoryName(event) }}
+                </span>
+              </span>
+            </a>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="venue">
+          <th mat-header-cell *matHeaderCellDef scope="col">Where</th>
+          <td mat-cell *matCellDef="let event">
+            <div class="flex items-center gap-2">
+              <mat-icon class="venue-icon">{{ venueIcon(event) }}</mat-icon>
+              <div class="min-w-0">
+                @if (event.venue.link) {
+                  <a class="venue-link block" [routerLink]="event.venue.link">
+                    {{ event.venue.name }}
+                  </a>
+                } @else {
+                  <span class="block text-on-surface">{{ event.address || event.areaName }}</span>
+                }
+                <span class="block text-label-large text-on-surface-variant">
+                  near {{ event.areaName }}
+                </span>
+              </div>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="when">
+          <th mat-header-cell *matHeaderCellDef scope="col">When</th>
+          <td mat-cell *matCellDef="let event">
+            <span class="block text-on-surface">{{ whenText(event) }}</span>
+            @if (sessionCount(event)) {
+              <span class="block text-label-large text-on-surface-variant">
+                {{ sessionCount(event) }}
+              </span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+          <td mat-cell *matCellDef="let event">
+            <md-status-pill [tone]="statusTone(event)">{{ statusName(event) }}</md-status-pill>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef scope="col">
+            <span class="sr-only">Actions</span>
+          </th>
+          <td mat-cell *matCellDef="let event">
+            <button
+              matIconButton
+              type="button"
+              [attr.aria-label]="'Actions for ' + event.title"
+              [matMenuTriggerFor]="rowMenu"
+            >
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #rowMenu="matMenu">
+              <a mat-menu-item [routerLink]="['/events', event.id]">Edit event</a>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy() || (event.status === 'draft' && event.timing === 'ended')"
+                (click)="togglePublished(event)"
+              >
+                {{ event.status === 'draft' ? 'Publish' : 'Move back to draft' }}
+              </button>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy()"
+                (click)="toggleFeatured(event)"
+              >
+                {{ event.isFeatured ? 'Stop featuring' : 'Feature' }}
+              </button>
+              @if (event.timing !== 'ended') {
+                <a mat-menu-item routerLink="/promotions/new" [queryParams]="{ eventId: event.id }">
+                  Promote this event
+                </a>
+              }
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy()"
+                (click)="confirmDelete(event)"
+              >
+                Delete event
+              </button>
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let row; columns: columns"
+          [class.row--ended]="row.timing === 'ended'"
+        ></tr>
+      </table>
+
+      <mat-paginator
+        [length]="store.total()"
+        [pageSize]="store.pageSize()"
+        [pageIndex]="store.pageIndex()"
+        [pageSizeOptions]="[25, 50, 100]"
+        (page)="onPage($event)"
+        aria-label="Choose a page of events"
+      />
+    </div>
+
+    <p class="mt-4 mb-0 text-label-large text-on-surface-variant">
+      Times are Irish time. The app places every event within about a kilometre, never at an exact
+      point. Featuring is editorial and unpaid: it alone picks the line a market-day reminder adds.
+    </p>
+  }
+</div>

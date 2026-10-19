@@ -51,6 +51,8 @@ export class ConsoleLayout {
   protected readonly platformLinks: NavLink[] = [
     { icon: 'storefront', label: 'Markets', route: '/markets' },
     { icon: 'shopping_bag', label: 'Vendors', badge: true, route: '/vendors' },
+    { icon: 'event', label: 'Events', route: '/events' },
+    { icon: 'campaign', label: 'Promotions', route: '/promotions' },
     { icon: 'group', label: 'Users', route: '/users' },
     { icon: 'support_agent', label: 'Support', badge: true, route: '/support' },
   ];

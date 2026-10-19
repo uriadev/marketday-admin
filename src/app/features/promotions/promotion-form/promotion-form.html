@@ -1,0 +1,484 @@
+<md-page-header [heading]="heading()" backLink="/promotions" [breadcrumb]="crumbs()">
+  @if (servingState(); as state) {
+    <div class="flex items-center gap-2">
+      <md-status-pill [tone]="state.tone" [matTooltip]="state.hint">{{
+        state.label
+      }}</md-status-pill>
+      @if (facade.promotion(); as promotion) {
+        @switch (promotion.status) {
+          @case ('draft') {
+            <button
+              matButton="filled"
+              type="button"
+              [disabled]="facade.isSaving() || periodEnded() || form.dirty"
+              [matTooltip]="form.dirty ? 'Save your changes first' : ''"
+              (click)="setStatus('scheduled')"
+            >
+              Schedule
+            </button>
+          }
+          @case ('scheduled') {
+            <button
+              matButton="outlined"
+              type="button"
+              [disabled]="facade.isSaving()"
+              (click)="setStatus('paused')"
+            >
+              <mat-icon>pause</mat-icon>
+              Pause
+            </button>
+          }
+          @case ('paused') {
+            <button
+              matButton="filled"
+              type="button"
+              [disabled]="facade.isSaving() || periodEnded()"
+              (click)="setStatus('scheduled')"
+            >
+              <mat-icon>play_arrow</mat-icon>
+              Resume
+            </button>
+          }
+        }
+      }
+    </div>
+  }
+</md-page-header>
+
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading promotion" />
+}
+
+@if (facade.hasError()) {
+  <div class="p-6">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <a matButton routerLink="/promotions">Back to promotions</a>
+    </div>
+  </div>
+} @else {
+  <div class="layout">
+    <form class="main" [formGroup]="form" (ngSubmit)="save()">
+      <!-- ── Subject ──────────────────────────────────────────────────── -->
+      <section class="fields" aria-labelledby="promo-subject">
+        <h3 class="section-title" id="promo-subject">What it promotes</h3>
+
+        @if (isEdit()) {
+          @if (facade.promotion(); as promotion) {
+            <div class="fixed">
+              <span class="text-label-large text-on-surface-variant">
+                {{ targetKindLabels[promotion.subject.kind] }}
+              </span>
+              @if (promotion.subject.link) {
+                <a class="fixed-link" [routerLink]="promotion.subject.link">
+                  {{ promotion.subject.name }}
+                </a>
+              } @else {
+                <span class="font-semibold">{{ promotion.subject.name }}</span>
+              }
+              <span class="flex-1"></span>
+              <span
+                class="text-label-large text-on-surface-variant"
+                matTooltip="Pointing a booking at another subject is a different booking — create a new one."
+              >
+                Can't be changed
+              </span>
+            </div>
+          }
+        } @else {
+          <mat-button-toggle-group
+            class="self-start"
+            formControlName="targetKind"
+            aria-label="Kind of subject"
+          >
+            @for (kind of targetKinds; track kind) {
+              <mat-button-toggle [value]="kind">{{ targetKindLabels[kind] }}</mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+
+          @switch (targetKind()) {
+            @case ('event') {
+              <md-search-select
+                label="Event"
+                placeholder="Event title"
+                hint="Upcoming events only. A draft can be booked — it serves once published."
+                [options]="facade.events.options()"
+                [selected]="subject()"
+                [loading]="facade.events.loading()"
+                (query)="facade.events.search($event)"
+                (picked)="onSubjectPicked($event)"
+                (cleared)="onSubjectCleared()"
+              />
+            }
+            @case ('market') {
+              <mat-form-field>
+                <mat-label>Market</mat-label>
+                <mat-select
+                  formControlName="subjectId"
+                  (selectionChange)="onMarketSubjectPicked($event.value)"
+                >
+                  @for (market of facade.markets(); track market.id) {
+                    <mat-option [value]="market.id">
+                      {{ market.name }}{{ market.isDraft ? ' (draft)' : '' }}
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>A draft market can be booked; it serves once published.</mat-hint>
+              </mat-form-field>
+            }
+            @case ('vendor') {
+              <md-search-select
+                label="Vendor"
+                placeholder="Business name"
+                hint="An inactive vendor can be booked; it serves once switched on."
+                [options]="facade.vendors.options()"
+                [selected]="subject()"
+                [loading]="facade.vendors.loading()"
+                (query)="facade.vendors.search($event)"
+                (picked)="onSubjectPicked($event)"
+                (cleared)="onSubjectCleared()"
+              />
+            }
+            @case ('product') {
+              <div class="pair">
+                <md-search-select
+                  label="Vendor"
+                  placeholder="Business name"
+                  [options]="facade.vendors.options()"
+                  [selected]="productVendor()"
+                  [loading]="facade.vendors.loading()"
+                  (query)="facade.vendors.search($event)"
+                  (picked)="onProductVendorPicked($event)"
+                  (cleared)="onProductVendorCleared()"
+                />
+                <mat-form-field>
+                  <mat-label>Product</mat-label>
+                  <mat-select
+                    formControlName="subjectId"
+                    [disabled]="!productVendor()"
+                    (selectionChange)="onProductPicked($event.value)"
+                  >
+                    @for (product of facade.products(); track product.id) {
+                      <mat-option [value]="product.id">
+                        {{ product.label }} · {{ product.detail }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                  <mat-hint>
+                    {{
+                      facade.loadingProducts()
+                        ? 'Loading products…'
+                        : 'Sold out still serves — the card greys out.'
+                    }}
+                  </mat-hint>
+                </mat-form-field>
+              </div>
+            }
+            @case ('link') {
+              <mat-form-field>
+                <mat-label>Link</mat-label>
+                <input matInput formControlName="linkUrl" type="url" placeholder="https://" />
+                <mat-hint>Opens outside the app. Write a headline for it below.</mat-hint>
+                <mat-error>Use a full https:// link</mat-error>
+              </mat-form-field>
+            }
+          }
+        }
+      </section>
+
+      <!-- ── Placement ────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="promo-placement">
+        <h3 class="section-title" id="promo-placement">Where it shows</h3>
+
+        <div class="pair">
+          <mat-form-field>
+            <mat-label>Placement</mat-label>
+            <mat-select formControlName="placement">
+              @for (option of placements; track option) {
+                <mat-option [value]="option">
+                  {{ placementLabels[option]
+                  }}{{ placementRules[option].available ? '' : ' (not served yet)' }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>
+              {{ placementRule().where }} Up to {{ placementRule().cap }} per screen.
+            </mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Priority</mat-label>
+            <input matInput type="number" formControlName="priority" step="1" />
+            <mat-hint>Higher shows first; equal priorities take turns.</mat-hint>
+            <mat-error>A whole number from −100 to 100</mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Only on these markets{{ needsMarkets() ? '' : ' (optional)' }}</mat-label>
+          <mat-select formControlName="marketIds" multiple>
+            @for (market of facade.markets(); track market.id) {
+              <mat-option [value]="market.id">{{ market.name }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>{{ marketsHint() }}</mat-hint>
+        </mat-form-field>
+      </section>
+
+      <!-- ── Period ───────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="promo-period">
+        <h3 class="section-title" id="promo-period">When — Irish time</h3>
+        <div class="period">
+          <mat-form-field>
+            <mat-label>Starts on</mat-label>
+            <input matInput [matDatepicker]="startDay" formControlName="startDate" />
+            <mat-datepicker-toggle matIconSuffix [for]="startDay" />
+            <mat-datepicker #startDay />
+            <mat-error>Pick the first day</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>at</mat-label>
+            <input matInput [matTimepicker]="startAt" formControlName="startTime" />
+            <mat-timepicker-toggle matIconSuffix [for]="startAt" />
+            <mat-timepicker #startAt interval="15min" />
+            <mat-error>Enter a time like 09:00</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Ends on</mat-label>
+            <input matInput [matDatepicker]="endDay" formControlName="endDate" />
+            <mat-datepicker-toggle matIconSuffix [for]="endDay" />
+            <mat-datepicker #endDay />
+            <mat-error>Pick the last day</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>at</mat-label>
+            <input matInput [matTimepicker]="endAt" formControlName="endTime" />
+            <mat-timepicker-toggle matIconSuffix [for]="endAt" />
+            <mat-timepicker #endAt interval="15min" />
+            <mat-error>Enter a time like 23:45</mat-error>
+          </mat-form-field>
+        </div>
+        @if (form.hasError('periodOutOfOrder')) {
+          <p class="m-0 text-body-medium text-error" role="alert">
+            The period must end after it starts.
+          </p>
+        }
+      </section>
+
+      <!-- ── Creative ─────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="promo-creative">
+        <h3 class="section-title" id="promo-creative">The card</h3>
+
+        <mat-form-field>
+          <mat-label>Headline{{ targetKind() === 'link' ? '' : ' (optional)' }}</mat-label>
+          <input
+            matInput
+            formControlName="headline"
+            [placeholder]="headlinePlaceholder()"
+            [maxlength]="maxHeadline"
+          />
+          <mat-hint align="end"
+            >{{ form.controls.headline.value.length }} / {{ maxHeadline }}</mat-hint
+          >
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Body (optional)</mat-label>
+          <textarea matInput formControlName="body" rows="2" [maxlength]="maxBody"></textarea>
+          <mat-hint align="end">{{ form.controls.body.value.length }} / {{ maxBody }}</mat-hint>
+        </mat-form-field>
+
+        <div class="pair">
+          <mat-form-field>
+            <mat-label>Button label (optional)</mat-label>
+            <input
+              matInput
+              formControlName="ctaLabel"
+              placeholder="Pre-order"
+              [maxlength]="maxCta"
+            />
+            <mat-hint align="end"
+              >{{ form.controls.ctaLabel.value.length }} / {{ maxCta }}</mat-hint
+            >
+          </mat-form-field>
+        </div>
+
+        <md-image-upload
+          class="photo"
+          label="Image (optional)"
+          hint="Leave empty to use the subject's own image."
+          [src]="form.controls.imageUrl.value"
+          [busy]="uploading()"
+          (selected)="onImagePicked($event)"
+          (cleared)="onImageCleared()"
+          (rejected)="onImageRejected($event)"
+        />
+      </section>
+
+      <!-- ── Sponsor ──────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="promo-sponsor">
+        <h3 class="section-title" id="promo-sponsor">Who it is for</h3>
+
+        <mat-slide-toggle formControlName="isHouse" (change)="onHouseToggled($event.checked)">
+          House promotion — MarketDay promoting itself
+        </mat-slide-toggle>
+
+        <div class="pair">
+          @if (!form.controls.isHouse.value) {
+            <md-search-select
+              label="Platform vendor (optional)"
+              placeholder="Business name"
+              hint="Link the sponsor to a vendor on MarketDay, if it is one."
+              [options]="facade.sponsors.options()"
+              [selected]="sponsorVendor()"
+              [loading]="facade.sponsors.loading()"
+              (query)="facade.sponsors.search($event)"
+              (picked)="onSponsorPicked($event)"
+              (cleared)="onSponsorCleared()"
+            />
+          }
+          <mat-form-field>
+            <mat-label>Sponsor name</mat-label>
+            <input matInput formControlName="sponsorName" autocomplete="off" />
+            <mat-hint>Shown on the card, always — kept if the vendor is ever deleted.</mat-hint>
+            <mat-error>Say who the promotion is for</mat-error>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <!-- ── Reach ────────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="promo-reach">
+        <h3 class="section-title" id="promo-reach">Reach</h3>
+
+        <mat-slide-toggle formControlName="isNationwide">Nationwide</mat-slide-toggle>
+
+        @if (form.controls.isNationwide.value) {
+          <p class="m-0 text-body-medium text-on-surface-variant">
+            Serves in every county. Meant for house promotions and the odd national sponsor — a
+            local business's card is wasted, and annoying, far from it.
+          </p>
+        } @else {
+          <md-location-picker
+            [latitude]="form.controls.reachLatitude.value"
+            [longitude]="form.controls.reachLongitude.value"
+            hint="the centre of the area it serves in — stored to within about 1 km"
+            emptyHint="Pick the subject to centre the reach on it, or click the map."
+            [error]="reachError()"
+            (pinMoved)="onReachMoved($event)"
+          />
+          <div class="pair">
+            <mat-form-field>
+              <mat-label>Radius</mat-label>
+              <input
+                matInput
+                type="number"
+                formControlName="reachRadiusKm"
+                min="1"
+                [max]="maxRadius"
+              />
+              <span matTextSuffix>km</span>
+              <mat-hint
+                >Buyers within this distance see it. 30 km covers a city and its towns.</mat-hint
+              >
+              <mat-error>A whole number of km from 1 to {{ maxRadius }}</mat-error>
+            </mat-form-field>
+            @if (targetKind() !== 'link' && form.controls.subjectId.value) {
+              <div class="flex items-center">
+                <button matButton type="button" (click)="recentre()">
+                  <mat-icon>my_location</mat-icon>
+                  Centre on the subject
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      @if (isEdit()) {
+        <div class="danger">
+          <div>
+            <p class="m-0 text-body-medium font-semibold">Delete this promotion</p>
+            <p class="m-0 text-body-medium">To stop it serving for now, pause it instead.</p>
+          </div>
+          <button
+            matButton="outlined"
+            type="button"
+            [disabled]="facade.isSaving()"
+            (click)="confirmDelete()"
+          >
+            Delete promotion
+          </button>
+        </div>
+      }
+    </form>
+
+    <aside class="rail" aria-label="How the card shows in the app">
+      <section class="section">
+        <h3 class="rail-title">In the app</h3>
+        <div class="preview">
+          <span class="disclosure">{{ disclosure() }}</span>
+          @if (preview().imageUrl) {
+            <img class="preview-image" [src]="preview().imageUrl" alt="" />
+          } @else {
+            <div class="preview-image preview-image--empty"><mat-icon>campaign</mat-icon></div>
+          }
+          <span
+            class="text-title-medium font-bold"
+            [class.text-on-surface]="!preview().untitled"
+            [class.text-on-surface-variant]="preview().untitled"
+          >
+            {{ preview().headline }}
+          </span>
+          @if (preview().body) {
+            <span class="text-body-medium text-on-surface">{{ preview().body }}</span>
+          }
+          @if (preview().cta) {
+            <span class="cta">{{ preview().cta }}</span>
+          }
+          @if (preview().sponsor) {
+            <span class="text-label-large text-on-surface-variant">{{ preview().sponsor }}</span>
+          }
+        </div>
+        <p class="m-0 text-label-large text-on-surface-variant">
+          The label is added by the server and can't be removed — adverts must be identifiable as
+          such.
+        </p>
+      </section>
+
+      <p class="tip">
+        Contextual only: a card is chosen by placement, market, period and area — never by who is
+        looking. It never appears in a notification, and the app never sells or prices adverts.
+      </p>
+    </aside>
+  </div>
+
+  <div class="footer">
+    <span class="text-label-large text-on-surface-variant">
+      {{ form.dirty ? 'Unsaved changes' : isEdit() ? 'All changes saved' : 'Not saved yet' }}
+    </span>
+    <div class="flex items-center gap-2">
+      <a matButton routerLink="/promotions">Cancel</a>
+      @if (isEdit()) {
+        <button matButton="filled" type="button" [disabled]="facade.isSaving()" (click)="save()">
+          Save changes
+        </button>
+      } @else {
+        <button
+          matButton="outlined"
+          type="button"
+          [disabled]="facade.isSaving()"
+          (click)="save(true)"
+        >
+          Save and schedule
+        </button>
+        <button matButton="filled" type="button" [disabled]="facade.isSaving()" (click)="save()">
+          Save as draft
+        </button>
+      }
+    </div>
+  </div>
+}

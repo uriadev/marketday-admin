@@ -1,0 +1,323 @@
+<md-page-header heading="Promotions" (menu)="chrome.toggleDrawer()">
+  <mat-form-field subscriptSizing="dynamic" class="search">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      type="search"
+      placeholder="Search sponsors"
+      aria-label="Search sponsors"
+      [value]="filters().q"
+      (input)="onSearch($event)"
+    />
+  </mat-form-field>
+</md-page-header>
+
+@if (store.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading promotions" />
+}
+
+<div class="intro">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ store.heading() }}</h2>
+      <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
+    </div>
+    <a matButton="filled" routerLink="/promotions/new">
+      <mat-icon>add</mat-icon>
+      New promotion
+    </a>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="placementMenu"
+      [class.filter--on]="filters().placement !== null"
+    >
+      {{ placementLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #placementMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setPlacement(null)">Any placement</button>
+      @for (option of placements; track option) {
+        <button mat-menu-item type="button" (click)="setPlacement(option)">
+          {{ placementLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="statusMenu"
+      [class.filter--on]="filters().status !== null"
+    >
+      {{ statusLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #statusMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setStatus(null)">Any status</button>
+      @for (option of statuses; track option) {
+        <button mat-menu-item type="button" (click)="setStatus(option)">
+          {{ statusLabels[option] }}
+          <span class="menu-count">{{ store.statusCount(option) }}</span>
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="subjectMenu"
+      [class.filter--on]="filters().targetKind !== null"
+    >
+      {{ subjectLabel() }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #subjectMenu="matMenu">
+      <button mat-menu-item type="button" (click)="setSubject(null)">Any subject</button>
+      @for (option of targetKinds; track option) {
+        <button mat-menu-item type="button" (click)="setSubject(option)">
+          {{ targetKindLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    <button
+      matButton="outlined"
+      type="button"
+      [matMenuTriggerFor]="sponsorMenu"
+      [class.filter--on]="filters().sponsor !== 'any'"
+    >
+      {{ sponsorLabels[filters().sponsor] }}
+      <mat-icon iconPositionEnd>expand_more</mat-icon>
+    </button>
+    <mat-menu #sponsorMenu="matMenu">
+      @for (option of sponsorFilters; track option) {
+        <button mat-menu-item type="button" (click)="setSponsor(option)">
+          {{ sponsorLabels[option] }}
+        </button>
+      }
+    </mat-menu>
+
+    @if (store.hasActiveFilters()) {
+      <button matButton type="button" (click)="clearFilters()">
+        <mat-icon>close</mat-icon>
+        Clear filters
+      </button>
+    }
+  </div>
+</div>
+
+<div class="scroller">
+  @if (store.commandError(); as message) {
+    <div
+      class="mb-4 flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ message }}</span>
+    </div>
+  }
+
+  @if (store.hasError()) {
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ store.error() }}</span>
+      <button matButton type="button" (click)="store.load()">Retry</button>
+    </div>
+  } @else if (store.isWhollyEmpty()) {
+    <md-empty-state
+      icon="campaign"
+      headline="No promotions booked"
+      body="A promotion puts an event, market, vendor, product or outside link into one slot in the app for a fixed period, labelled as sponsored."
+    >
+      <a matButton="filled" routerLink="/promotions/new">New promotion</a>
+    </md-empty-state>
+  } @else if (store.isFilteredEmpty()) {
+    <md-empty-state
+      icon="search_off"
+      headline="No promotions match those filters"
+      body="Try another placement or status, or clear the filters to see every booking."
+    >
+      <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+    </md-empty-state>
+  } @else {
+    <div class="table-card">
+      <table mat-table [dataSource]="store.items()" class="promotions">
+        <ng-container matColumnDef="creative">
+          <th mat-header-cell *matHeaderCellDef scope="col">Promotion</th>
+          <td mat-cell *matCellDef="let promotion">
+            <a class="creative" [routerLink]="['/promotions', promotion.id]">
+              @if (promotion.displayImageUrl) {
+                <img class="thumb" [src]="promotion.displayImageUrl" alt="" />
+              } @else {
+                <span class="thumb thumb--empty"><mat-icon>campaign</mat-icon></span>
+              }
+              <span class="min-w-0">
+                <span class="block text-body-medium font-semibold text-on-surface">
+                  {{ promotion.displayHeadline }}
+                </span>
+                <span class="block text-label-large text-on-surface-variant">
+                  {{ promotion.disclosure }} · {{ promotion.sponsorName }}
+                </span>
+              </span>
+            </a>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="subject">
+          <th mat-header-cell *matHeaderCellDef scope="col">Subject</th>
+          <td mat-cell *matCellDef="let promotion">
+            <span class="block text-label-large text-on-surface-variant">
+              {{ kindName(promotion) }}
+            </span>
+            @if (promotion.subject.link) {
+              <a class="subject-link block" [routerLink]="promotion.subject.link">
+                {{ promotion.subject.name }}
+              </a>
+            } @else {
+              <span class="subject-name block">{{ promotion.subject.name }}</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="placement">
+          <th mat-header-cell *matHeaderCellDef scope="col">Placement</th>
+          <td mat-cell *matCellDef="let promotion">{{ placementName(promotion) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="period">
+          <th mat-header-cell *matHeaderCellDef scope="col">Period</th>
+          <td mat-cell *matCellDef="let promotion">{{ period(promotion) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="reach">
+          <th mat-header-cell *matHeaderCellDef scope="col">Reach</th>
+          <td mat-cell *matCellDef="let promotion">
+            <span class="block">{{ reach(promotion) }}</span>
+            @if (scope(promotion)) {
+              <span class="block text-label-large text-on-surface-variant">
+                {{ scope(promotion) }}
+              </span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="priority">
+          <th mat-header-cell *matHeaderCellDef scope="col">Priority</th>
+          <td mat-cell *matCellDef="let promotion">{{ promotion.priority }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="state">
+          <th mat-header-cell *matHeaderCellDef scope="col">Serving</th>
+          <td mat-cell *matCellDef="let promotion">
+            <md-status-pill [tone]="stateTone(promotion)" [matTooltip]="stateHint(promotion)">
+              {{ stateName(promotion) }}
+            </md-status-pill>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef scope="col">
+            <span class="sr-only">Actions</span>
+          </th>
+          <td mat-cell *matCellDef="let promotion">
+            <button
+              matIconButton
+              type="button"
+              [attr.aria-label]="'Actions for ' + promotion.displayHeadline"
+              [matMenuTriggerFor]="rowMenu"
+            >
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #rowMenu="matMenu">
+              <a mat-menu-item [routerLink]="['/promotions', promotion.id]">Edit promotion</a>
+              @switch (promotion.status) {
+                @case ('draft') {
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="store.busy() || hasEnded(promotion)"
+                    (click)="schedule(promotion)"
+                  >
+                    Schedule
+                  </button>
+                }
+                @case ('scheduled') {
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="store.busy()"
+                    (click)="pause(promotion)"
+                  >
+                    Pause
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="store.busy()"
+                    (click)="backToDraft(promotion)"
+                  >
+                    Move back to draft
+                  </button>
+                }
+                @case ('paused') {
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="store.busy() || hasEnded(promotion)"
+                    (click)="resume(promotion)"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    [disabled]="store.busy()"
+                    (click)="backToDraft(promotion)"
+                  >
+                    Move back to draft
+                  </button>
+                }
+              }
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy()"
+                (click)="confirmDelete(promotion)"
+              >
+                Delete promotion
+              </button>
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let row; columns: columns"
+          [class.row--quiet]="row.servingState === 'ended' || row.servingState === 'draft'"
+        ></tr>
+      </table>
+
+      <mat-paginator
+        [length]="store.total()"
+        [pageSize]="store.pageSize()"
+        [pageIndex]="store.pageIndex()"
+        [pageSizeOptions]="[25, 50, 100]"
+        (page)="onPage($event)"
+        aria-label="Choose a page of promotions"
+      />
+    </div>
+
+    <p class="mt-4 mb-0 text-label-large text-on-surface-variant">
+      A promotion only serves while its subject is public by its own rules, and never in a push
+      notification. Pausing stops it at once; scheduling is the review.
+    </p>
+  }
+</div>

@@ -1,0 +1,411 @@
+<md-page-header [heading]="heading()" backLink="/events" [breadcrumb]="crumbs()">
+  @if (facade.event(); as event) {
+    <md-status-pill [tone]="event.status === 'published' ? 'positive' : 'warn'">
+      {{ event.status === 'published' ? 'Published' : 'Draft' }}
+    </md-status-pill>
+  }
+</md-page-header>
+
+@if (facade.isLoading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading event" />
+}
+
+@if (facade.hasError()) {
+  <div class="p-6">
+    <div
+      class="flex items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"
+      role="alert"
+    >
+      <mat-icon class="text-error">error</mat-icon>
+      <span class="flex-1">{{ facade.error() }}</span>
+      <a matButton routerLink="/events">Back to events</a>
+    </div>
+  </div>
+} @else {
+  <div class="layout">
+    <form class="main" [formGroup]="form" (ngSubmit)="save()">
+      <!-- ── What it is ───────────────────────────────────────────────── -->
+      <section class="fields" aria-labelledby="event-what">
+        <h3 class="section-title" id="event-what">What it is</h3>
+
+        <mat-form-field>
+          <mat-label>Title</mat-label>
+          <input
+            matInput
+            formControlName="title"
+            autocomplete="off"
+            placeholder="The Whileaways live"
+            [maxlength]="maxTitle"
+          />
+          <mat-hint align="end">{{ form.controls.title.value.length }} / {{ maxTitle }}</mat-hint>
+          <mat-error>Give the event a title of up to {{ maxTitle }} characters</mat-error>
+        </mat-form-field>
+
+        <div class="pair">
+          <mat-form-field>
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="category">
+              @for (option of categories; track option) {
+                <mat-option [value]="option">{{ categoryLabels[option] }}</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Picks the icon in the app and the filter on the website.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Organiser's page or tickets</mat-label>
+            <input matInput formControlName="externalUrl" type="url" placeholder="https://" />
+            <mat-error>Use a full https:// link</mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field>
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description" rows="4"></textarea>
+        </mat-form-field>
+
+        <md-image-upload
+          class="photo"
+          label="Image"
+          hint="Shown on the event card. PNG, JPG or WebP, under 5 MB."
+          [src]="form.controls.imageUrl.value"
+          [busy]="uploading()"
+          (selected)="onImagePicked($event)"
+          (cleared)="onImageCleared()"
+          (rejected)="onImageRejected($event)"
+        />
+      </section>
+
+      <!-- ── Where ────────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="event-where">
+        <h3 class="section-title" id="event-where">Where it happens</h3>
+
+        @if (fixedVenue(); as venue) {
+          <div class="fixed-venue">
+            <mat-icon>{{ venue.icon }}</mat-icon>
+            @if (venue.link) {
+              <a class="venue-link" [routerLink]="venue.link">{{ venue.label }}</a>
+            } @else {
+              <span>{{ venue.label }}</span>
+            }
+            <span class="flex-1"></span>
+            <span
+              class="text-label-large text-on-surface-variant"
+              matTooltip="Moving an event to another venue makes it a different event — create a new one."
+            >
+              Can't be changed
+            </span>
+          </div>
+        } @else {
+          <mat-button-toggle-group
+            class="self-start"
+            formControlName="venueKind"
+            aria-label="Kind of venue"
+          >
+            @for (kind of venueKinds; track kind) {
+              <mat-button-toggle [value]="kind">
+                <mat-icon>{{ venueKindIcons[kind] }}</mat-icon>
+                {{ venueKindLabels[kind] }}
+              </mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+        }
+
+        @switch (venueKind()) {
+          @case ('market') {
+            @if (!isEdit()) {
+              <mat-form-field>
+                <mat-label>Market</mat-label>
+                <mat-select formControlName="marketId">
+                  @for (market of facade.markets(); track market.id) {
+                    <mat-option [value]="market.id">
+                      {{ market.name }}{{ market.isDraft ? ' (draft)' : '' }}
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>A draft market is fine — its events show once it is published.</mat-hint>
+                <mat-error>Choose the market</mat-error>
+              </mat-form-field>
+            }
+
+            <mat-form-field>
+              <mat-label>Area name</mat-label>
+              <input
+                matInput
+                formControlName="areaName"
+                [placeholder]="selectedMarket()?.town ?? 'The market’s town'"
+              />
+              <mat-hint
+                >Leave empty to use the market's town. The point is always the market's.</mat-hint
+              >
+            </mat-form-field>
+
+            @if (offMarketDays().length > 0) {
+              <div class="warning" role="status">
+                <mat-icon>event_busy</mat-icon>
+                <span>
+                  {{ selectedMarket()?.name }} isn't trading on {{ offMarketDays().join(', ') }}.
+                  The event keeps its time either way. Check the date, or post it as an event
+                  somewhere else.
+                </span>
+              </div>
+            }
+          }
+          @case ('vendor') {
+            @if (!isEdit()) {
+              <md-search-select
+                label="Vendor"
+                placeholder="Business name"
+                hint="Only active vendors can host an event."
+                [options]="facade.vendorOptions()"
+                [selected]="vendor()"
+                [loading]="facade.searchingVendors()"
+                [error]="form.touched && !form.controls.vendorId.value ? 'Choose the vendor' : null"
+                (query)="facade.searchVendors($event)"
+                (picked)="onVendorPicked($event)"
+                (cleared)="onVendorCleared()"
+              />
+            }
+          }
+        }
+
+        @if (venueKind() !== 'market') {
+          <mat-form-field>
+            <mat-label>Find the place</mat-label>
+            <mat-icon matPrefix>travel_explore</mat-icon>
+            <input
+              matInput
+              [formControl]="placeQuery"
+              [matAutocomplete]="placeAuto"
+              autocomplete="off"
+              placeholder="A town, a square, a farm's road…"
+            />
+            @if (resolvingPlace()) {
+              <mat-icon matSuffix class="animate-pulse">hourglass_top</mat-icon>
+            }
+            <mat-autocomplete #placeAuto>
+              @for (suggestion of placeSuggestions(); track suggestion.id) {
+                <mat-option
+                  [value]="suggestion.description"
+                  (onSelectionChange)="$event.isUserInput && onPlacePicked(suggestion)"
+                >
+                  <span class="font-medium">{{ suggestion.primaryText }}</span>
+                  @if (suggestion.secondaryText) {
+                    <span class="opacity-60"> · {{ suggestion.secondaryText }}</span>
+                  }
+                </mat-option>
+              }
+            </mat-autocomplete>
+            <mat-hint>Fills the area and the map. Nothing typed here is published.</mat-hint>
+          </mat-form-field>
+
+          <md-location-picker
+            [latitude]="form.controls.latitude.value"
+            [longitude]="form.controls.longitude.value"
+            hint="stored to within about {{ accuracyKm }} km — the app shows an area, never a pin"
+            emptyHint="Pick a place above, or click the map, to place the event."
+            [error]="pinError()"
+            (pinMoved)="onPinMoved($event)"
+          />
+
+          <div class="pair">
+            <mat-form-field>
+              <mat-label>Area name</mat-label>
+              <input matInput formControlName="areaName" placeholder="Ballincollig, Co. Cork" />
+              <mat-hint>What the card says: "near Ballincollig, Co. Cork".</mat-hint>
+              <mat-error>Name the area, so people know roughly where it is</mat-error>
+            </mat-form-field>
+
+            <mat-form-field>
+              <mat-label>Street address (optional)</mat-label>
+              <input matInput formControlName="address" autocomplete="off" />
+              @if (venueKind() === 'vendor') {
+                <mat-hint>
+                  Left empty on purpose: a vendor's place is often their home. Add it only if they
+                  want it published.
+                </mat-hint>
+              } @else {
+                <mat-hint>Shown as written, so people can find the entrance.</mat-hint>
+              }
+            </mat-form-field>
+          </div>
+        }
+      </section>
+
+      <!-- ── When ─────────────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="event-when">
+        <div class="flex items-center justify-between gap-4">
+          <h3 class="section-title" id="event-when">When — Irish time</h3>
+          <button
+            matButton
+            type="button"
+            [disabled]="sessions.length >= maxSessions"
+            (click)="addSession()"
+          >
+            <mat-icon>add</mat-icon>
+            Add a session
+          </button>
+        </div>
+        <p class="m-0 text-body-medium text-on-surface-variant">
+          One row per set, stage or day — a band playing at 11:00 and 14:00 is one event with two
+          sessions. Up to {{ maxSessions }}.
+        </p>
+
+        @for (row of sessions.controls; track row; let i = $index) {
+          <div class="session" [formGroup]="row">
+            <mat-form-field>
+              <mat-label>Date</mat-label>
+              <input matInput [matDatepicker]="day" formControlName="date" />
+              <mat-datepicker-toggle matIconSuffix [for]="day" />
+              <mat-datepicker #day />
+              <mat-error>Pick the date</mat-error>
+            </mat-form-field>
+
+            <mat-form-field>
+              <mat-label>Starts</mat-label>
+              <input matInput [matTimepicker]="startsAt" formControlName="start" />
+              <mat-timepicker-toggle matIconSuffix [for]="startsAt" />
+              <mat-timepicker #startsAt interval="15min" />
+              <mat-error>Enter a time like 11:00</mat-error>
+            </mat-form-field>
+
+            <mat-form-field>
+              <mat-label>Ends</mat-label>
+              <input matInput [matTimepicker]="endsAt" formControlName="end" />
+              <mat-timepicker-toggle matIconSuffix [for]="endsAt" />
+              <mat-timepicker #endsAt interval="15min" />
+              <mat-error>Enter a time like 12:30</mat-error>
+              @if (row.hasError('endsBeforeStart') && row.touched) {
+                <mat-hint class="text-error">Ends before it starts</mat-hint>
+              }
+            </mat-form-field>
+
+            <mat-form-field>
+              <mat-label>Label (optional)</mat-label>
+              <input matInput formControlName="label" placeholder="Set {{ i + 1 }}" />
+            </mat-form-field>
+
+            <button
+              matIconButton
+              type="button"
+              class="session-remove"
+              [disabled]="sessions.length <= 1"
+              [attr.aria-label]="'Remove session ' + (i + 1)"
+              (click)="removeSession(i)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </section>
+
+      <!-- ── Visibility ───────────────────────────────────────────────── -->
+      <section class="fields fields--divided" aria-labelledby="event-visibility">
+        <h3 class="section-title" id="event-visibility">In the app</h3>
+
+        <mat-button-toggle-group class="self-start" formControlName="status" aria-label="Status">
+          <mat-button-toggle value="draft">Draft</mat-button-toggle>
+          <mat-button-toggle value="published" [disabled]="allEnded()">Published</mat-button-toggle>
+        </mat-button-toggle-group>
+        <p class="m-0 text-body-medium text-on-surface-variant">
+          @if (allEnded()) {
+            Every session has ended, so this event can't be published — it would never be seen.
+          } @else {
+            A published event shows in the app until its last session ends, while its venue is live.
+          }
+        </p>
+
+        <mat-slide-toggle formControlName="isFeatured">Feature this event</mat-slide-toggle>
+        <p class="m-0 text-body-medium text-on-surface-variant">
+          Editorial and unpaid. A featured event at a market is the one the evening-before reminder
+          mentions ("Plus: … live from 11:00"). Promoting an event never does that.
+        </p>
+      </section>
+
+      @if (isEdit()) {
+        <div class="danger">
+          <div>
+            <p class="m-0 text-body-medium font-semibold">Delete this event</p>
+            <p class="m-0 text-body-medium">Its promotions are deleted with it.</p>
+          </div>
+          <button
+            matButton="outlined"
+            type="button"
+            [disabled]="facade.isDeleting()"
+            (click)="confirmDelete()"
+          >
+            Delete event
+          </button>
+        </div>
+      }
+    </form>
+
+    <aside class="rail" aria-label="How it shows in the app">
+      <section class="section">
+        <h3 class="rail-title">In the app</h3>
+        <div class="preview">
+          @if (preview().imageUrl) {
+            <img class="preview-image" [src]="preview().imageUrl" alt="" />
+          } @else {
+            <div class="preview-image preview-image--empty"><mat-icon>event</mat-icon></div>
+          }
+          <span class="text-label-large text-on-surface-variant">{{ preview().category }}</span>
+          <span
+            class="text-title-medium font-bold"
+            [class.text-on-surface]="!preview().untitled"
+            [class.text-on-surface-variant]="preview().untitled"
+          >
+            {{ preview().title }}
+          </span>
+          <span class="text-body-medium text-on-surface">{{ preview().when }}</span>
+          @if (preview().sessions > 1) {
+            <span class="text-label-large text-on-surface-variant">
+              {{ preview().sessions }} sessions
+            </span>
+          }
+          <span class="text-body-medium text-on-surface-variant">{{ preview().where }}</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="rail-title">Before it goes live</h3>
+        <ul class="m-0 flex list-none flex-col gap-2.5 p-0">
+          @for (item of checklist(); track item.label) {
+            <li class="check" [class.check--done]="item.done">
+              <mat-icon>{{ item.done ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              {{ item.label }}
+            </li>
+          }
+        </ul>
+      </section>
+
+      <p class="tip">
+        Buyers see events within 25 km of them, or at markets they saved. The app never shows an
+        exact point — only the area, within about {{ accuracyKm }} km.
+      </p>
+    </aside>
+  </div>
+
+  <div class="footer">
+    <span class="text-label-large text-on-surface-variant">
+      {{ form.dirty ? 'Unsaved changes' : isEdit() ? 'All changes saved' : 'Not saved yet' }}
+    </span>
+    <div class="flex items-center gap-2">
+      <a matButton routerLink="/events">Cancel</a>
+      @if (facade.event(); as event) {
+        @if (event.timing !== 'ended') {
+          <a
+            matButton="outlined"
+            routerLink="/promotions/new"
+            [queryParams]="{ eventId: event.id }"
+          >
+            Promote this event
+          </a>
+        }
+      }
+      <button matButton="filled" type="button" [disabled]="facade.isSaving()" (click)="save()">
+        {{ isEdit() ? 'Save changes' : 'Save event' }}
+      </button>
+    </div>
+  </div>
+}
