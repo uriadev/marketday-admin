@@ -36,6 +36,7 @@ import {
   AccountFilters,
   AccountRole,
   AccountStatus,
+  AdminEmail,
   SIGN_UP_FILTERS,
   SignUpFilter,
 } from '../../../core/models/account.model';
@@ -45,6 +46,7 @@ import {
   SuspendAccountDialog,
   SuspendAccountDialogData,
 } from '../suspend-account-dialog/suspend-account-dialog';
+import { SendEmailDialog, SendEmailDialogData } from '../send-email-dialog/send-email-dialog';
 
 /** Long enough to let a name be typed, short enough not to feel like lag. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -280,6 +282,26 @@ export class Users {
     this.store.restore(account, (restored) => {
       if (restored.length > 0) this.notifications.success('The account is open again.');
     });
+  }
+
+  protected sendEmail(account: Account): void {
+    const data: SendEmailDialogData = {
+      account,
+      preview: (email) => this.store.previewEmail(account, email),
+    };
+    this.dialog
+      .open<SendEmailDialog, SendEmailDialogData, AdminEmail>(SendEmailDialog, {
+        data,
+        width: '960px',
+        maxWidth: '95vw',
+      })
+      .afterClosed()
+      .subscribe((email) => {
+        if (!email) return;
+        this.store.sendEmail(account, email, () =>
+          this.notifications.success(`Email sent to ${account.email}.`),
+        );
+      });
   }
 
   protected sendPasswordReset(account: Account): void {

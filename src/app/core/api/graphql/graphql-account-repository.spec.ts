@@ -314,4 +314,55 @@ describe('GraphqlAccountRepository commands', () => {
 
     expect(sent).toBe(true);
   });
+
+  it('previews an email with no button as an explicit null pair', () => {
+    let html: string | undefined;
+    repository
+      .previewEmail('user-2', {
+        subject: 'About Saturday',
+        eyebrow: 'From the MarketDay team',
+        heading: 'The market moves indoors',
+        body: 'See you there.',
+        cta: null,
+      })
+      .subscribe((preview) => (html = preview.html));
+
+    const { request, variables } = expectPost('query PreviewAdminEmail');
+    expect(variables).toEqual({
+      userId: 'user-2',
+      input: {
+        subject: 'About Saturday',
+        eyebrow: 'From the MarketDay team',
+        heading: 'The market moves indoors',
+        body: 'See you there.',
+        ctaLabel: null,
+        ctaUrl: null,
+      },
+    });
+    request.flush({ data: { previewAdminEmail: { subject: 'About Saturday', html: '<p>x</p>' } } });
+
+    expect(html).toBe('<p>x</p>');
+  });
+
+  it('sends an email with its button', () => {
+    let sent = false;
+    repository
+      .sendEmail('user-2', {
+        subject: 'About Saturday',
+        eyebrow: 'From the MarketDay team',
+        heading: 'The market moves indoors',
+        body: 'See you there.',
+        cta: { label: 'See the market', url: 'https://marketday.ie/m/1' },
+      })
+      .subscribe(() => (sent = true));
+
+    const { request, variables } = expectPost('mutation SendAdminEmail');
+    expect(variables['input']).toMatchObject({
+      ctaLabel: 'See the market',
+      ctaUrl: 'https://marketday.ie/m/1',
+    });
+    request.flush({ data: { sendAdminEmail: true } });
+
+    expect(sent).toBe(true);
+  });
 });

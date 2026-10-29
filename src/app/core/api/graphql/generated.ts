@@ -24,6 +24,22 @@ export type AccountDeletionLinkInput = {
   token: Scalars['String']['input'];
 };
 
+export type AdminEmailInput = {
+  body: Scalars['String']['input'];
+  ctaLabel?: InputMaybe<Scalars['String']['input']>;
+  ctaUrl?: InputMaybe<Scalars['String']['input']>;
+  eyebrow: Scalars['String']['input'];
+  heading: Scalars['String']['input'];
+  subject: Scalars['String']['input'];
+};
+
+export type AdminEmailPreviewModel = {
+  __typename?: 'AdminEmailPreviewModel';
+  html: Scalars['String']['output'];
+  subject: Scalars['String']['output'];
+  text: Scalars['String']['output'];
+};
+
 export type AdminPromotionModel = {
   __typename?: 'AdminPromotionModel';
   body: Maybe<Scalars['String']['output']>;
@@ -648,6 +664,7 @@ export type Mutation = {
   revokeVendorInvite: Scalars['Boolean']['output'];
   sendVendorOnboardingInvite: VendorOnboardingInviteModel;
   setMarketFavorite: Scalars['Boolean']['output'];
+  sendAdminEmail: Scalars['Boolean']['output'];
   setProductFavorite: Scalars['Boolean']['output'];
   setProductListing: ProductListingModel;
   setProductSoldOut: ProductListingModel;
@@ -954,6 +971,12 @@ export type MutationRevokeVendorInviteArgs = {
 
 export type MutationSendVendorOnboardingInviteArgs = {
   vendorId: Scalars['ID']['input'];
+export type MutationSendAdminEmailArgs = {
+  input: AdminEmailInput;
+  userId: Scalars['ID']['input'];
+};
+
+
 };
 
 
@@ -1449,6 +1472,7 @@ export type Query = {
   pendingVendorInvites: Array<VendorInviteModel>;
   product: Maybe<ProductModel>;
   products: ProductsPage;
+  previewAdminEmail: AdminEmailPreviewModel;
   promotions: Array<PromotionModel>;
   scheduleMarkets: Array<MarketModel>;
   search: SearchResults;
@@ -1620,6 +1644,12 @@ export type QueryPendingVendorInvitesArgs = {
 
 export type QueryProductArgs = {
   id: Scalars['ID']['input'];
+export type QueryPreviewAdminEmailArgs = {
+  input: AdminEmailInput;
+  userId: Scalars['ID']['input'];
+};
+
+
 };
 
 
@@ -2236,6 +2266,22 @@ export type RestoreUserMutation = { __typename?: 'Mutation', restoreUser: { __ty
 
 export type LoginMutationVariables = Exact<{
   input: LoginInput;
+export type PreviewAdminEmailQueryVariables = Exact<{
+  userId: Scalars['ID']['input'];
+  input: AdminEmailInput;
+}>;
+
+
+export type PreviewAdminEmailQuery = { __typename?: 'Query', previewAdminEmail: { __typename?: 'AdminEmailPreviewModel', subject: string, html: string } };
+
+export type SendAdminEmailMutationVariables = Exact<{
+  userId: Scalars['ID']['input'];
+  input: AdminEmailInput;
+}>;
+
+
+export type SendAdminEmailMutation = { __typename?: 'Mutation', sendAdminEmail: boolean };
+
 }>;
 
 

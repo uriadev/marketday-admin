@@ -1,5 +1,11 @@
 import { Observable } from 'rxjs';
-import { Account, AccountDirectoryPage, AccountListQuery } from '../../models/account.model';
+import {
+  Account,
+  AccountDirectoryPage,
+  AccountListQuery,
+  AdminEmail,
+  EmailPreview,
+} from '../../models/account.model';
 
 /**
  * Port for every account that can sign in to anything MarketDay runs (design
@@ -31,4 +37,13 @@ export abstract class AccountRepository {
    * created on someone's behalf and never signed in — this is how they get in.
    */
   abstract sendPasswordReset(email: string): Observable<void>;
+
+  /**
+   * The email `sendEmail` would deliver, rendered in the MarketDay template —
+   * what the compose dialog shows beside the form.
+   */
+  abstract previewEmail(id: string, email: AdminEmail): Observable<EmailPreview>;
+
+  /** Emails the account a message from the MarketDay team. */
+  abstract sendEmail(id: string, email: AdminEmail): Observable<void>;
 }

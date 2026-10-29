@@ -77,7 +77,11 @@ listing filters and aggregates. Users runs end-to-end on `adminUsers` (server-si
 filter pushed down, the header's and menus' counts as aliases in the same document) and
 `suspendUser` / `restoreUser`, all `@Roles(ADMIN)` and added server-side for this screen — a
 suspension signs the account out and is enforced at `AuthService.issueTokens` and `JwtStrategy`;
-"Send password reset" is the public `requestPasswordReset`. Organiser / support agent have no
+"Send password reset" is the public `requestPasswordReset`. "Send email" (row ⋮ menu,
+`features/users/send-email-dialog`) writes one account a message in the backend's MarketDay
+email template: `previewAdminEmail` renders the form into a sandboxed iframe as the admin types,
+`sendAdminEmail` sends it with replies to the support inbox — both `@Roles(ADMIN)`, both refuse a
+suspended account, and the optional button is a label + https link pair. Organiser / support agent have no
 column behind them (every `ADMIN` reads as a platform admin), and Change role, Invite team
 member and Export stay disabled (`docs/backend-api-gaps.md` §1). **Events** and **Promotions** (the backend's What's On context,
 `../backend/specs/market-events-proposal.md`) run end-to-end with no fixture: `features/events`

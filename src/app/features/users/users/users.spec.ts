@@ -13,6 +13,8 @@ import {
   Account,
   AccountDirectoryPage,
   AccountListQuery,
+  AdminEmail,
+  EmailPreview,
 } from '../../../core/models/account.model';
 import { Notifications } from '../../../core/notifications/notifications';
 import { AccountsStore } from '../accounts-store';
@@ -67,6 +69,14 @@ class StubAccountRepository extends AccountRepository {
 
   override sendPasswordReset(email: string): Observable<void> {
     this.resets.push(email);
+    return of(undefined);
+  }
+
+  override previewEmail(_id: string, email: AdminEmail): Observable<EmailPreview> {
+    return of({ subject: email.subject, html: `<h1>${email.heading}</h1>` });
+  }
+
+  override sendEmail(): Observable<void> {
     return of(undefined);
   }
 

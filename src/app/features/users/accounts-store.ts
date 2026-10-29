@@ -11,7 +11,9 @@ import {
   AccountFilters,
   AccountRole,
   AccountStatus,
+  AdminEmail,
   EMPTY_ACCOUNT_FACETS,
+  EmailPreview,
   EMPTY_ACCOUNT_FILTERS,
   hasAccountFilters,
 } from '../../core/models/account.model';
@@ -132,6 +134,29 @@ export class AccountsStore extends PagedCollectionStore<Account, AccountFilters>
       error: (cause: unknown) => {
         this._commandError.set(
           cause instanceof Error ? cause.message : 'The reset email could not be sent.',
+        );
+        this._busy.set(false);
+      },
+    });
+  }
+
+  /** The message as the backend would send it to `account` — nothing is sent. */
+  previewEmail(account: Account, email: AdminEmail): Observable<EmailPreview> {
+    return this.repo.previewEmail(account.id, email);
+  }
+
+  /** `onSent` runs only once the server has handed the message on. */
+  sendEmail(account: Account, email: AdminEmail, onSent: () => void = () => undefined): void {
+    this._busy.set(true);
+    this._commandError.set(null);
+    this.repo.sendEmail(account.id, email).subscribe({
+      next: () => {
+        this._busy.set(false);
+        onSent();
+      },
+      error: (cause: unknown) => {
+        this._commandError.set(
+          cause instanceof Error ? cause.message : 'The email could not be sent.',
         );
         this._busy.set(false);
       },
