@@ -6,26 +6,52 @@ import {
   Account,
   AccountDirectoryPage,
   AccountListQuery,
+  AdminEmail,
+  EmailPreview,
   SignUpFilter,
 } from '../../models/account.model';
 import { GraphqlClient } from './graphql-client';
-import { ADMIN_USERS, RESTORE_USER, SUSPEND_USER } from './operations/account';
+import {
+  ADMIN_USERS,
+  PREVIEW_ADMIN_EMAIL,
+  RESTORE_USER,
+  SEND_ADMIN_EMAIL,
+  SUSPEND_USER,
+} from './operations/account';
 import { REQUEST_PASSWORD_RESET } from './operations/profile';
 import { GQL_ROLE, GQL_STATUS, toAccount } from './mappers/account-mapper';
+import { blankToNull } from './mappers/nullable';
 import {
+  AdminEmailInput,
   AdminUsersQuery,
   AdminUsersQueryVariables,
   FilterInput,
   FilterOperator,
+  PreviewAdminEmailQuery,
+  PreviewAdminEmailQueryVariables,
   RequestPasswordResetMutation,
   RequestPasswordResetMutationVariables,
   RestoreUserMutation,
   RestoreUserMutationVariables,
+  SendAdminEmailMutation,
+  SendAdminEmailMutationVariables,
   SuspendUserMutation,
   SuspendUserMutationVariables,
 } from './generated';
 
 const DAY = 24 * 60 * 60_000;
+
+/** No button goes as an explicit `null` pair, never as empty strings. */
+function toAdminEmailInput(email: AdminEmail): AdminEmailInput {
+  return {
+    subject: email.subject,
+    eyebrow: email.eyebrow,
+    heading: email.heading,
+    body: email.body,
+    ctaLabel: blankToNull(email.cta?.label),
+    ctaUrl: blankToNull(email.cta?.url),
+  };
+}
 
 /**
  * The "Signed up" menu as `createdAt` filters. "This year" starts at
@@ -168,6 +194,24 @@ export class GraphqlAccountRepository extends AccountRepository {
         REQUEST_PASSWORD_RESET,
         { input: { email } },
       )
+      .pipe(map(() => undefined));
+  }
+
+  override previewEmail(id: string, email: AdminEmail): Observable<EmailPreview> {
+    return this.client
+      .request<PreviewAdminEmailQuery, PreviewAdminEmailQueryVariables>(PREVIEW_ADMIN_EMAIL, {
+        userId: id,
+        input: toAdminEmailInput(email),
+      })
+      .pipe(map((result) => result.previewAdminEmail));
+  }
+
+  override sendEmail(id: string, email: AdminEmail): Observable<void> {
+    return this.client
+      .request<SendAdminEmailMutation, SendAdminEmailMutationVariables>(SEND_ADMIN_EMAIL, {
+        userId: id,
+        input: toAdminEmailInput(email),
+      })
       .pipe(map(() => undefined));
   }
 }

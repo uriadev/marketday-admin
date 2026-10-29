@@ -134,8 +134,8 @@ export class VendorInvite implements OnInit {
 
   /**
    * The market this invitation was started from, as a slug, from the query
-   * param (§7) — `/vendors/invite?market=temple-bar`. It seeds the scope, and
-   * sending returns there.
+   * param (§7) — `/vendors/invite?market=temple-bar`. It only seeds the scope:
+   * sending opens the new vendor, wherever it was started from.
    */
   readonly market = input<string>();
 

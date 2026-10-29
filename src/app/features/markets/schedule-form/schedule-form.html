@@ -24,6 +24,19 @@
     </div>
   }
 
+  @if (ended()) {
+    <div
+      class="schedule-form__wide flex gap-3 rounded-xl border border-outline-variant bg-surface-container p-4"
+      role="status"
+    >
+      <mat-icon class="text-error shrink-0">event_busy</mat-icon>
+      <p class="text-body-medium m-0">
+        This pattern has no market days left, so a market on it can’t be published. Move the dates
+        on to this season’s.
+      </p>
+    </div>
+  }
+
   <div>
     <mat-form-field class="w-full">
       <mat-label>Repeats</mat-label>
@@ -89,6 +102,8 @@
           <mat-datepicker #endsOn />
           @if (form().controls.endsOn.hasError('required')) {
             <mat-error>Pick the last trading date</mat-error>
+          } @else {
+            <mat-hint>{{ seasonHint() }}</mat-hint>
           }
         </mat-form-field>
       }
@@ -98,6 +113,8 @@
           <input matInput type="number" min="1" formControlName="endsAfter" />
           @if (form().controls.endsAfter.invalid) {
             <mat-error>Run at least one market</mat-error>
+          } @else {
+            <mat-hint>{{ seasonHint() }}</mat-hint>
           }
         </mat-form-field>
       }

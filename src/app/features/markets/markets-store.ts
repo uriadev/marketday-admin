@@ -6,6 +6,7 @@ import {
   EMPTY_MARKET_FILTERS,
   MarketFilters,
   MarketStatus,
+  MarketStatusFilter,
   MarketSummary,
   TRADING_DAYS,
 } from '../../core/models/market.model';
@@ -45,16 +46,27 @@ export class MarketsStore extends CollectionStore<MarketSummary, MarketFilters> 
     () => this.items().filter((market) => market.tradingToday).length,
   );
 
+  /** Drafts still being set up — last season's markets are counted apart. */
   readonly draftCount = computed(
-    () => this.items().filter((market) => market.status === MarketStatus.Draft).length,
+    () =>
+      this.items().filter((market) => market.status === MarketStatus.Draft && !market.seasonEnded)
+        .length,
   );
 
-  /** "3 trading today · 1 draft waiting on organiser details". */
+  readonly seasonEndedCount = computed(
+    () => this.items().filter((market) => market.seasonEnded).length,
+  );
+
+  /** "3 trading today · 1 draft waiting on organiser details · 1 season ended". */
   readonly summary = computed(() => {
     const parts = [`${this.tradingTodayCount()} trading today`];
     const drafts = this.draftCount();
     if (drafts > 0) {
       parts.push(`${drafts} ${drafts === 1 ? 'draft' : 'drafts'} waiting on organiser details`);
+    }
+    const ended = this.seasonEndedCount();
+    if (ended > 0) {
+      parts.push(`${ended} ${ended === 1 ? 'season' : 'seasons'} ended`);
     }
     return parts.join(' · ');
   });
@@ -72,7 +84,7 @@ export class MarketsStore extends CollectionStore<MarketSummary, MarketFilters> 
     const matches = this.items().filter((market) => {
       if (county !== null && market.county !== county) return false;
       if (day !== null && !market.days.includes(day)) return false;
-      if (status !== null && market.status !== status) return false;
+      if (status !== null && !matchesStatus(market, status)) return false;
       if (needle === '') return true;
       return (
         market.name.toLowerCase().includes(needle) ||
@@ -91,6 +103,24 @@ export class MarketsStore extends CollectionStore<MarketSummary, MarketFilters> 
   );
 }
 
+/**
+ * "Season ended" is its own answer at either stored status, so it is taken out
+ * of the other two: "Draft" is a market still being set up, and "Published" is
+ * one with days still to trade.
+ */
+function matchesStatus(market: MarketSummary, status: MarketStatusFilter): boolean {
+  if (status === 'ENDED') return market.seasonEnded;
+  return !market.seasonEnded && market.status === status;
+}
+
+/** ISO dates compare as strings; a market with no next day sorts after every one that has. */
+function byNextDay(a: MarketSummary, b: MarketSummary): number {
+  if (!a.nextMarketDay || !b.nextMarketDay) {
+    return Number(!a.nextMarketDay) - Number(!b.nextMarketDay);
+  }
+  return a.nextMarketDay.localeCompare(b.nextMarketDay);
+}
+
 /** How full a market is, 0–1. A draft has no stalls, so it sorts last. */
 function fillRate(market: MarketSummary): number {
   const metrics = market.metrics;
@@ -99,7 +129,7 @@ function fillRate(market: MarketSummary): number {
 }
 
 const SORTERS: Record<MarketFilters['sort'], (a: MarketSummary, b: MarketSummary) => number> = {
-  next: (a, b) => a.nextMarketDay.localeCompare(b.nextMarketDay) || a.name.localeCompare(b.name),
+  next: (a, b) => byNextDay(a, b) || a.name.localeCompare(b.name),
   name: (a, b) => a.name.localeCompare(b.name),
   stalls: (a, b) => fillRate(b) - fillRate(a) || a.name.localeCompare(b.name),
 };

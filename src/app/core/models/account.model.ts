@@ -80,6 +80,25 @@ export interface Account {
   suspendedNote: string | null;
 }
 
+/**
+ * A message an admin writes to one account, sent in the MarketDay email
+ * template. `body` is plain text; a blank line starts a new paragraph.
+ */
+export interface AdminEmail {
+  subject: string;
+  eyebrow: string;
+  heading: string;
+  body: string;
+  /** The one button, or `null` for none. */
+  cta: { label: string; url: string } | null;
+}
+
+/** An `AdminEmail` as its recipient would receive it — rendered, not sent. */
+export interface EmailPreview {
+  subject: string;
+  html: string;
+}
+
 /** How far back the "Signed up" menu reaches. */
 export type SignUpFilter = 'any' | 'last30' | 'thisYear' | 'earlier';
 

@@ -105,3 +105,23 @@ export const RESTORE_USER = gql`
     }
   }
 `;
+
+/**
+ * An admin's message to one account, rendered in the MarketDay email template
+ * but not sent — `@Roles(ADMIN)`. Refuses a suspended account, as the send does.
+ */
+export const PREVIEW_ADMIN_EMAIL = gql`
+  query PreviewAdminEmail($userId: ID!, $input: AdminEmailInput!) {
+    previewAdminEmail(userId: $userId, input: $input) {
+      subject
+      html
+    }
+  }
+`;
+
+/** Sends that message — `@Roles(ADMIN)`. Replies reach the support inbox. */
+export const SEND_ADMIN_EMAIL = gql`
+  mutation SendAdminEmail($userId: ID!, $input: AdminEmailInput!) {
+    sendAdminEmail(userId: $userId, input: $input)
+  }
+`;

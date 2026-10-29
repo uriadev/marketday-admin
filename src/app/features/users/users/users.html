@@ -246,6 +246,14 @@
                 mat-menu-item
                 type="button"
                 [disabled]="store.busy() || account.status === 'suspended'"
+                (click)="sendEmail(account)"
+              >
+                Send email
+              </button>
+              <button
+                mat-menu-item
+                type="button"
+                [disabled]="store.busy() || account.status === 'suspended'"
                 (click)="sendPasswordReset(account)"
               >
                 Send password reset

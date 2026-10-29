@@ -1,0 +1,77 @@
+<h2 mat-dialog-title>Email {{ data.account.name }}</h2>
+<mat-dialog-content>
+  <p class="m-0 text-body-medium text-on-surface-variant">
+    To {{ data.account.email }}, in the MarketDay email template. Replies reach the support inbox.
+  </p>
+  <div class="mt-4 grid gap-6 md:grid-cols-2">
+    <form class="flex flex-col" [formGroup]="form" (ngSubmit)="send()">
+      <mat-form-field>
+        <mat-label>Subject</mat-label>
+        <input matInput formControlName="subject" maxlength="150" />
+        <mat-error>Give the email a subject</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Label above the heading</mat-label>
+        <input matInput formControlName="eyebrow" maxlength="40" />
+        <mat-error>Add a short label</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Heading</mat-label>
+        <input matInput formControlName="heading" maxlength="120" />
+        <mat-error>Add a heading</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Message</mat-label>
+        <textarea matInput rows="8" formControlName="body" maxlength="5000"></textarea>
+        <mat-hint>Leave a blank line between paragraphs.</mat-hint>
+        <mat-error>Write the message</mat-error>
+      </mat-form-field>
+      <mat-form-field class="mt-2">
+        <mat-label>Button label (optional)</mat-label>
+        <input matInput formControlName="ctaLabel" maxlength="40" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Button link (optional)</mat-label>
+        <input matInput formControlName="ctaUrl" placeholder="https://" />
+        <mat-error>Use a full https:// link</mat-error>
+      </mat-form-field>
+      @if (form.hasError('halfButton') && (form.touched || form.dirty)) {
+        <p class="m-0 text-body-small text-error" role="alert">
+          A button needs both a label and a link.
+        </p>
+      }
+    </form>
+
+    <section class="flex flex-col" aria-label="Preview">
+      <p class="m-0 mb-2 text-label-large text-on-surface-variant">Preview</p>
+      @let state = preview();
+      @switch (state.kind) {
+        @case ('ready') {
+          <iframe
+            title="Email preview"
+            sandbox=""
+            class="h-140 w-full rounded-xl border border-outline-variant"
+            [srcdoc]="state.html"
+          ></iframe>
+        }
+        @case ('loading') {
+          <mat-progress-bar mode="indeterminate" />
+        }
+        @case ('failed') {
+          <p class="m-0 text-body-small text-error" role="alert">{{ state.message }}</p>
+        }
+        @default {
+          <div
+            class="grid h-140 place-items-center rounded-xl border border-dashed border-outline-variant p-6 text-center text-body-medium text-on-surface-variant"
+          >
+            Fill in the subject, heading and message to see the email.
+          </div>
+        }
+      }
+    </section>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button matButton type="button" mat-dialog-close>Cancel</button>
+  <button matButton="filled" type="button" (click)="send()">Send email</button>
+</mat-dialog-actions>

@@ -30,6 +30,27 @@
       </p>
     </div>
 
+    @if (endedSeason(); as endedOn) {
+      <!-- The backend retired it after its last day: back to draft, roster emptied.
+           Everything else carried over, which is the point — and the risk. -->
+      <div
+        class="flex flex-none gap-3 rounded-large border border-outline-variant bg-surface-container p-4"
+        role="status"
+      >
+        <mat-icon class="shrink-0 text-tertiary">event_repeat</mat-icon>
+        <div class="text-body-medium">
+          <p class="m-0">
+            Last season’s market — it ended on {{ endedOn | date: 'EEE d MMMM y' : 'UTC' }}.
+          </p>
+          <p class="mt-1 mb-0 text-body-small text-on-surface-variant">
+            Give it this season’s dates on the Schedule step and check the description and photos
+            are still current before publishing. Its vendors left when the season ended, so add them
+            back from the market’s Vendors tab once it is live.
+          </p>
+        </div>
+      </div>
+    }
+
     @if (loadError(); as message) {
       <div
         class="flex flex-none items-center gap-3 rounded-large border border-outline-variant p-4 text-body-medium"

@@ -9,6 +9,8 @@ import {
   AccountListQuery,
   AccountRole,
   AccountStatus,
+  AdminEmail,
+  EmailPreview,
   SignUpBucket,
   UserRole,
   matchesAccountFilters,
@@ -424,6 +426,42 @@ export class InMemoryAccountRepository extends AccountRepository {
 
   /** Nothing to send from a fixture; the round trip is the whole behaviour. */
   override sendPasswordReset(): Observable<void> {
+    return of(undefined).pipe(delay(200));
+  }
+
+  /**
+   * A plain stand-in for the backend's template — enough to see the fields
+   * land, not what the recipient gets.
+   */
+  override previewEmail(id: string, email: AdminEmail): Observable<EmailPreview> {
+    const account = this.accounts.get(id);
+    if (!account) return this.gone();
+    const escape = (text: string) =>
+      text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const paragraphs = email.body
+      .split(/\n\s*\n/)
+      .map((paragraph) => `<p>${escape(paragraph.trim())}</p>`)
+      .join('');
+    const button = email.cta
+      ? `<p><a href="${escape(email.cta.url)}">${escape(email.cta.label)}</a></p>`
+      : '';
+    return of({
+      subject: email.subject,
+      html:
+        `<!DOCTYPE html><body style="font-family:sans-serif;padding:24px">` +
+        `<small>${escape(email.eyebrow.toUpperCase())}</small>` +
+        `<h1>${escape(email.heading)}</h1><p>Hi ${escape(account.name)},</p>` +
+        `${paragraphs}${button}</body>`,
+    }).pipe(delay(150));
+  }
+
+  /** Nothing to send from a fixture; the round trip is the whole behaviour. */
+  override sendEmail(id: string): Observable<void> {
+    const account = this.accounts.get(id);
+    if (!account) return this.gone();
+    if (account.status === 'suspended') {
+      return throwError(() => new Error('You cannot email a suspended account.')).pipe(delay(200));
+    }
     return of(undefined).pipe(delay(200));
   }
 

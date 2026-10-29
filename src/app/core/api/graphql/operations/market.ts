@@ -18,6 +18,7 @@ const MARKET_FIELDS = gql`
     status
     marketType
     schedule
+    scheduleEnded
     duration
     location
     tags

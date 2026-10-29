@@ -20,6 +20,7 @@ import {
   WeekVendor,
 } from '../../models/market.model';
 import { IRISH_COUNTIES } from '../../models/location.model';
+import { scheduleHasEnded } from '../../scheduling/recurrence';
 import { VendorSummary } from '../../models/vendor.model';
 import { MarketRepository } from '../ports/market-repository';
 import {
@@ -266,6 +267,8 @@ function buildDetail(market: MarketSummary, overrides: DetailOverrides = {}): Ma
     slug: market.slug,
     name: market.name,
     status: market.status,
+    seasonEnded: market.seasonEnded,
+    seasonEndedOn: null,
     tradingToday: market.tradingToday,
     badgeLabel: market.badgeLabel,
     meta: overrides.meta ?? `${market.when} · next market day ${dayLabel}`,
@@ -517,6 +520,7 @@ const NO_SCHEDULE: MarketSchedulePatch = {
 /** Turns the wizard's payload into the row the directory renders. */
 function draftToSummary(draft: MarketDraft, status: MarketStatus): MarketSummary {
   const published = status === MarketStatus.Published;
+  const seasonEnded = scheduleHasEnded(draft.schedule);
   return {
     id: `mkt-${draft.slug}`,
     slug: draft.slug,
@@ -525,8 +529,9 @@ function draftToSummary(draft: MarketDraft, status: MarketStatus): MarketSummary
     when: summariseWhen(draft.city || draft.county || '', draft),
     days: patternDays(draft.tradingDays),
     status,
+    seasonEnded,
     tradingToday: false,
-    badgeLabel: published ? 'Not trading yet' : 'Draft',
+    badgeLabel: seasonEnded ? 'Season ended' : published ? 'Not trading yet' : 'Draft',
     // A brand-new market has no occurrence yet, so it sorts after the known ones.
     nextMarketDay: '9999-12-31',
     // A market has no pitches until the Stalls tab lays some out.
@@ -682,6 +687,13 @@ export class InMemoryMarketRepository extends MarketRepository {
     if (!draft.slug) {
       return throwError(
         () => new Error('A market needs a public URL before it can be saved.'),
+      ).pipe(delay(300));
+    }
+    // The backend's `MarketScheduleEnded`, word for word.
+    if (status === MarketStatus.Published && scheduleHasEnded(draft.schedule)) {
+      return throwError(
+        () =>
+          new Error('This market’s schedule has ended. Give it new dates before publishing it.'),
       ).pipe(delay(300));
     }
     const summary = draftToSummary(draft, status);
