@@ -1,6 +1,12 @@
 import { MarketDraft, MarketType } from '../../../models/market.model';
-import { MarketType as GqlMarketType } from '../generated';
-import { toCreateVariables, toUpdateVariablesFromSettings } from './market-mapper';
+import { MarketStatus as GqlMarketStatus, MarketType as GqlMarketType } from '../generated';
+import {
+  GqlMarket,
+  toCreateVariables,
+  toMarketDetail,
+  toMarketSummary,
+  toUpdateVariablesFromSettings,
+} from './market-mapper';
 
 /** A wizard payload with every optional field left empty, as a fresh form has it. */
 function draft(overrides: Partial<MarketDraft> = {}): MarketDraft {
@@ -112,5 +118,71 @@ describe('toUpdateVariablesFromSettings', () => {
 
     expect(input.latitude).toBeUndefined();
     expect(input.longitude).toBeUndefined();
+  });
+});
+
+/** Last season's Christmas market, as `adminMarkets` returns it once retired. */
+function endedMarket(overrides: Partial<GqlMarket> = {}): GqlMarket {
+  return {
+    id: 'mkt-1',
+    slug: 'dun-laoghaire-christmas',
+    name: 'Dún Laoghaire Christmas Market',
+    description: null,
+    address: 'Harbour Plaza',
+    city: 'Dún Laoghaire',
+    status: GqlMarketStatus.Draft,
+    marketType: null,
+    schedule: 'DTSTART:20251121T120000Z\nRRULE:FREQ=DAILY;UNTIL=20251223T235959Z',
+    scheduleEnded: true,
+    duration: 540,
+    location: null,
+    tags: [],
+    isActive: true,
+    organiserName: null,
+    organiserPhone: null,
+    stallFeePerDay: null,
+    reviewApplications: false,
+    imageUrl: null,
+    bannerImageUrl: null,
+    occurrences: [],
+    ...overrides,
+  } as GqlMarket;
+}
+
+describe('toMarketSummary', () => {
+  it('badges an ended season before it badges a draft', () => {
+    const summary = toMarketSummary(endedMarket());
+
+    expect(summary.seasonEnded).toBe(true);
+    expect(summary.status).toBe('DRAFT');
+    expect(summary.badgeLabel).toBe('Season ended');
+  });
+
+  it('badges a published market inside its grace period as ended too', () => {
+    const summary = toMarketSummary(endedMarket({ status: GqlMarketStatus.Published }));
+
+    expect(summary.status).toBe('PUBLISHED');
+    expect(summary.badgeLabel).toBe('Season ended');
+  });
+
+  it('leaves a draft whose dates are still to come as a plain draft', () => {
+    const summary = toMarketSummary(endedMarket({ scheduleEnded: false }));
+
+    expect(summary.seasonEnded).toBe(false);
+    expect(summary.badgeLabel).toBe('Draft');
+  });
+});
+
+describe('toMarketDetail', () => {
+  it('says when the season ended and leaves the dates item unticked', () => {
+    const detail = toMarketDetail(endedMarket(), 0);
+
+    expect(detail.seasonEndedOn).toBe('Tue 23 December 2025');
+    expect(detail.meta).toContain('season ended Tue 23 December 2025');
+    expect(detail.checklist.find((item) => item.id === 'dates')?.done).toBe(false);
+  });
+
+  it('has no ended date for a market still trading', () => {
+    expect(toMarketDetail(endedMarket({ scheduleEnded: false }), 0).seasonEndedOn).toBeNull();
   });
 });

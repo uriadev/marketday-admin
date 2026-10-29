@@ -239,6 +239,22 @@ describe('MarketWizard · shell', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it('will not publish a market whose dates have all passed', () => {
+    const repository = TestBed.inject(MarketRepository);
+    const publish = vi.spyOn(repository, 'publish');
+    fillEverything();
+    wizard['scheduleForm'].patchValue({
+      startsOn: new Date(2025, 10, 21),
+      ends: 'ON',
+      endsOn: new Date(2025, 11, 23),
+    });
+
+    wizard['publish']();
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(wizard['stepName']()).toBe('schedule');
+  });
+
   it('publishes the whole draft and opens the new market', async () => {
     const repository = TestBed.inject(MarketRepository);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -255,6 +271,7 @@ describe('MarketWizard · shell', () => {
         when: 'Bantry · Fridays 09:00–15:00',
         days: ['Friday'] as const,
         status: MarketStatus.Published,
+        seasonEnded: false,
         tradingToday: false,
         badgeLabel: 'Not trading yet',
         nextMarketDay: '2026-09-04',

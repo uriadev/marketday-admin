@@ -122,6 +122,23 @@ class FailingMarketRepository extends MarketRepository {
   }
 }
 
+/** Last season's Christmas market, retired to a draft, beside the fixture directory. */
+const ENDED_MARKET: MarketSummary = {
+  ...MARKETS_FIXTURE.find((market) => market.status === MarketStatus.Draft)!,
+  id: 'mkt-christmas',
+  slug: 'christmas-market',
+  name: 'Christmas Market',
+  seasonEnded: true,
+  badgeLabel: 'Season ended',
+  nextMarketDay: '',
+};
+
+class SeasonalMarketRepository extends StubMarketRepository {
+  override list(): Observable<readonly MarketSummary[]> {
+    return of([...MARKETS_FIXTURE, ENDED_MARKET]);
+  }
+}
+
 function storeWith(repo: typeof StubMarketRepository): MarketsStore {
   TestBed.configureTestingModule({
     providers: [MarketsStore, { provide: MarketRepository, useClass: repo }],
@@ -192,6 +209,27 @@ describe('MarketsStore', () => {
     // Kinsale is the only market at 12/12; the draft has no stalls, so it sorts last.
     expect(store.visible()[0]?.slug).toBe('kinsale-harbour');
     expect(store.visible().at(-1)?.slug).toBe('bantry-friday');
+  });
+
+  it('keeps an ended season out of Draft and Published, and gives it a filter of its own', () => {
+    const store = storeWith(SeasonalMarketRepository);
+    store.load();
+
+    expect(store.draftCount()).toBe(1);
+    expect(store.summary()).toContain('1 season ended');
+
+    store.setFilters({ status: MarketStatus.Draft });
+    expect(store.visible().map((m) => m.slug)).toEqual(['bantry-friday']);
+
+    store.setFilters({ status: 'ENDED' });
+    expect(store.visible().map((m) => m.slug)).toEqual(['christmas-market']);
+  });
+
+  it('sorts a market with no next day after every one that has', () => {
+    const store = storeWith(SeasonalMarketRepository);
+    store.load();
+
+    expect(store.visible().at(-1)?.slug).toBe('christmas-market');
   });
 
   it('distinguishes a filtered-empty result from an empty directory', () => {

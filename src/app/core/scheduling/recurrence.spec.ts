@@ -5,8 +5,10 @@ import {
   durationMinutes,
   formatTimeOfDay,
   expandSchedule,
+  lastOccurrence,
   nextOccurrence,
   parseTimeOfDay,
+  scheduleHasEnded,
 } from './recurrence';
 
 /** Saturday 5 September 2026 — the first Saturday of that month. */
@@ -114,12 +116,23 @@ describe('expandSchedule', () => {
     expect(expanded?.gaps).toEqual(['startsOn', 'opensAt']);
   });
 
-  it('falls back to the nearest frequency the select can hold, and says so', () => {
-    const daily = expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=DAILY');
+  it('reads an every-day rule as every week on all seven days, exactly', () => {
+    const daily = expandSchedule(
+      'DTSTART:20261120T120000Z\nRRULE:FREQ=DAILY;UNTIL=20261223T235959Z',
+    );
 
     expect(daily?.recurrence.frequency).toBe('WEEKLY');
-    expect(daily?.recurrence.tradingDays).toEqual([6]);
-    expect(daily?.gaps).toEqual(['frequency']);
+    expect(daily?.recurrence.tradingDays).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(daily?.recurrence.ends).toEqual({ kind: 'ON', date: new Date(2026, 11, 23) });
+    expect(daily?.gaps).toEqual([]);
+  });
+
+  it('falls back to the nearest frequency the select can hold, and says so', () => {
+    const everyOtherDay = expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=DAILY;INTERVAL=2');
+
+    expect(everyOtherDay?.recurrence.frequency).toBe('WEEKLY');
+    expect(everyOtherDay?.recurrence.tradingDays).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(everyOtherDay?.gaps).toEqual(['frequency']);
 
     expect(
       expandSchedule('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;INTERVAL=3;BYDAY=SA')?.gaps,
@@ -182,6 +195,51 @@ describe('nextOccurrence', () => {
 
   it('is null without a rule', () => {
     expect(nextOccurrence('')).toBeNull();
+  });
+});
+
+/** A Christmas run: every day from Fri 20 November to Wed 23 December 2026, noon UTC. */
+const CHRISTMAS = 'DTSTART:20261120T120000Z\nRRULE:FREQ=DAILY;UNTIL=20261223T235959Z';
+
+describe('scheduleHasEnded', () => {
+  it('is false while a bounded run still has days to come', () => {
+    expect(scheduleHasEnded(CHRISTMAS, new Date('2026-11-01T00:00:00Z'))).toBe(false);
+    expect(scheduleHasEnded(CHRISTMAS, new Date('2026-12-23T00:00:00Z'))).toBe(false);
+  });
+
+  it('is true once a bounded run has produced its last day', () => {
+    expect(scheduleHasEnded(CHRISTMAS, new Date('2026-12-24T00:00:00Z'))).toBe(true);
+    expect(
+      scheduleHasEnded(
+        'DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA;COUNT=2',
+        new Date('2026-09-13T00:00:00Z'),
+      ),
+    ).toBe(true);
+  });
+
+  it('is false for a rule that never ends, an unanchored count, or no rule at all', () => {
+    const later = new Date('2030-01-01T00:00:00Z');
+    expect(scheduleHasEnded('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA', later)).toBe(
+      false,
+    );
+    expect(scheduleHasEnded('RRULE:FREQ=DAILY;COUNT=3', later)).toBe(false);
+    expect(scheduleHasEnded('', later)).toBe(false);
+    expect(scheduleHasEnded('not a rule', later)).toBe(false);
+  });
+});
+
+describe('lastOccurrence', () => {
+  it('is the final day of a bounded run', () => {
+    expect(lastOccurrence(CHRISTMAS)?.toISOString()).toBe('2026-12-23T12:00:00.000Z');
+    expect(
+      lastOccurrence('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA;COUNT=3')?.toISOString(),
+    ).toBe('2026-09-19T09:00:00.000Z');
+  });
+
+  it('is null for a rule that never ends', () => {
+    expect(lastOccurrence('DTSTART:20260905T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=SA')).toBeNull();
+    expect(lastOccurrence('RRULE:FREQ=DAILY;COUNT=3')).toBeNull();
+    expect(lastOccurrence('')).toBeNull();
   });
 });
 

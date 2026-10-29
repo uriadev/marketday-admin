@@ -27,7 +27,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
-import { MarketSchedulePatch } from '../../../core/models/market.model';
+import { MarketSchedulePatch, SEASON_RETIRE_AFTER_DAYS } from '../../../core/models/market.model';
 import {
   RecurrenceEnd,
   RecurrenceFrequency,
@@ -37,8 +37,10 @@ import {
   durationMinutes,
   expandSchedule,
   formatTimeOfDay,
+  lastOccurrence,
   nextOccurrence,
   parseTimeOfDay,
+  scheduleHasEnded,
 } from '../../../core/scheduling/recurrence';
 
 export const TRADING_DAYS = [
@@ -312,8 +314,45 @@ export class MarketScheduleForm {
   /** "Every 2 weeks on Saturday, Sunday until December 31, 2026". */
   protected readonly scheduleDescription = computed(() => describeSchedule(this.schedule()));
 
-  /** The date the rule actually starts, which is not always "Starts on". */
-  protected readonly firstMarketDay = computed(() => nextOccurrence(this.schedule()));
+  /**
+   * The date the rule actually starts, which is not always "Starts on". Read
+   * from the beginning of the rule, not from today: a pattern that began last
+   * month still began on its first market day.
+   */
+  protected readonly firstMarketDay = computed(() => nextOccurrence(this.schedule(), new Date(0)));
+
+  /**
+   * The last day of a bounded run — a seasonal market's closing day — or
+   * `null` while "Ends" is Never. Shown under the end control so a date picked
+   * for the run reads back as the day the market actually last trades.
+   */
+  protected readonly lastMarketDay = computed(() => lastOccurrence(this.schedule()));
+
+  /**
+   * Every day of the pattern is behind us. Not a validator: saving an ended
+   * draft is fine (it is how last season's market sits until reused), but
+   * neither the wizard nor the API will publish on it, so the editor says so
+   * while the dates are still in front of the organiser.
+   */
+  protected readonly ended = computed(() => scheduleHasEnded(this.schedule()));
+
+  /**
+   * Under a bounded "Ends": when the run last trades, and what happens after —
+   * the backend takes the market down and empties its roster a few days on.
+   */
+  protected readonly seasonHint = computed(() => {
+    const last = this.lastMarketDay();
+    const lastLine = last
+      ? `Last market day ${last.toLocaleDateString('en-IE', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        })}. `
+      : '';
+    return `${lastLine}${SEASON_RETIRE_AFTER_DAYS} days later it comes off the app and its vendors leave the roster.`;
+  });
 
   /**
    * The earliest closing time the "Closes" picker will offer or accept. A

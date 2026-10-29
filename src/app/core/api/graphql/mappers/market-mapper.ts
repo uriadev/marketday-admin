@@ -18,6 +18,7 @@ import { normaliseCounty } from '../../../models/location.model';
 import {
   describeSchedule,
   formatTimeOfDay,
+  lastOccurrence,
   nextOccurrence,
   expandSchedule,
   parseTimeOfDay,
@@ -79,7 +80,12 @@ function nextMarketDay(market: GqlMarket): string {
   return nextOccurrence(market.schedule)?.toISOString().slice(0, 10) ?? '';
 }
 
+/**
+ * Season first: an ended market is a draft (or about to be one) for a reason
+ * the plain "Draft" badge would hide — it is last season's, ready to reuse.
+ */
 function badgeLabel(market: GqlMarket, tradingToday: boolean): string {
+  if (market.scheduleEnded) return 'Season ended';
   if (market.status === 'DRAFT') return 'Draft';
   if (tradingToday) return 'Trading';
   const opensAt = expandSchedule(market.schedule)?.recurrence.opensAt;
@@ -118,6 +124,7 @@ export function toMarketSummary(market: GqlMarket): MarketSummary {
     when: whenLabel(market, days),
     days,
     status: market.status === 'PUBLISHED' ? MarketStatus.Published : MarketStatus.Draft,
+    seasonEnded: market.scheduleEnded,
     tradingToday,
     badgeLabel: badgeLabel(market, tradingToday),
     nextMarketDay: nextMarketDay(market),
@@ -141,16 +148,26 @@ export function toMarketDetail(market: GqlMarket, vendorCount: number): MarketDe
       label: 'Trading pattern set',
       done: Boolean(expandSchedule(market.schedule)),
     },
+    { id: 'dates', label: 'Market days still to come', done: !market.scheduleEnded },
     { id: 'published', label: 'Published', done: market.status === 'PUBLISHED' },
   ];
+  const seasonEndedOn = market.scheduleEnded ? endedOnLabel(market.schedule) : null;
   return {
     id: market.id,
     slug: market.slug,
     name: market.name,
     status: summary.status,
+    seasonEnded: summary.seasonEnded,
+    seasonEndedOn,
     tradingToday: summary.tradingToday,
     badgeLabel: summary.badgeLabel,
-    meta: `${market.address}, ${market.city} · ${daysLabel(summary.days)}`,
+    meta: [
+      `${market.address}, ${market.city}`,
+      daysLabel(summary.days),
+      seasonEndedOn ? `season ended ${seasonEndedOn}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
     marketDayLabel: describeSchedule(market.schedule),
     vendorCount,
     stats: [
@@ -168,6 +185,22 @@ export function toMarketDetail(market: GqlMarket, vendorCount: number): MarketDe
     checklist,
     activity: [],
   };
+}
+
+/**
+ * "Wed 23 December" for the rule's last day. Formatted in UTC because the
+ * composer writes the calendar date as a UTC instant (`core/scheduling`).
+ */
+function endedOnLabel(schedule: string): string | null {
+  const last = lastOccurrence(schedule);
+  if (!last) return null;
+  return last.toLocaleDateString('en-IE', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 /**

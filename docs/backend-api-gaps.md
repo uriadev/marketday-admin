@@ -293,7 +293,7 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
     nor a default `limit` — an omitted `criteria` is an unbounded scan. `vendors`/`products`
     already return `{ items, totalCount }` via `Paginated<T>`; `adminMarkets` should too.
 
-15. ~~**No single-record admin read for events or promotions.**~~ **Closed.** The What's On
+12. ~~**No single-record admin read for events or promotions.**~~ **Closed.** The What's On
     context (`../backend/specs/market-events-proposal.md`) shipped with `adminEvents` /
     `adminPromotions` pages and every write, but the only single-event read was the public
     `event(id)`, which answers `null` for a draft, an ended event or one whose venue is not live
@@ -311,6 +311,24 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
     nationwide promotion's `reachLatitude`/`reachLongitude`/`reachRadiusKm` must be **omitted**,
     because the backend refuses those keys when they are `!== undefined` — `null` included. And
     `UpdateEventInput.areaName` is never sent as `null`, since `revise` trims it.
+
+13. **Seasonal markets: what retirement leaves to the admin.** The backend retires a market
+    whose bounded schedule has run out (`../backend/specs/seasonal-markets.md`):
+    `SEASON_RETIRE_AFTER_DAYS` (3) after its last day it goes back to `DRAFT` and every vendor
+    leaves its roster. `MarketModel.scheduleEnded` lets the console badge it "Season ended",
+    filter on it, and lead the admin to new dates (wizard, schedule step). `createMarket` /
+    `updateMarket` refuse to publish on an ended rule (`MarketScheduleEnded`). The wizard
+    checks that first with `scheduleHasEnded` in `core/scheduling/recurrence.ts` and surfaces
+    the server's message when the server refuses anyway. Still open server-side:
+    - **Last season's roster is not kept.** Leaving deletes the `vendor_markets` rows, so
+      vendors are added back one by one with _Add existing vendor_. Nothing can offer "re-invite
+      last season's vendors".
+    - **Vendors are not told** when a season ends. Their stall just disappears (the spec's open
+      question; it would be a new `NotificationType`).
+    - **Ended drafts are not retired.** The top-up visits published markets only, so a draft
+      with an ended rule and joined vendors keeps billing them. The "Season ended" badge is the
+      only thing that makes this visible.
+    - **One `duration` per market.** "4–9pm weekdays, 12–9pm weekends" still needs two markets.
 
 ## Deployment precondition
 
@@ -382,7 +400,7 @@ marketId:)` (`@Public()`) backs each membership's status on the Markets tab, one
     listing filter (or `soldOut` / `carriedAt` arguments on `products`), a stock-summary query
     per vendor, and `setVendorMarketListings`-style bulk mutations.
 
-16. **A promotion's serving state cannot be filtered on.** `AdminPromotionModel.servingState`
+15. **A promotion's serving state cannot be filtered on.** `AdminPromotionModel.servingState`
     (`DRAFT | UPCOMING | LIVE | PAUSED | ENDED | SUBJECT_HIDDEN`) is derived per row from the
     clock and the subject's visibility, not stored, so it is not in `FILTERABLE_FIELDS`. The
     Promotions list filters, and counts, on the stored `status` (`DRAFT | SCHEDULED | PAUSED`),

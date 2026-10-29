@@ -145,7 +145,11 @@ function readFrequency(options: RuleOptions, gaps: Set<ScheduleGap>): Recurrence
     if (interval > 1) gaps.add('frequency');
     return 'MONTHLY';
   }
-  // Daily, yearly, and everything below a day. Weekly is the nearest thing the
+  // Every day — how a Christmas market's run is usually written — is exactly
+  // "every week" with all seven days picked (see `readTradingDays`), so it
+  // loads without a gap. Every other day and beyond has no such reading.
+  if (options.freq === RRule.DAILY && interval === 1) return 'WEEKLY';
+  // Yearly, and everything below a day. Weekly is the nearest thing the
   // select can hold; the gap is what stops that standing as the truth.
   gaps.add('frequency');
   return 'WEEKLY';
@@ -163,7 +167,7 @@ function readFrequency(options: RuleOptions, gaps: Set<ScheduleGap>): Recurrence
  * one, so the field is left empty for an organiser to fill rather than invented.
  */
 function readStart(rule: RRule, gaps: Set<ScheduleGap>): { startsOn: Date; opensAt: string } {
-  const dtstart = rule.origOptions.dtstart || new Date();
+  const dtstart = rule.origOptions.dtstart;
   if (dtstart) {
     return {
       startsOn: localDate(dtstart),
@@ -191,6 +195,7 @@ function readTradingDays(
 ): number[] {
   const byweekday = normaliseDays(toArray(options.byweekday).map((day) => isoWeekday(day)));
   if (byweekday.length) return byweekday;
+  if (options.freq === RRule.DAILY) return [1, 2, 3, 4, 5, 6, 7];
   if (frequency === 'MONTHLY') gaps.add('tradingDays');
   return [isoWeekdayOf(startsOn)];
 }
@@ -263,6 +268,52 @@ export function nextOccurrence(text: string, from: Date = new Date()): Date | nu
     return null;
   }
 }
+
+/**
+ * Whether a rule can produce no further market day after `now` — a seasonal
+ * run (`UNTIL` or `COUNT`) that has run out, like a Christmas market in
+ * January. Mirrors the backend's `scheduleHasEnded`
+ * (`../backend/src/markets/domain/market-schedule.ts`), which is what refuses
+ * to publish a market on such a rule, so the console can say so before asking.
+ *
+ * An unbounded rule never ends, and neither does a `COUNT` with no `DTSTART`:
+ * the parser anchors that at the wall clock every time it reads it. A rule that
+ * does not parse is not "ended" either. For a stored market, the server's own
+ * `scheduleEnded` is the answer; this is for a rule still being edited.
+ */
+export function scheduleHasEnded(text: string, now: Date = new Date()): boolean {
+  const rule = toRule(text);
+  if (!rule) return false;
+  const { count, until, dtstart } = rule.origOptions;
+  if (!count && !until) return false;
+  if (count && !dtstart) return false;
+  try {
+    return rule.after(now) === null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The last market day of a bounded rule, or `null` for one that never ends —
+ * what "Season ended on …" and "Last market day …" are read from. Capped so a
+ * rule with an absurd `COUNT` cannot hang the editor; past the cap the answer
+ * is the last day within it.
+ */
+export function lastOccurrence(text: string): Date | null {
+  const rule = toRule(text);
+  if (!rule) return null;
+  const { count, until, dtstart } = rule.origOptions;
+  if ((!count && !until) || (count && !dtstart)) return null;
+  try {
+    const days = rule.all((_, index) => index < LAST_OCCURRENCE_CAP);
+    return days.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const LAST_OCCURRENCE_CAP = 5000;
 
 /**
  * Minutes a market is open, which the backend stores as `duration`. Zero when

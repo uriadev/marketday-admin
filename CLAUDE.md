@@ -64,7 +64,17 @@ server-side while the truck still hosts stops), and the directory has a Food tru
 `markets` rows with `kind = FOOD_TRUCK_STOP`, created by its owner in the vendor app; they
 come back in `VendorModel.markets`, so the Markets tab lists them apart and read-only
 (`leaveMarket` refuses the host's own stop), and `MarketRepository.list()` filters
-`adminMarkets` to `PUBLIC_MARKET` so they never appear as markets. Products runs end-to-end — `products(vendorId:)`
+`adminMarkets` to `PUBLIC_MARKET` so they never appear as markets. Markets can be **seasonal** (a Christmas
+market: a bounded RRULE, `UNTIL` / `COUNT`, `../backend/specs/seasonal-markets.md`). Three days
+after the last day the backend retires the market: it goes back to `DRAFT` and its whole roster
+leaves, which stops the vendors' fees. It is kept for reuse. `MarketModel.scheduleEnded` drives
+a "Season ended" badge and status filter in the directory. That badge replaces "Draft", and
+ended drafts are not counted as drafts. The manage screen shows a notice, and an ended draft's
+card offers "Set new dates", which opens the wizard on its schedule step. Publishing on an ended
+rule is refused, first by the wizard (`scheduleHasEnded` in `core/scheduling/recurrence.ts`) and
+then by the API (`MarketScheduleEnded`, whose message the wizard surfaces). The editor reads
+`FREQ=DAILY` as weekly on all seven days. Vendors are added back by hand
+(`docs/backend-api-gaps.md` §17). Products runs end-to-end — `products(vendorId:)`
 and `vendor(id)` for the grid, the product mutations (widened to `@Roles(VENDOR, ADMIN)`
 server-side) for every write; `GraphqlProductRepository` keeps a private
 `InMemoryProductRepository` primed from the real read to reconstruct the shapes the port hands

@@ -10,6 +10,14 @@ export enum MarketStatus {
   Published = 'PUBLISHED',
 }
 
+/**
+ * Days after a seasonal market's last day before the backend retires it — back
+ * to draft, every vendor off its roster. Mirrors `SEASON_RETIRE_AFTER_DAYS` in
+ * `../backend/src/markets/domain/market-schedule.ts`; the console only uses it
+ * for copy, never to decide anything.
+ */
+export const SEASON_RETIRE_AFTER_DAYS = 3;
+
 /** Mirrors the backend's `MarketType`. */
 export enum MarketType {
   FoodProduce = 'FOOD_PRODUCE',
@@ -17,6 +25,7 @@ export enum MarketType {
   Farmers = 'FARMERS',
   Vintage = 'VINTAGE',
   Mixed = 'MIXED',
+  Seasonal = 'SEASONAL',
 }
 
 /** Human labels for {@link MarketType}, for the wizard's select. */
@@ -26,6 +35,7 @@ export const MARKET_TYPE_LABELS: Record<MarketType, string> = {
   [MarketType.Farmers]: 'Farmers',
   [MarketType.Vintage]: 'Vintage',
   [MarketType.Mixed]: 'Mixed',
+  [MarketType.Seasonal]: 'Seasonal (Christmas, festivals)',
 };
 
 export type TradingDay =
@@ -60,9 +70,15 @@ export interface MarketSummary {
   when: string;
   days: readonly TradingDay[];
   status: MarketStatus;
+  /**
+   * The schedule is a bounded run that has produced its last day — last
+   * season's Christmas market. Published only for the few days before the
+   * backend retires it to a draft; after that, a draft ready to reuse.
+   */
+  seasonEnded: boolean;
   /** True when one of this market's trading days is today. */
   tradingToday: boolean;
-  /** Badge copy — "Trading", "Opens 09:00", "Draft". */
+  /** Badge copy — "Trading", "Opens 09:00", "Draft", "Season ended". */
   badgeLabel: string;
   /** ISO date of the next market day; the default sort key. */
   nextMarketDay: string;
@@ -75,9 +91,15 @@ export interface MarketFilters {
   q: string;
   county: string | null;
   day: TradingDay | null;
-  status: MarketStatus | null;
+  /**
+   * `ENDED` is not a stored status: it is {@link MarketSummary.seasonEnded} at
+   * either one, so "Draft" means a draft whose dates are still to come.
+   */
+  status: MarketStatusFilter | null;
   sort: MarketSort;
 }
+
+export type MarketStatusFilter = MarketStatus | 'ENDED';
 
 export type MarketSort = 'next' | 'name' | 'stalls';
 
@@ -176,6 +198,10 @@ export interface MarketDetail {
   slug: string;
   name: string;
   status: MarketStatus;
+  /** See {@link MarketSummary.seasonEnded}. */
+  seasonEnded: boolean;
+  /** The last market day of an ended season — "Wed 23 December". `null` otherwise. */
+  seasonEndedOn: string | null;
   tradingToday: boolean;
   badgeLabel: string;
   /** "Meeting House Square, Dublin 2 · Saturdays 09:00–14:30 · next market day Sat 22 August". */

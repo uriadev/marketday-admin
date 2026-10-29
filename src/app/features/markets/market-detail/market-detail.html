@@ -45,6 +45,44 @@
       </div>
     </div>
 
+    @if (data.seasonEnded) {
+      <!-- What the backend does to a market whose schedule has run out
+           (`../backend/specs/seasonal-markets.md`), said before or after it happens. -->
+      <div
+        class="mt-4 flex items-start gap-3 rounded-large border border-outline-variant bg-surface-container p-4"
+        role="status"
+      >
+        <mat-icon class="shrink-0 text-tertiary">event_repeat</mat-icon>
+        <div class="min-w-0 flex-1 text-body-medium">
+          @if (data.status === MarketStatus.Published) {
+            <p class="m-0">
+              The season ended{{ data.seasonEndedOn ? ' on ' + data.seasonEndedOn : '' }}.
+            </p>
+            <p class="mt-1 mb-0 text-body-small text-on-surface-variant">
+              {{ retireAfterDays }} days after its last day it comes off the app and every vendor
+              leaves its roster, which stops their fee for it. The market itself is kept as a draft
+              to reuse next season.
+            </p>
+          } @else {
+            <p class="m-0">Last season’s market.</p>
+            <p class="mt-1 mb-0 text-body-small text-on-surface-variant">
+              Give it this season’s dates, then publish it again. Its vendors left when the season
+              ended and need adding back, and the description and photos are last year’s.
+            </p>
+          }
+        </div>
+        @if (data.status === MarketStatus.Draft) {
+          <a
+            matButton="tonal"
+            class="shrink-0"
+            [routerLink]="['/markets', data.slug, 'edit']"
+            [queryParams]="{ step: 'schedule' }"
+            >Set new dates</a
+          >
+        }
+      </div>
+    }
+
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="tabs">
       <a
         mat-tab-link

@@ -433,7 +433,7 @@ describe('VendorInvite', () => {
     expect(vendors.sent).toBeUndefined();
   });
 
-  it('sends the whole invitation and returns to the directory', () => {
+  it('sends the whole invitation and opens the new vendor', () => {
     const fixture = open();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     fill(fixture);
@@ -446,7 +446,7 @@ describe('VendorInvite', () => {
     expect(vendors.sent?.trade).toBe('Cheese & dairy');
     expect(vendors.sent?.marketSlugs).toEqual(['bantry-friday']);
     expect(vendors.sent?.skipApplicationReview).toBe(false);
-    expect(navigate).toHaveBeenCalledWith(['/vendors']);
+    expect(navigate).toHaveBeenCalledWith(['/vendors', 'coolea-cheese-co']);
   });
 
   it('sends the review choice as it stands, so a skipped review opens the vendor', () => {
@@ -460,7 +460,7 @@ describe('VendorInvite', () => {
     expect(vendors.sent?.skipApplicationReview).toBe(true);
   });
 
-  it('sends the seeded market and returns to that market, when opened from one', () => {
+  it('sends the seeded market and opens the new vendor, when opened from a market', () => {
     const fixture = open('temple-bar');
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     fill(fixture);
@@ -468,7 +468,8 @@ describe('VendorInvite', () => {
     fixture.componentInstance['send']();
 
     expect(vendors.sent?.marketSlugs).toEqual(['temple-bar']);
-    expect(navigate).toHaveBeenCalledWith(['/markets', 'temple-bar', 'vendors']);
+    // The vendor's page, not back to the market: it is where the admin goes next.
+    expect(navigate).toHaveBeenCalledWith(['/vendors', 'coolea-cheese-co']);
   });
 
   it('"Save and add another" keeps the access choices and clears who it is for', () => {

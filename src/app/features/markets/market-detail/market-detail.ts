@@ -9,7 +9,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { PageHeader } from '../../../shared/components/page-header/page-header';
 import { StatusPill } from '../../../shared/components/status-pill/status-pill';
 import { Avatar } from '../../../shared/components/avatar/avatar';
-import { MarketStatus } from '../../../core/models/market.model';
+import { MarketStatus, SEASON_RETIRE_AFTER_DAYS } from '../../../core/models/market.model';
 import { MarketDetailFacade } from '../market-detail-facade';
 import { MatBadgeModule } from '@angular/material/badge';
 
@@ -49,9 +49,13 @@ export class MarketDetail {
   protected readonly badgeTone = computed<'positive' | 'muted' | 'warn'>(() => {
     const market = this.market();
     if (!market) return 'muted';
+    if (market.seasonEnded) return 'muted';
     if (market.status === MarketStatus.Draft) return 'warn';
     return market.tradingToday && market.badgeLabel === 'Trading' ? 'positive' : 'muted';
   });
+
+  protected readonly MarketStatus = MarketStatus;
+  protected readonly retireAfterDays = SEASON_RETIRE_AFTER_DAYS;
 
   constructor() {
     effect(() => this.facade.load(this.slug()));

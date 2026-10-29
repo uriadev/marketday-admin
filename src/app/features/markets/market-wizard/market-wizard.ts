@@ -8,6 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -22,6 +23,8 @@ import {
   ScheduleGap,
   describeSchedule,
   formatTimeOfDay,
+  lastOccurrence,
+  scheduleHasEnded,
 } from '../../../core/scheduling/recurrence';
 import { Notifications } from '../../../core/notifications/notifications';
 import { PageHeader } from '../../../shared/components/page-header/page-header';
@@ -72,6 +75,7 @@ const STEP_LABELS: Record<StepName, string> = {
   selector: 'md-market-wizard',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DatePipe,
     RouterLink,
     ReactiveFormsModule,
     MatButtonModule,
@@ -117,6 +121,15 @@ export class MarketWizard {
 
   /** That market's stored duration — see `MarketScheduleForm.durationMinutes`. */
   protected readonly scheduleDuration = signal(0);
+
+  /**
+   * The last day of the season a continued market has already finished — set
+   * when the stored rule had run out, which is how the backend leaves last
+   * season's market once it retires it (`../backend/specs/seasonal-markets.md`).
+   * `null` for anything else. Read from the stored rule rather than the API's
+   * `scheduleEnded` so `draft()` keeps the shape both adapters already return.
+   */
+  protected readonly endedSeason = signal<Date | null>(null);
 
   /**
    * Address, the town it is in, and the point the API stores. `latitude` and
@@ -189,6 +202,9 @@ export class MarketWizard {
     };
   });
 
+  /** The rule as it stands has no market day left — the backend will not publish it. */
+  protected readonly scheduleEnded = computed(() => scheduleHasEnded(this.schedule()));
+
   protected readonly checklist = computed(() => {
     const details = this.detailsValue();
     const location = this.locationValue();
@@ -197,6 +213,7 @@ export class MarketWizard {
         label: 'Name, address and hours',
         done: !!details.name && !!location.address && location.latitude !== null,
       },
+      { label: 'Market days still to come', done: !!this.schedule() && !this.scheduleEnded() },
       { label: 'Stall fee', done: details.stallFeePerDay !== null },
       { label: 'Cover photo', done: !!details.imageUrl },
       { label: 'Banner image', done: !!details.bannerUrl },
@@ -236,6 +253,9 @@ export class MarketWizard {
         seedDetailsForm(this.detailsForm, stored);
         this.scheduleGaps.set(seedScheduleForm(this.scheduleForm, stored));
         this.scheduleDuration.set(stored.duration);
+        this.endedSeason.set(
+          scheduleHasEnded(stored.schedule) ? lastOccurrence(stored.schedule) : null,
+        );
         seedLocationForm(this.locationForm, stored);
         this.loading.set(false);
         this.savedAt.set('earlier');
@@ -304,6 +324,15 @@ export class MarketWizard {
       this.notifications.error('Some required details are still missing.');
       return;
     }
+    // The backend refuses this too (`MarketScheduleEnded`); saying so here
+    // lands the organiser on the step that fixes it instead of a failed save.
+    if (this.scheduleEnded()) {
+      this.onStepChange(STEPS.indexOf('schedule'));
+      this.notifications.error(
+        'This market’s dates have all passed. Give it new dates before publishing it.',
+      );
+      return;
+    }
     this.persist('PUBLISHED');
   }
 
@@ -339,9 +368,13 @@ export class MarketWizard {
           this.notifications.info('Draft saved.');
         }
       },
-      error: () => {
+      // The API's own refusal — an ended schedule, a slug already taken — is
+      // worth more than a generic retry prompt.
+      error: (cause: unknown) => {
         this.saving.set(false);
-        this.notifications.error("That didn't save. Try again.");
+        this.notifications.error(
+          cause instanceof Error && cause.message ? cause.message : "That didn't save. Try again.",
+        );
       },
     });
   }

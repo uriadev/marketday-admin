@@ -72,13 +72,7 @@
       </mat-menu>
 
       <button matButton="outlined" type="button" [matMenuTriggerFor]="statusMenu">
-        {{
-          filters().status === MarketStatus.Draft
-            ? 'Draft'
-            : filters().status
-              ? 'Published'
-              : 'Status'
-        }}
+        {{ statusLabel() }}
         <mat-icon iconPositionEnd>expand_more</mat-icon>
       </button>
       <mat-menu #statusMenu="matMenu">
@@ -88,6 +82,9 @@
         </button>
         <button mat-menu-item type="button" (click)="setParam({ status: MarketStatus.Draft })">
           Draft
+        </button>
+        <button mat-menu-item type="button" (click)="setParam({ status: 'ENDED' })">
+          Season ended
         </button>
       </mat-menu>
 
@@ -155,7 +152,21 @@
                     <span class="metric-label">Enquiries</span>
                   </span>
                 }
-                @if (market.status === MarketStatus.Draft) {
+                @if (market.seasonEnded && market.status === MarketStatus.Draft) {
+                  <!-- Retired by the backend once its last day passed: the record
+                       carries over, so reusing it is a matter of new dates. -->
+                  <span class="text-body-medium text-on-surface-variant"
+                    >Last season’s market — set new dates to reuse it</span
+                  >
+                  <a
+                    matButton="filled"
+                    class="ml-auto"
+                    [routerLink]="['/markets', market.slug, 'edit']"
+                    [queryParams]="{ step: 'schedule' }"
+                  >
+                    Set new dates
+                  </a>
+                } @else if (market.status === MarketStatus.Draft) {
                   <span class="text-body-medium text-on-surface-variant"
                     >Awaiting organiser details and stall map</span
                   >

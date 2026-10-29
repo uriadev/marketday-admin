@@ -26,6 +26,7 @@ import {
   MARKET_SORTS,
   MarketFilters,
   MarketStatus,
+  MarketStatusFilter,
   MarketSummary,
   MarketSort,
   TradingDay,
@@ -72,7 +73,7 @@ export class Markets implements OnInit {
   readonly q = input<string>();
   readonly county = input<string>();
   readonly day = input<TradingDay>();
-  readonly status = input<MarketStatus>();
+  readonly status = input<MarketStatusFilter>();
   readonly sort = input<MarketSort>();
 
   protected readonly MarketStatus = MarketStatus;
@@ -85,6 +86,13 @@ export class Markets implements OnInit {
     status: this.status() ?? null,
     sort: this.sort() ?? 'next',
   }));
+
+  protected readonly statusLabel = computed(() => {
+    const status = this.filters().status;
+    if (status === 'ENDED') return 'Season ended';
+    if (status === MarketStatus.Draft) return 'Draft';
+    return status ? 'Published' : 'Status';
+  });
 
   protected readonly sortLabel = computed(
     () => MARKET_SORTS.find((option) => option.value === this.filters().sort)?.label ?? 'Sort',
@@ -122,8 +130,13 @@ export class Markets implements OnInit {
     this.setParam({ q: value === '' ? null : value });
   }
 
-  /** "Trading" is the only green badge; a draft warns, anything else is quiet. */
+  /**
+   * "Trading" is the only green badge; a draft warns, anything else is quiet —
+   * including last season's market, which is waiting on next year, not on
+   * anyone's attention.
+   */
   protected badgeTone(market: MarketSummary): 'positive' | 'muted' | 'warn' {
+    if (market.seasonEnded) return 'muted';
     if (market.status === MarketStatus.Draft) return 'warn';
     return market.tradingToday && market.badgeLabel === 'Trading' ? 'positive' : 'muted';
   }
