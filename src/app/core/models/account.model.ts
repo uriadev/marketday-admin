@@ -82,13 +82,14 @@ export interface Account {
 
 /**
  * A message an admin writes to one account, sent in the MarketDay email
- * template. `body` is plain text; a blank line starts a new paragraph.
+ * template. `bodyHtml` comes from the dialog's editor; the backend keeps only
+ * paragraphs, emphasis, lists, quotes and https/mailto links.
  */
 export interface AdminEmail {
   subject: string;
   eyebrow: string;
   heading: string;
-  body: string;
+  bodyHtml: string;
   /** The one button, or `null` for none. */
   cta: { label: string; url: string } | null;
 }

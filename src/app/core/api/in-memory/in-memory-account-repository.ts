@@ -438,10 +438,9 @@ export class InMemoryAccountRepository extends AccountRepository {
     if (!account) return this.gone();
     const escape = (text: string) =>
       text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const paragraphs = email.body
-      .split(/\n\s*\n/)
-      .map((paragraph) => `<p>${escape(paragraph.trim())}</p>`)
-      .join('');
+    // The editor's own markup, less anything that could run; the sandboxed
+    // preview would not run it either.
+    const body = email.bodyHtml.replace(/<\/?(script|iframe|object|embed)[^>]*>/gi, '');
     const button = email.cta
       ? `<p><a href="${escape(email.cta.url)}">${escape(email.cta.label)}</a></p>`
       : '';
@@ -451,7 +450,7 @@ export class InMemoryAccountRepository extends AccountRepository {
         `<!DOCTYPE html><body style="font-family:sans-serif;padding:24px">` +
         `<small>${escape(email.eyebrow.toUpperCase())}</small>` +
         `<h1>${escape(email.heading)}</h1><p>Hi ${escape(account.name)},</p>` +
-        `${paragraphs}${button}</body>`,
+        `${body}${button}</body>`,
     }).pipe(delay(150));
   }
 

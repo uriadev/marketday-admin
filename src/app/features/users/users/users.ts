@@ -292,7 +292,7 @@ export class Users {
     this.dialog
       .open<SendEmailDialog, SendEmailDialogData, AdminEmail>(SendEmailDialog, {
         data,
-        width: '960px',
+        width: '1080px',
         maxWidth: '95vw',
       })
       .afterClosed()

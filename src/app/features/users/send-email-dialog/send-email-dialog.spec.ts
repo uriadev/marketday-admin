@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { FormControlName } from '@angular/forms';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { of } from 'rxjs';
@@ -33,10 +35,21 @@ function type(fixture: ReturnType<typeof open>, name: string, value: string) {
   fixture.detectChanges();
 }
 
+/** The message is a rich-text editor, not an input: set through its control. */
+function write(fixture: ReturnType<typeof open>, html: string) {
+  const control = fixture.debugElement
+    .queryAll(By.directive(FormControlName))
+    .map((element) => element.injector.get(FormControlName))
+    .find((directive) => directive.name === 'bodyHtml')!;
+  control.control.setValue(html);
+  control.control.markAsTouched();
+  fixture.detectChanges();
+}
+
 function fillRequired(fixture: ReturnType<typeof open>) {
   type(fixture, 'subject', 'About Saturday');
   type(fixture, 'heading', 'The market moves indoors');
-  type(fixture, 'body', 'First paragraph.\n\nSecond paragraph.');
+  write(fixture, '<p>First paragraph.</p><p>Second paragraph.</p>');
 }
 
 function sendButton(fixture: ReturnType<typeof open>): HTMLButtonElement {
@@ -91,7 +104,7 @@ describe('SendEmailDialog', () => {
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
-        body: 'First paragraph.\n\nSecond paragraph.',
+        bodyHtml: '<p>First paragraph.</p><p>Second paragraph.</p>',
         cta: null,
       },
     ]);

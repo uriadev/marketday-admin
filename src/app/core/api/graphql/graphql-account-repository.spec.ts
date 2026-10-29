@@ -322,7 +322,7 @@ describe('GraphqlAccountRepository commands', () => {
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
-        body: 'See you there.',
+        bodyHtml: '<p>See you there.</p>',
         cta: null,
       })
       .subscribe((preview) => (html = preview.html));
@@ -334,7 +334,7 @@ describe('GraphqlAccountRepository commands', () => {
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
-        body: 'See you there.',
+        bodyHtml: '<p>See you there.</p>',
         ctaLabel: null,
         ctaUrl: null,
       },
@@ -351,7 +351,7 @@ describe('GraphqlAccountRepository commands', () => {
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
-        body: 'See you there.',
+        bodyHtml: '<p>See you there.</p>',
         cta: { label: 'See the market', url: 'https://marketday.ie/m/1' },
       })
       .subscribe(() => (sent = true));

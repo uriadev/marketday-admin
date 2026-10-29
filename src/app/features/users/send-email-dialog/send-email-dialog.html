@@ -1,73 +1,98 @@
 <h2 mat-dialog-title>Email {{ data.account.name }}</h2>
 <mat-dialog-content>
   <p class="m-0 text-body-medium text-on-surface-variant">
-    To {{ data.account.email }}, in the MarketDay email template. Replies reach the support inbox.
+    In the MarketDay email template. Replies reach the support inbox.
   </p>
-  <div class="mt-4 grid gap-6 md:grid-cols-2">
-    <form class="flex flex-col" [formGroup]="form" (ngSubmit)="send()">
-      <mat-form-field>
+  <div class="mt-5 grid gap-6 md:grid-cols-2">
+    <form class="flex min-w-0 flex-col gap-4" [formGroup]="form" (ngSubmit)="send()">
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Subject</mat-label>
         <input matInput formControlName="subject" maxlength="150" />
         <mat-error>Give the email a subject</mat-error>
       </mat-form-field>
-      <mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Label above the heading</mat-label>
         <input matInput formControlName="eyebrow" maxlength="40" />
         <mat-error>Add a short label</mat-error>
       </mat-form-field>
-      <mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Heading</mat-label>
         <input matInput formControlName="heading" maxlength="120" />
         <mat-error>Add a heading</mat-error>
       </mat-form-field>
-      <mat-form-field>
-        <mat-label>Message</mat-label>
-        <textarea matInput rows="8" formControlName="body" maxlength="5000"></textarea>
-        <mat-hint>Leave a blank line between paragraphs.</mat-hint>
-        <mat-error>Write the message</mat-error>
-      </mat-form-field>
-      <mat-form-field class="mt-2">
-        <mat-label>Button label (optional)</mat-label>
-        <input matInput formControlName="ctaLabel" maxlength="40" />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Button link (optional)</mat-label>
-        <input matInput formControlName="ctaUrl" placeholder="https://" />
-        <mat-error>Use a full https:// link</mat-error>
-      </mat-form-field>
+
+      <div class="flex flex-col gap-1">
+        <md-rich-text-editor
+          label="Message"
+          formControlName="bodyHtml"
+          [invalid]="form.controls.bodyHtml.invalid && form.controls.bodyHtml.touched"
+        />
+        @if (form.controls.bodyHtml.invalid && form.controls.bodyHtml.touched) {
+          <p class="m-0 px-4 text-body-small text-error" role="alert">Write the message</p>
+        }
+      </div>
+
+      <div class="grid items-start gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label>Button label</mat-label>
+          <input matInput formControlName="ctaLabel" maxlength="40" />
+          <mat-hint>Optional</mat-hint>
+        </mat-form-field>
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label>Button link</mat-label>
+          <input matInput formControlName="ctaUrl" placeholder="https://" />
+          <mat-error>Use a full https:// link</mat-error>
+        </mat-form-field>
+      </div>
       @if (form.hasError('halfButton') && (form.touched || form.dirty)) {
-        <p class="m-0 text-body-small text-error" role="alert">
+        <p class="-mt-2 px-4 text-body-small text-error" role="alert">
           A button needs both a label and a link.
         </p>
       }
     </form>
 
-    <section class="flex flex-col" aria-label="Preview">
-      <p class="m-0 mb-2 text-label-large text-on-surface-variant">Preview</p>
-      @let state = preview();
-      @switch (state.kind) {
-        @case ('ready') {
-          <iframe
-            title="Email preview"
-            sandbox=""
-            class="h-140 w-full rounded-xl border border-outline-variant"
-            [srcdoc]="state.html"
-          ></iframe>
-        }
-        @case ('loading') {
+    <section
+      class="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant"
+      aria-label="Email preview"
+    >
+      <header class="flex flex-col gap-1 border-b border-outline-variant px-4 py-3">
+        <p class="m-0 truncate text-title-small text-on-surface">
+          {{ subject().trim() || 'No subject' }}
+        </p>
+        <p class="m-0 truncate text-body-small text-on-surface-variant">
+          To {{ data.account.name }} &lt;{{ data.account.email }}&gt;
+        </p>
+      </header>
+      <div class="h-1">
+        @if (loading()) {
           <mat-progress-bar mode="indeterminate" />
         }
-        @case ('failed') {
-          <p class="m-0 text-body-small text-error" role="alert">{{ state.message }}</p>
-        }
-        @default {
+      </div>
+      @if (previewError(); as message) {
+        <p class="m-0 px-4 py-2 text-body-small text-error" role="alert">{{ message }}</p>
+      }
+      <div #viewport class="h-[34rem] overflow-y-auto overflow-x-hidden">
+        @if (rendered(); as html) {
+          <div [style.height.px]="contentHeight() * scale()">
+            <iframe
+              title="Email preview"
+              sandbox="allow-same-origin"
+              class="block origin-top-left border-0"
+              [style.width.px]="emailWidth"
+              [style.height.px]="contentHeight() || 800"
+              [style.transform]="'scale(' + scale() + ')'"
+              [srcdoc]="html"
+              (load)="measure($any($event.target))"
+            ></iframe>
+          </div>
+        } @else {
           <div
-            class="grid h-140 place-items-center rounded-xl border border-dashed border-outline-variant p-6 text-center text-body-medium text-on-surface-variant"
+            class="grid h-full place-items-center p-6 text-center text-body-medium text-on-surface-variant"
           >
             Fill in the subject, heading and message to see the email.
           </div>
         }
-      }
+      </div>
     </section>
   </div>
 </mat-dialog-content>

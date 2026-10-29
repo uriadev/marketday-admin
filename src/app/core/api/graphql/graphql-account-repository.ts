@@ -47,7 +47,7 @@ function toAdminEmailInput(email: AdminEmail): AdminEmailInput {
     subject: email.subject,
     eyebrow: email.eyebrow,
     heading: email.heading,
-    body: email.body,
+    bodyHtml: email.bodyHtml,
     ctaLabel: blankToNull(email.cta?.label),
     ctaUrl: blankToNull(email.cta?.url),
   };

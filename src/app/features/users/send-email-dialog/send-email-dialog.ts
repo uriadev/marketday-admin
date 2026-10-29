@@ -1,5 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormControl,
@@ -15,8 +25,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Observable, of } from 'rxjs';
-import { catchError, debounceTime, map, startWith, switchMap } from 'rxjs/operators';
+import { catchError, debounceTime, filter, map, switchMap, tap } from 'rxjs/operators';
 import { Account, AdminEmail, EmailPreview } from '../../../core/models/account.model';
+import { RichTextEditor } from '../../../shared/components/rich-text-editor/rich-text-editor';
 
 export interface SendEmailDialogData {
   account: Account;
@@ -24,14 +35,14 @@ export interface SendEmailDialogData {
   preview: (email: AdminEmail) => Observable<EmailPreview>;
 }
 
-/** What the preview pane shows: nothing yet, a rendering, or why there is none. */
-type PreviewState =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'ready'; html: SafeHtml }
-  | { kind: 'failed'; message: string };
-
 const DEFAULT_EYEBROW = 'From the MarketDay team';
+
+/**
+ * The width the email is drawn at before it is scaled into the pane: the
+ * template's 600px card plus a margin of its grey page either side, which is
+ * how an inbox shows it. Narrower, and the card's own padding squeezes the copy.
+ */
+const EMAIL_WIDTH = 664;
 
 /** Only spaces is nothing at all. */
 function notBlank(control: AbstractControl<string>): ValidationErrors | null {
@@ -48,11 +59,16 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
 /**
  * Writes one account a message in the MarketDay email template.
  *
- * The form holds only the words — subject, eyebrow, heading, body and an
- * optional button — and the preview beside it is the backend's own rendering
- * of them (`previewAdminEmail`), so what the admin reads is what arrives. It
- * shows in a sandboxed iframe: the email carries its own inline styles, which
- * must not leak into the console, and nothing in it should run.
+ * The form holds only the words — subject, eyebrow, heading, the message as
+ * rich text and an optional button — and the preview beside it is the
+ * backend's own rendering of them (`previewAdminEmail`), so what the admin
+ * reads is what arrives.
+ *
+ * The preview is drawn like an inbox would: the subject and recipient above,
+ * the email at its real width scaled down to the pane, and as tall as it is,
+ * so the pane scrolls rather than a cramped frame inside it. The iframe is
+ * sandboxed without scripts; `allow-same-origin` is only so its height can be
+ * read.
  */
 @Component({
   selector: 'md-send-email-dialog',
@@ -64,6 +80,7 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
+    RichTextEditor,
   ],
   templateUrl: './send-email-dialog.html',
 })
@@ -86,9 +103,10 @@ export class SendEmailDialog {
         nonNullable: true,
         validators: [notBlank, Validators.maxLength(120)],
       }),
-      body: new FormControl('', {
+      /** The editor reports `''` while it holds no words, so `notBlank` is enough. */
+      bodyHtml: new FormControl('', {
         nonNullable: true,
-        validators: [notBlank, Validators.maxLength(5000)],
+        validators: [notBlank, Validators.maxLength(20000)],
       }),
       ctaLabel: new FormControl('', { nonNullable: true, validators: Validators.maxLength(40) }),
       ctaUrl: new FormControl('', {
@@ -99,34 +117,67 @@ export class SendEmailDialog {
     { validators: wholeButton },
   );
 
-  /**
-   * Re-rendered a moment after the admin stops typing, and only for a form the
-   * backend would accept — an invalid one would just come back as an error.
-   */
-  protected readonly preview = toSignal(
-    this.form.valueChanges.pipe(
-      startWith(null),
-      debounceTime(400),
-      switchMap((): Observable<PreviewState> => {
-        if (this.form.invalid) return of({ kind: 'idle' });
-        return this.data.preview(this.email()).pipe(
-          map((rendered): PreviewState => ({
-            kind: 'ready',
+  protected readonly subject = toSignal(this.form.controls.subject.valueChanges, {
+    initialValue: '',
+  });
+
+  /** The last rendering, kept on screen while the next one is drawn. */
+  protected readonly rendered = signal<SafeHtml | null>(null);
+  protected readonly loading = signal(false);
+  protected readonly previewError = signal<string | null>(null);
+
+  private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
+  private readonly paneWidth = signal(EMAIL_WIDTH);
+  protected readonly contentHeight = signal(0);
+  protected readonly emailWidth = EMAIL_WIDTH;
+  protected readonly scale = computed(() => Math.min(1, this.paneWidth() / EMAIL_WIDTH));
+
+  constructor() {
+    // Re-rendered a moment after the admin stops typing, and only for a form
+    // the backend would accept — an invalid one would just come back refused.
+    this.form.valueChanges
+      .pipe(
+        debounceTime(400),
+        filter(() => this.form.valid),
+        tap(() => this.loading.set(true)),
+        switchMap((): Observable<SafeHtml | Error> =>
+          this.data.preview(this.email()).pipe(
             // The backend's own template, shown in a sandbox that runs nothing.
-            html: this.sanitizer.bypassSecurityTrustHtml(rendered.html),
-          })),
-          catchError((cause: unknown) =>
-            of<PreviewState>({
-              kind: 'failed',
-              message: cause instanceof Error ? cause.message : 'The preview could not be drawn.',
-            }),
+            map((preview) => this.sanitizer.bypassSecurityTrustHtml(preview.html)),
+            catchError((cause: unknown) =>
+              of(cause instanceof Error ? cause : new Error('The preview could not be drawn.')),
+            ),
           ),
-          startWith<PreviewState>({ kind: 'loading' }),
-        );
-      }),
-    ),
-    { initialValue: { kind: 'idle' } as PreviewState },
-  );
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((result) => {
+        this.loading.set(false);
+        if (result instanceof Error) {
+          this.previewError.set(result.message);
+          return;
+        }
+        this.previewError.set(null);
+        this.rendered.set(result);
+      });
+
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const viewport = this.viewport()?.nativeElement;
+      if (!viewport || typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(([entry]) => {
+        if (entry) this.paneWidth.set(entry.contentRect.width);
+      });
+      observer.observe(viewport);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+  }
+
+  /** Sizes the frame to the email, so the pane scrolls instead of the frame. */
+  protected measure(frame: HTMLIFrameElement): void {
+    const height = frame.contentDocument?.documentElement.scrollHeight ?? 0;
+    if (height > 0) this.contentHeight.set(height);
+  }
 
   protected send(): void {
     if (this.form.invalid) {
@@ -144,7 +195,7 @@ export class SendEmailDialog {
       subject: value.subject.trim(),
       eyebrow: value.eyebrow.trim(),
       heading: value.heading.trim(),
-      body: value.body.trim(),
+      bodyHtml: value.bodyHtml,
       cta: label && url ? { label, url } : null,
     };
   }

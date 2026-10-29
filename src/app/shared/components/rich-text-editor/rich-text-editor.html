@@ -1,0 +1,61 @@
+<div
+  class="md-rte"
+  [class.md-rte--focused]="focused()"
+  [class.md-rte--invalid]="invalid()"
+  [class.md-rte--disabled]="disabled()"
+>
+  <span class="md-rte__label">{{ label() }}</span>
+  <div class="md-rte__toolbar" role="toolbar" [attr.aria-label]="label() + ' formatting'">
+    @for (format of formats; track format.icon) {
+      <button
+        matIconButton
+        type="button"
+        [attr.aria-label]="format.label"
+        [attr.aria-pressed]="isActive(format.active)"
+        [class.md-rte__tool--active]="isActive(format.active)"
+        [matTooltip]="format.label"
+        [disabled]="disabled()"
+        (click)="apply(format)"
+      >
+        <mat-icon>{{ format.icon }}</mat-icon>
+      </button>
+    }
+    <button
+      matIconButton
+      type="button"
+      aria-label="Link"
+      [attr.aria-pressed]="isActive('link')"
+      [class.md-rte__tool--active]="isActive('link')"
+      matTooltip="Link"
+      [disabled]="disabled()"
+      (click)="openLink()"
+    >
+      <mat-icon>link</mat-icon>
+    </button>
+  </div>
+
+  @if (linkOpen()) {
+    <div class="md-rte__link">
+      <mat-form-field subscriptSizing="dynamic" class="min-w-0 flex-1">
+        <mat-label>Link address</mat-label>
+        <input
+          matInput
+          [formControl]="linkUrl"
+          placeholder="https://"
+          (keydown.enter)="$event.preventDefault(); saveLink()"
+          (keydown.escape)="$event.stopPropagation(); cancelLink()"
+        />
+        <mat-error>Use a full https:// or mailto: address</mat-error>
+      </mat-form-field>
+      <button matButton type="button" (click)="saveLink()">Apply</button>
+      @if (isActive('link')) {
+        <button matButton type="button" (click)="removeLink()">Remove</button>
+      }
+      <button matIconButton type="button" aria-label="Close" (click)="cancelLink()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  }
+
+  <div #surface class="md-rte__surface"></div>
+</div>

@@ -25,7 +25,7 @@ export type AccountDeletionLinkInput = {
 };
 
 export type AdminEmailInput = {
-  body: Scalars['String']['input'];
+  bodyHtml: Scalars['String']['input'];
   ctaLabel?: InputMaybe<Scalars['String']['input']>;
   ctaUrl?: InputMaybe<Scalars['String']['input']>;
   eyebrow: Scalars['String']['input'];

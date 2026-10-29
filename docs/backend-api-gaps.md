@@ -39,7 +39,7 @@ found while reading the same code, unrelated to what's missing.
    "Send password reset" is wired too, to the public `requestPasswordReset` the Forgot password
    screen already uses — for an `INVITED` owner it is how they get in.
    "Send email" runs on `previewAdminEmail` / `sendAdminEmail` (`@Roles(ADMIN)`, added
-   server-side for this screen): an admin's subject, eyebrow, heading, body and optional button
+   server-side for this screen): an admin's subject, eyebrow, heading, HTML body (sanitised server-side) and optional button
    rendered through the backend's `BaseLayout` email shell, replies to `SUPPORT_INBOX_EMAIL`.
    One account at a time, and nothing records what was sent.
 
