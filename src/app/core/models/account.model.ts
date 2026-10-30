@@ -110,10 +110,13 @@ export interface AdminEmail {
   from: AdminEmailSender;
   subject: string;
   eyebrow: string;
-  heading: string;
+  /** `null` for none — the email then has no title line. */
+  heading: string | null;
   bodyHtml: string;
   /** The one button, or `null` for none. */
   cta: { label: string; url: string } | null;
+  /** Ends with the founder's sign-off ("Kind regards, Yoan …"), drawn by the backend. */
+  signature: boolean;
 }
 
 /** An `AdminEmail` as its recipient would receive it — rendered, not sent. */

@@ -47,6 +47,7 @@ import {
 } from '../suspend-account-dialog/suspend-account-dialog';
 import {
   ComposedEmail,
+  SEND_EMAIL_DIALOG_SIZE,
   SendEmailDialog,
   SendEmailDialogData,
 } from '../../../shared/components/send-email-dialog/send-email-dialog';
@@ -297,8 +298,7 @@ export class Users {
     this.dialog
       .open<SendEmailDialog, SendEmailDialogData, ComposedEmail>(SendEmailDialog, {
         data,
-        width: '1080px',
-        maxWidth: '95vw',
+        ...SEND_EMAIL_DIALOG_SIZE,
       })
       .afterClosed()
       .subscribe((composed) => {

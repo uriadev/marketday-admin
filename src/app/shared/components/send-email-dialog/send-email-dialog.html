@@ -1,10 +1,19 @@
 <h2 mat-dialog-title>{{ data.to ? 'Email ' + data.to.name : 'Email someone new' }}</h2>
-<mat-dialog-content>
+<!--
+  Not mat-dialog-content: that caps itself at 65vh. This body fills the dialog's
+  fixed height instead, and on wide screens the form scrolls in its column while
+  the preview keeps the full height beside it.
+-->
+<div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 md:overflow-hidden">
   <p class="m-0 text-body-medium text-on-surface-variant">
     In the MarketDay email template. Replies reach the mailbox it goes out from.
   </p>
-  <div class="mt-5 grid gap-6 md:grid-cols-2">
-    <form class="flex min-w-0 flex-col gap-4" [formGroup]="form" (ngSubmit)="send()">
+  <div class="mt-4 grid min-h-0 flex-1 gap-6 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+    <form
+      class="flex min-w-0 flex-col gap-4 pt-2 md:min-h-0 md:overflow-y-auto md:pr-2"
+      [formGroup]="form"
+      (ngSubmit)="send()"
+    >
       @if (!data.to) {
         <div class="grid items-start gap-4 sm:grid-cols-2">
           <mat-form-field subscriptSizing="dynamic">
@@ -41,7 +50,7 @@
       <mat-form-field subscriptSizing="dynamic">
         <mat-label>Heading</mat-label>
         <input matInput formControlName="heading" maxlength="120" />
-        <mat-error>Add a heading</mat-error>
+        <mat-hint>Optional</mat-hint>
       </mat-form-field>
 
       <div class="flex flex-col gap-1">
@@ -72,10 +81,12 @@
           A button needs both a label and a link.
         </p>
       }
+
+      <mat-slide-toggle formControlName="signature"> Sign off as Yoan, Founder </mat-slide-toggle>
     </form>
 
     <section
-      class="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant"
+      class="mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant"
       aria-label="Email preview"
     >
       <header class="flex flex-col gap-1 border-b border-outline-variant px-4 py-3">
@@ -95,7 +106,10 @@
       @if (previewError(); as message) {
         <p class="m-0 px-4 py-2 text-body-small text-error" role="alert">{{ message }}</p>
       }
-      <div #viewport class="h-[34rem] overflow-y-auto overflow-x-hidden">
+      <div
+        #viewport
+        class="h-[34rem] overflow-y-auto overflow-x-hidden md:h-auto md:min-h-0 md:flex-1"
+      >
         @if (rendered(); as html) {
           <div [style.height.px]="contentHeight() * scale()">
             <iframe
@@ -115,15 +129,15 @@
           >
             {{
               data.to
-                ? 'Fill in the subject, heading and message to see the email.'
-                : 'Fill in who it is for, the subject, heading and message to see the email.'
+                ? 'Fill in the subject and message to see the email.'
+                : 'Fill in who it is for, the subject and message to see the email.'
             }}
           </div>
         }
       </div>
     </section>
   </div>
-</mat-dialog-content>
+</div>
 <mat-dialog-actions align="end">
   <button matButton type="button" mat-dialog-close>Cancel</button>
   <button matButton="filled" type="button" (click)="send()">Send email</button>

@@ -25,6 +25,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { Observable, of } from 'rxjs';
 import { catchError, debounceTime, filter, map, switchMap, tap } from 'rxjs/operators';
 import {
@@ -46,6 +47,17 @@ export interface SendEmailDialogData {
   /** Renders the message as the backend would send it; nothing is sent. */
   preview: (to: EmailRecipient, email: AdminEmail) => Observable<EmailPreview>;
 }
+
+/**
+ * How big the dialog opens — near the whole window, so the email preview has
+ * room. Its height is fixed rather than fitted: the body fills it, the preview
+ * stretches with it and the form scrolls beside it.
+ */
+export const SEND_EMAIL_DIALOG_SIZE = {
+  width: '1360px',
+  maxWidth: '96vw',
+  height: '92vh',
+} as const;
 
 /** What the dialog closes with: the message, and who it is for. */
 export interface ComposedEmail {
@@ -83,7 +95,7 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
  * types: a vendor the team would like to bring on, with no account yet.
  *
  * The form holds the mailbox it goes out from and the words — subject,
- * eyebrow, heading, the message as rich text and an optional button — and the
+ * eyebrow, an optional heading, the message as rich text and an optional button — and the
  * preview beside it is the backend's own rendering of them, so what the admin
  * reads is what arrives.
  *
@@ -104,6 +116,7 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
     MatInputModule,
     MatProgressBarModule,
     MatSelectModule,
+    MatSlideToggleModule,
     RichTextEditor,
   ],
   templateUrl: './send-email-dialog.html',
@@ -133,10 +146,7 @@ export class SendEmailDialog {
         nonNullable: true,
         validators: [notBlank, Validators.maxLength(40)],
       }),
-      heading: new FormControl('', {
-        nonNullable: true,
-        validators: [notBlank, Validators.maxLength(120)],
-      }),
+      heading: new FormControl('', { nonNullable: true, validators: Validators.maxLength(120) }),
       /** The editor reports `''` while it holds no words, so `notBlank` is enough. */
       bodyHtml: new FormControl('', {
         nonNullable: true,
@@ -147,6 +157,7 @@ export class SendEmailDialog {
         nonNullable: true,
         validators: Validators.pattern(/^\s*https:\/\/\S+\s*$/),
       }),
+      signature: new FormControl(false, { nonNullable: true }),
     },
     { validators: wholeButton },
   );
@@ -248,9 +259,10 @@ export class SendEmailDialog {
       from: value.from,
       subject: value.subject.trim(),
       eyebrow: value.eyebrow.trim(),
-      heading: value.heading.trim(),
+      heading: value.heading.trim() || null,
       bodyHtml: value.bodyHtml,
       cta: label && url ? { label, url } : null,
+      signature: value.signature,
     };
   }
 }

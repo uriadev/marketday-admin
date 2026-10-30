@@ -457,13 +457,16 @@ export class InMemoryAccountRepository extends AccountRepository {
     const button = email.cta
       ? `<p><a href="${escape(email.cta.url)}">${escape(email.cta.label)}</a></p>`
       : '';
+    const signature = email.signature
+      ? '<p>Kind regards,<br><strong>Yoan</strong><br>Founder, MarketDay<br>https://marketday.ie/</p>'
+      : '';
     return of({
       subject: email.subject,
       html:
         `<!DOCTYPE html><body style="font-family:sans-serif;padding:24px">` +
         `<small>${escape(email.eyebrow.toUpperCase())}</small>` +
-        `<h1>${escape(email.heading)}</h1><p>Hi ${escape(name)},</p>` +
-        `${body}${button}</body>`,
+        `${email.heading ? `<h1>${escape(email.heading)}</h1>` : ''}<p>Hi ${escape(name)},</p>` +
+        `${body}${button}${signature}</body>`,
     }).pipe(delay(150));
   }
 

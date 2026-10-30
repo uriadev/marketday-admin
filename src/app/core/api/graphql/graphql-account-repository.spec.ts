@@ -325,6 +325,7 @@ describe('GraphqlAccountRepository commands', () => {
         heading: 'The market moves indoors',
         bodyHtml: '<p>See you there.</p>',
         cta: null,
+        signature: false,
       })
       .subscribe((preview) => (html = preview.html));
 
@@ -339,6 +340,7 @@ describe('GraphqlAccountRepository commands', () => {
         bodyHtml: '<p>See you there.</p>',
         ctaLabel: null,
         ctaUrl: null,
+        signature: false,
       },
     });
     request.flush({ data: { previewAdminEmail: { subject: 'About Saturday', html: '<p>x</p>' } } });
@@ -356,6 +358,7 @@ describe('GraphqlAccountRepository commands', () => {
         heading: 'The market moves indoors',
         bodyHtml: '<p>See you there.</p>',
         cta: { label: 'See the market', url: 'https://marketday.ie/m/1' },
+        signature: true,
       })
       .subscribe(() => (sent = true));
 
@@ -363,6 +366,7 @@ describe('GraphqlAccountRepository commands', () => {
     expect(variables['input']).toMatchObject({
       ctaLabel: 'See the market',
       ctaUrl: 'https://marketday.ie/m/1',
+      signature: true,
     });
     request.flush({ data: { sendAdminEmail: true } });
 
@@ -395,6 +399,7 @@ describe('GraphqlAccountRepository commands', () => {
           heading: 'Come trade with us',
           bodyHtml: '<p>We would love to have you.</p>',
           cta: null,
+          signature: true,
         },
       )
       .subscribe(() => (sent = true));

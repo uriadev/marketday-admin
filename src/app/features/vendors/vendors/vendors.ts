@@ -32,6 +32,7 @@ import { FacePile } from '../../../shared/components/face-pile/face-pile';
 import { SearchSelect } from '../../../shared/components/search-select/search-select';
 import {
   ComposedEmail,
+  SEND_EMAIL_DIALOG_SIZE,
   SendEmailDialog,
   SendEmailDialogData,
 } from '../../../shared/components/send-email-dialog/send-email-dialog';
@@ -268,8 +269,7 @@ export class Vendors {
     this.dialog
       .open<SendEmailDialog, SendEmailDialogData, ComposedEmail>(SendEmailDialog, {
         data,
-        width: '1080px',
-        maxWidth: '95vw',
+        ...SEND_EMAIL_DIALOG_SIZE,
       })
       .afterClosed()
       .subscribe((composed) => {

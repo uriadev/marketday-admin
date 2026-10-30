@@ -72,10 +72,11 @@ function toAdminEmailInput(email: AdminEmail): AdminEmailInput {
     from: GQL_SENDER[email.from],
     subject: email.subject,
     eyebrow: email.eyebrow,
-    heading: email.heading,
+    heading: blankToNull(email.heading),
     bodyHtml: email.bodyHtml,
     ctaLabel: blankToNull(email.cta?.label),
     ctaUrl: blankToNull(email.cta?.url),
+    signature: email.signature,
   };
 }
 

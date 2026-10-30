@@ -30,7 +30,8 @@ export type AdminEmailInput = {
   ctaUrl?: InputMaybe<Scalars['String']['input']>;
   eyebrow: Scalars['String']['input'];
   from: AdminEmailSender;
-  heading: Scalars['String']['input'];
+  heading?: InputMaybe<Scalars['String']['input']>;
+  signature?: Scalars['Boolean']['input'];
   subject: Scalars['String']['input'];
 };
 

@@ -121,9 +121,29 @@ describe('SendEmailDialog', () => {
           heading: 'The market moves indoors',
           bodyHtml: '<p>First paragraph.</p><p>Second paragraph.</p>',
           cta: null,
+          signature: false,
         },
       },
     ]);
+  });
+
+  it('sends without a heading, as none rather than an empty one', () => {
+    const fixture = open();
+    type(fixture, 'subject', 'About Saturday');
+    write(fixture, '<p>See you there.</p>');
+    sendButton(fixture).click();
+
+    expect(closed[0]?.email.heading).toBeNull();
+  });
+
+  it('adds the founder’s sign-off when the toggle is on', () => {
+    const fixture = open();
+    fillRequired(fixture);
+    (host(fixture).querySelector('mat-slide-toggle button[role="switch"]') as HTMLElement).click();
+    fixture.detectChanges();
+    sendButton(fixture).click();
+
+    expect(closed[0]?.email.signature).toBe(true);
   });
 
   it('refuses half a button', () => {
