@@ -14,6 +14,7 @@ import {
   AdminEmail,
   EMPTY_ACCOUNT_FACETS,
   EmailPreview,
+  EmailSenderOption,
   EMPTY_ACCOUNT_FILTERS,
   hasAccountFilters,
 } from '../../core/models/account.model';
@@ -138,6 +139,11 @@ export class AccountsStore extends PagedCollectionStore<Account, AccountFilters>
         this._busy.set(false);
       },
     });
+  }
+
+  /** The mailboxes the compose dialog's From menu offers. */
+  emailSenders(): Observable<EmailSenderOption[]> {
+    return this.repo.emailSenders();
   }
 
   /** The message as the backend would send it to `account` — nothing is sent. */

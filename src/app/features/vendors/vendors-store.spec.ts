@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
+import { AccountRepository } from '../../core/api/ports/account-repository';
+import { InMemoryAccountRepository } from '../../core/api/in-memory/in-memory-account-repository';
 import {
   MCNALLY_DETAIL,
   MCNALLY_PROFILE,
@@ -149,7 +151,11 @@ class SlowSwitchRepository extends StubVendorRepository {
 
 function storeWith(repo: VendorRepository): VendorsStore {
   TestBed.configureTestingModule({
-    providers: [VendorsStore, { provide: VendorRepository, useValue: repo }],
+    providers: [
+      VendorsStore,
+      { provide: VendorRepository, useValue: repo },
+      { provide: AccountRepository, useClass: InMemoryAccountRepository },
+    ],
   });
   return TestBed.inject(VendorsStore);
 }

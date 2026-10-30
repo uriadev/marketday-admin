@@ -319,6 +319,7 @@ describe('GraphqlAccountRepository commands', () => {
     let html: string | undefined;
     repository
       .previewEmail('user-2', {
+        from: 'SUPPORT',
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
@@ -331,6 +332,7 @@ describe('GraphqlAccountRepository commands', () => {
     expect(variables).toEqual({
       userId: 'user-2',
       input: {
+        from: 'SUPPORT',
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
@@ -348,6 +350,7 @@ describe('GraphqlAccountRepository commands', () => {
     let sent = false;
     repository
       .sendEmail('user-2', {
+        from: 'SUPPORT',
         subject: 'About Saturday',
         eyebrow: 'From the MarketDay team',
         heading: 'The market moves indoors',
@@ -362,6 +365,44 @@ describe('GraphqlAccountRepository commands', () => {
       ctaUrl: 'https://marketday.ie/m/1',
     });
     request.flush({ data: { sendAdminEmail: true } });
+
+    expect(sent).toBe(true);
+  });
+
+  it('lists the mailboxes an email can go out from', () => {
+    let senders: unknown;
+    repository.emailSenders().subscribe((result) => (senders = result));
+
+    const { request } = expectPost('query AdminEmailSenders');
+    request.flush({
+      data: {
+        adminEmailSenders: [{ sender: 'VENDORS', from: 'MarketDay <vendors@marketday.ie>' }],
+      },
+    });
+
+    expect(senders).toEqual([{ sender: 'VENDORS', from: 'MarketDay <vendors@marketday.ie>' }]);
+  });
+
+  it('sends an email to an address with no account, naming it as the backend does', () => {
+    let sent = false;
+    repository
+      .sendOutreachEmail(
+        { email: 'orders@hilltopfarm.ie', name: 'Hilltop Farm' },
+        {
+          from: 'VENDORS',
+          subject: 'Selling at MarketDay',
+          eyebrow: 'From the MarketDay team',
+          heading: 'Come trade with us',
+          bodyHtml: '<p>We would love to have you.</p>',
+          cta: null,
+        },
+      )
+      .subscribe(() => (sent = true));
+
+    const { request, variables } = expectPost('mutation SendOutreachEmail');
+    expect(variables['to']).toEqual({ email: 'orders@hilltopfarm.ie', fullName: 'Hilltop Farm' });
+    expect(variables['input']).toMatchObject({ from: 'VENDORS', ctaLabel: null, ctaUrl: null });
+    request.flush({ data: { sendOutreachEmail: true } });
 
     expect(sent).toBe(true);
   });

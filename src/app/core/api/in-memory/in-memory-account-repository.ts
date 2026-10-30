@@ -11,6 +11,8 @@ import {
   AccountStatus,
   AdminEmail,
   EmailPreview,
+  EmailRecipient,
+  EmailSenderOption,
   SignUpBucket,
   UserRole,
   matchesAccountFilters,
@@ -80,6 +82,13 @@ type Seed = {
   spread: number;
   suspendedNote?: string;
 };
+
+/** The backend's three mailboxes, as its default config names them. */
+const EMAIL_SENDERS: EmailSenderOption[] = [
+  { sender: 'SUPPORT', from: 'MarketDay <support@marketday.ie>' },
+  { sender: 'HELLO', from: 'MarketDay <hello@marketday.ie>' },
+  { sender: 'VENDORS', from: 'MarketDay <vendors@marketday.ie>' },
+];
 
 /**
  * What each suspended account hid, so a restore has something to put back.
@@ -436,6 +445,10 @@ export class InMemoryAccountRepository extends AccountRepository {
   override previewEmail(id: string, email: AdminEmail): Observable<EmailPreview> {
     const account = this.accounts.get(id);
     if (!account) return this.gone();
+    return this.render(account.name, email);
+  }
+
+  private render(name: string, email: AdminEmail): Observable<EmailPreview> {
     const escape = (text: string) =>
       text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     // The editor's own markup, less anything that could run; the sandboxed
@@ -449,7 +462,7 @@ export class InMemoryAccountRepository extends AccountRepository {
       html:
         `<!DOCTYPE html><body style="font-family:sans-serif;padding:24px">` +
         `<small>${escape(email.eyebrow.toUpperCase())}</small>` +
-        `<h1>${escape(email.heading)}</h1><p>Hi ${escape(account.name)},</p>` +
+        `<h1>${escape(email.heading)}</h1><p>Hi ${escape(name)},</p>` +
         `${body}${button}</body>`,
     }).pipe(delay(150));
   }
@@ -461,6 +474,19 @@ export class InMemoryAccountRepository extends AccountRepository {
     if (account.status === 'suspended') {
       return throwError(() => new Error('You cannot email a suspended account.')).pipe(delay(200));
     }
+    return of(undefined).pipe(delay(200));
+  }
+
+  override emailSenders(): Observable<EmailSenderOption[]> {
+    return of(EMAIL_SENDERS).pipe(delay(100));
+  }
+
+  override previewOutreachEmail(to: EmailRecipient, email: AdminEmail): Observable<EmailPreview> {
+    return this.render(to.name, email);
+  }
+
+  /** Nothing to send from a fixture; the round trip is the whole behaviour. */
+  override sendOutreachEmail(): Observable<void> {
     return of(undefined).pipe(delay(200));
   }
 

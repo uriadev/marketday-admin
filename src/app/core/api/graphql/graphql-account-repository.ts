@@ -7,15 +7,21 @@ import {
   AccountDirectoryPage,
   AccountListQuery,
   AdminEmail,
+  AdminEmailSender as Sender,
   EmailPreview,
+  EmailRecipient,
+  EmailSenderOption,
   SignUpFilter,
 } from '../../models/account.model';
 import { GraphqlClient } from './graphql-client';
 import {
+  ADMIN_EMAIL_SENDERS,
   ADMIN_USERS,
   PREVIEW_ADMIN_EMAIL,
+  PREVIEW_OUTREACH_EMAIL,
   RESTORE_USER,
   SEND_ADMIN_EMAIL,
+  SEND_OUTREACH_EMAIL,
   SUSPEND_USER,
 } from './operations/account';
 import { REQUEST_PASSWORD_RESET } from './operations/profile';
@@ -23,27 +29,47 @@ import { GQL_ROLE, GQL_STATUS, toAccount } from './mappers/account-mapper';
 import { blankToNull } from './mappers/nullable';
 import {
   AdminEmailInput,
+  AdminEmailSender,
+  AdminEmailSendersQuery,
+  AdminEmailSendersQueryVariables,
   AdminUsersQuery,
   AdminUsersQueryVariables,
   FilterInput,
   FilterOperator,
   PreviewAdminEmailQuery,
   PreviewAdminEmailQueryVariables,
+  PreviewOutreachEmailQuery,
+  PreviewOutreachEmailQueryVariables,
   RequestPasswordResetMutation,
   RequestPasswordResetMutationVariables,
   RestoreUserMutation,
   RestoreUserMutationVariables,
   SendAdminEmailMutation,
   SendAdminEmailMutationVariables,
+  SendOutreachEmailMutation,
+  SendOutreachEmailMutationVariables,
   SuspendUserMutation,
   SuspendUserMutationVariables,
 } from './generated';
 
 const DAY = 24 * 60 * 60_000;
 
+const GQL_SENDER: Record<Sender, AdminEmailSender> = {
+  SUPPORT: AdminEmailSender.Support,
+  HELLO: AdminEmailSender.Hello,
+  VENDORS: AdminEmailSender.Vendors,
+};
+
+const SENDER: Record<AdminEmailSender, Sender> = {
+  [AdminEmailSender.Support]: 'SUPPORT',
+  [AdminEmailSender.Hello]: 'HELLO',
+  [AdminEmailSender.Vendors]: 'VENDORS',
+};
+
 /** No button goes as an explicit `null` pair, never as empty strings. */
 function toAdminEmailInput(email: AdminEmail): AdminEmailInput {
   return {
+    from: GQL_SENDER[email.from],
     subject: email.subject,
     eyebrow: email.eyebrow,
     heading: email.heading,
@@ -210,6 +236,34 @@ export class GraphqlAccountRepository extends AccountRepository {
     return this.client
       .request<SendAdminEmailMutation, SendAdminEmailMutationVariables>(SEND_ADMIN_EMAIL, {
         userId: id,
+        input: toAdminEmailInput(email),
+      })
+      .pipe(map(() => undefined));
+  }
+
+  override emailSenders(): Observable<EmailSenderOption[]> {
+    return this.client
+      .request<AdminEmailSendersQuery, AdminEmailSendersQueryVariables>(ADMIN_EMAIL_SENDERS, {})
+      .pipe(
+        map((result) =>
+          result.adminEmailSenders.map(({ sender, from }) => ({ sender: SENDER[sender], from })),
+        ),
+      );
+  }
+
+  override previewOutreachEmail(to: EmailRecipient, email: AdminEmail): Observable<EmailPreview> {
+    return this.client
+      .request<PreviewOutreachEmailQuery, PreviewOutreachEmailQueryVariables>(
+        PREVIEW_OUTREACH_EMAIL,
+        { to: { email: to.email, fullName: to.name }, input: toAdminEmailInput(email) },
+      )
+      .pipe(map((result) => result.previewOutreachEmail));
+  }
+
+  override sendOutreachEmail(to: EmailRecipient, email: AdminEmail): Observable<void> {
+    return this.client
+      .request<SendOutreachEmailMutation, SendOutreachEmailMutationVariables>(SEND_OUTREACH_EMAIL, {
+        to: { email: to.email, fullName: to.name },
         input: toAdminEmailInput(email),
       })
       .pipe(map(() => undefined));

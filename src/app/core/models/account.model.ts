@@ -81,11 +81,33 @@ export interface Account {
 }
 
 /**
- * A message an admin writes to one account, sent in the MarketDay email
+ * The MarketDay mailbox an admin's email goes out from, mirroring the
+ * backend's `AdminEmailSender`: `SUPPORT` is the line every MarketDay email
+ * carries, `HELLO` the general inbox, `VENDORS` the vendor sign-ups inbox.
+ */
+export type AdminEmailSender = 'SUPPORT' | 'HELLO' | 'VENDORS';
+
+/** One mailbox to send from, with the From line the recipient will read. */
+export interface EmailSenderOption {
+  sender: AdminEmailSender;
+  /** e.g. `MarketDay <vendors@marketday.ie>`. */
+  from: string;
+}
+
+/** Who an email goes to: an account, or an address with no account behind it. */
+export interface EmailRecipient {
+  email: string;
+  /** Who the greeting addresses — a person's name or their business's. */
+  name: string;
+}
+
+/**
+ * A message an admin writes to one person, sent in the MarketDay email
  * template. `bodyHtml` comes from the dialog's editor; the backend keeps only
  * paragraphs, emphasis, lists, quotes and https/mailto links.
  */
 export interface AdminEmail {
+  from: AdminEmailSender;
   subject: string;
   eyebrow: string;
   heading: string;

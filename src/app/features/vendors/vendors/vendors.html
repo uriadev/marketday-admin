@@ -35,9 +35,13 @@
       <h2 class="m-0 text-headline-small font-bold text-on-surface">{{ heading() }}</h2>
       <p class="mt-1 mb-0 text-body-medium text-on-surface-variant">{{ store.summary() }}</p>
     </div>
-    <div class="flex shrink-0 gap-2">
+    <div class="flex shrink-0 flex-wrap gap-2">
       <button matButton="outlined" type="button" disabled matTooltip="Coming soon">
         Export list
+      </button>
+      <button matButton="outlined" type="button" (click)="emailProspect()">
+        <mat-icon>mail</mat-icon>
+        Email a prospective vendor
       </button>
       <a matButton="filled" routerLink="/vendors/invite">
         <mat-icon>add</mat-icon>

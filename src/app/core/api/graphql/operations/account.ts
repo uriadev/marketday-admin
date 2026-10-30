@@ -125,3 +125,33 @@ export const SEND_ADMIN_EMAIL = gql`
     sendAdminEmail(userId: $userId, input: $input)
   }
 `;
+
+/** The mailboxes an admin's email can go out from — `@Roles(ADMIN)`. */
+export const ADMIN_EMAIL_SENDERS = gql`
+  query AdminEmailSenders {
+    adminEmailSenders {
+      sender
+      from
+    }
+  }
+`;
+
+/**
+ * A message to an address with no account behind it — a vendor the team would
+ * like to bring on — rendered but not sent. `@Roles(ADMIN)`.
+ */
+export const PREVIEW_OUTREACH_EMAIL = gql`
+  query PreviewOutreachEmail($to: OutreachRecipientInput!, $input: AdminEmailInput!) {
+    previewOutreachEmail(to: $to, input: $input) {
+      subject
+      html
+    }
+  }
+`;
+
+/** Sends that message — `@Roles(ADMIN)`. */
+export const SEND_OUTREACH_EMAIL = gql`
+  mutation SendOutreachEmail($to: OutreachRecipientInput!, $input: AdminEmailInput!) {
+    sendOutreachEmail(to: $to, input: $input)
+  }
+`;

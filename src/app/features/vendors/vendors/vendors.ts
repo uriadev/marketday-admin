@@ -12,6 +12,7 @@ import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -29,6 +30,11 @@ import { EmptyState } from '../../../shared/components/empty-state/empty-state';
 import { Avatar } from '../../../shared/components/avatar/avatar';
 import { FacePile } from '../../../shared/components/face-pile/face-pile';
 import { SearchSelect } from '../../../shared/components/search-select/search-select';
+import {
+  ComposedEmail,
+  SendEmailDialog,
+  SendEmailDialogData,
+} from '../../../shared/components/send-email-dialog/send-email-dialog';
 import { PickerOption } from '../../../core/models/picker-option.model';
 import {
   VENDOR_TOGGLES,
@@ -79,6 +85,7 @@ export class Vendors {
   protected readonly chrome = inject(ConsoleChrome);
   private readonly router = inject(Router);
   private readonly notifications = inject(Notifications);
+  private readonly dialog = inject(MatDialog);
 
   /** Filters arrive as query params (§7); an absent one binds as `undefined`. */
   readonly q = input<string>();
@@ -245,6 +252,32 @@ export class Vendors {
     this.store.sendOnboardingInvite(vendor, (sent) =>
       this.notifications.success(`Onboarding invite for ${vendor.name} sent to ${sent.email}.`),
     );
+  }
+
+  /**
+   * Writes to someone the team would like to bring on, who has no account yet —
+   * from the vendors inbox unless the admin picks another.
+   */
+  protected emailProspect(): void {
+    const data: SendEmailDialogData = {
+      to: null,
+      from: 'VENDORS',
+      senders: this.store.emailSenders(),
+      preview: (to, email) => this.store.previewOutreach(to, email),
+    };
+    this.dialog
+      .open<SendEmailDialog, SendEmailDialogData, ComposedEmail>(SendEmailDialog, {
+        data,
+        width: '1080px',
+        maxWidth: '95vw',
+      })
+      .afterClosed()
+      .subscribe((composed) => {
+        if (!composed) return;
+        this.store.sendOutreach(composed.to, composed.email, () =>
+          this.notifications.success(`Email sent to ${composed.to.email}.`),
+        );
+      });
   }
 }
 

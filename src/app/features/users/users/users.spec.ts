@@ -15,6 +15,7 @@ import {
   AccountListQuery,
   AdminEmail,
   EmailPreview,
+  EmailSenderOption,
 } from '../../../core/models/account.model';
 import { Notifications } from '../../../core/notifications/notifications';
 import { AccountsStore } from '../accounts-store';
@@ -77,6 +78,18 @@ class StubAccountRepository extends AccountRepository {
   }
 
   override sendEmail(): Observable<void> {
+    return of(undefined);
+  }
+
+  override emailSenders(): Observable<EmailSenderOption[]> {
+    return of([{ sender: 'SUPPORT', from: 'MarketDay <support@marketday.ie>' }]);
+  }
+
+  override previewOutreachEmail(_to: unknown, email: AdminEmail): Observable<EmailPreview> {
+    return this.previewEmail('', email);
+  }
+
+  override sendOutreachEmail(): Observable<void> {
     return of(undefined);
   }
 

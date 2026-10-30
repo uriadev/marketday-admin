@@ -1,9 +1,16 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { AccountRepository } from '../../core/api/ports/account-repository';
 import { VendorRepository } from '../../core/api/ports/vendor-repository';
 import { PagedCollectionStore } from '../../core/state/paged-collection-store';
 import { PageRequest } from '../../core/models/page.model';
+import {
+  AdminEmail,
+  EmailPreview,
+  EmailRecipient,
+  EmailSenderOption,
+} from '../../core/models/account.model';
 import {
   EMPTY_VENDOR_FILTERS,
   SentOnboardingInvite,
@@ -29,6 +36,7 @@ import {
 @Injectable()
 export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilters> {
   private readonly repo = inject(VendorRepository);
+  private readonly accounts = inject(AccountRepository);
 
   private readonly _facets = signal<VendorDirectoryFacets>({
     markets: [],
@@ -147,6 +155,31 @@ export class VendorsStore extends PagedCollectionStore<VendorSummary, VendorFilt
         );
         this.markPending(vendor.slug, false);
       },
+    });
+  }
+
+  /** The mailboxes the compose dialog's From menu offers. */
+  emailSenders(): Observable<EmailSenderOption[]> {
+    return this.accounts.emailSenders();
+  }
+
+  /** An email to a prospective vendor, as the backend would send it — nothing is sent. */
+  previewOutreach(to: EmailRecipient, email: AdminEmail): Observable<EmailPreview> {
+    return this.accounts.previewOutreachEmail(to, email);
+  }
+
+  /**
+   * Emails someone who is not on MarketDay yet. `onSent` runs only once the
+   * server has handed the message on; a refusal lands in {@link commandError}.
+   */
+  sendOutreach(to: EmailRecipient, email: AdminEmail, onSent: () => void = () => undefined): void {
+    this._commandError.set(null);
+    this.accounts.sendOutreachEmail(to, email).subscribe({
+      next: () => onSent(),
+      error: (cause: unknown) =>
+        this._commandError.set(
+          cause instanceof Error ? cause.message : 'The email could not be sent.',
+        ),
     });
   }
 

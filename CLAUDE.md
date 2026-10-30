@@ -88,10 +88,15 @@ filter pushed down, the header's and menus' counts as aliases in the same docume
 `suspendUser` / `restoreUser`, all `@Roles(ADMIN)` and added server-side for this screen — a
 suspension signs the account out and is enforced at `AuthService.issueTokens` and `JwtStrategy`;
 "Send password reset" is the public `requestPasswordReset`. "Send email" (row ⋮ menu,
-`features/users/send-email-dialog`) writes one account a message in the backend's MarketDay
+`shared/components/send-email-dialog`) writes one account a message in the backend's MarketDay
 email template: `previewAdminEmail` renders the form into a sandboxed iframe as the admin types,
-`sendAdminEmail` sends it with replies to the support inbox — both `@Roles(ADMIN)`, both refuse a
-suspended account, and the optional button is a label + https link pair. The message is HTML
+`sendAdminEmail` sends it — both `@Roles(ADMIN)`, both refuse a suspended account, and the
+optional button is a label + https link pair. The same dialog with `to: null` is the Vendors
+directory's **Email a prospective vendor**: the admin types an address and a name, and
+`previewOutreachEmail` / `sendOutreachEmail` mail someone with no account (nothing is looked up or
+stored). Every admin email picks its **From** mailbox from `adminEmailSenders` — `SUPPORT`
+(`MAIL_FROM`, replies to `SUPPORT_INBOX_EMAIL`), `HELLO` (`CONTACT_INBOX_EMAIL`) or `VENDORS`
+(`VENDOR_INBOX_EMAIL`), an enum so the console can only choose mailboxes the backend owns. The message is HTML
 from `shared/components/rich-text-editor` (TipTap, browser-only); the backend keeps only
 paragraphs, emphasis, lists, quotes and https/mailto links (`emailSafeHtml`). Organiser / support agent have no
 column behind them (every `ADMIN` reads as a platform admin), and Change role, Invite team

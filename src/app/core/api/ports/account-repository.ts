@@ -5,6 +5,8 @@ import {
   AccountListQuery,
   AdminEmail,
   EmailPreview,
+  EmailRecipient,
+  EmailSenderOption,
 } from '../../models/account.model';
 
 /**
@@ -46,4 +48,19 @@ export abstract class AccountRepository {
 
   /** Emails the account a message from the MarketDay team. */
   abstract sendEmail(id: string, email: AdminEmail): Observable<void>;
+
+  /** The MarketDay mailboxes an email can go out from, for the compose dialog's From menu. */
+  abstract emailSenders(): Observable<EmailSenderOption[]>;
+
+  /**
+   * The email `sendOutreachEmail` would deliver to `to`, an address with no
+   * account behind it — rendered, not sent.
+   */
+  abstract previewOutreachEmail(to: EmailRecipient, email: AdminEmail): Observable<EmailPreview>;
+
+  /**
+   * Emails someone who is not on MarketDay yet — a vendor the team would like
+   * to bring on. Nothing is looked up or stored.
+   */
+  abstract sendOutreachEmail(to: EmailRecipient, email: AdminEmail): Observable<void>;
 }

@@ -3,6 +3,8 @@ import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of, throwError } from 'rxjs';
 import { VendorRepository } from '../../../core/api/ports/vendor-repository';
+import { AccountRepository } from '../../../core/api/ports/account-repository';
+import { InMemoryAccountRepository } from '../../../core/api/in-memory/in-memory-account-repository';
 import {
   MCNALLY_DETAIL,
   MCNALLY_PROFILE,
@@ -173,6 +175,7 @@ describe('Vendors', () => {
         ConsoleChrome,
         VendorsStore,
         { provide: VendorRepository, useClass: StubVendorRepository },
+        { provide: AccountRepository, useClass: InMemoryAccountRepository },
       ],
     }).compileComponents();
   });

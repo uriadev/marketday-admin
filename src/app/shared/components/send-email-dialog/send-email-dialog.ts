@@ -24,15 +24,33 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { Observable, of } from 'rxjs';
 import { catchError, debounceTime, filter, map, switchMap, tap } from 'rxjs/operators';
-import { Account, AdminEmail, EmailPreview } from '../../../core/models/account.model';
-import { RichTextEditor } from '../../../shared/components/rich-text-editor/rich-text-editor';
+import {
+  AdminEmail,
+  AdminEmailSender,
+  EmailPreview,
+  EmailRecipient,
+  EmailSenderOption,
+} from '../../../core/models/account.model';
+import { RichTextEditor } from '../rich-text-editor/rich-text-editor';
 
 export interface SendEmailDialogData {
-  account: Account;
+  /** Who it goes to, or `null` for the admin to type an address — someone not on MarketDay yet. */
+  to: EmailRecipient | null;
+  /** The mailbox the From menu starts on. */
+  from: AdminEmailSender;
+  /** Every mailbox the From menu offers. */
+  senders: Observable<EmailSenderOption[]>;
   /** Renders the message as the backend would send it; nothing is sent. */
-  preview: (email: AdminEmail) => Observable<EmailPreview>;
+  preview: (to: EmailRecipient, email: AdminEmail) => Observable<EmailPreview>;
+}
+
+/** What the dialog closes with: the message, and who it is for. */
+export interface ComposedEmail {
+  to: EmailRecipient;
+  email: AdminEmail;
 }
 
 const DEFAULT_EYEBROW = 'From the MarketDay team';
@@ -43,6 +61,9 @@ const DEFAULT_EYEBROW = 'From the MarketDay team';
  * how an inbox shows it. Narrower, and the card's own padding squeezes the copy.
  */
 const EMAIL_WIDTH = 664;
+
+/** Generous on purpose: the backend's `IsEmail` is the real check. */
+const EMAIL_PATTERN = /^\s*[^\s@]+@[^\s@]+\.[^\s@]+\s*$/;
 
 /** Only spaces is nothing at all. */
 function notBlank(control: AbstractControl<string>): ValidationErrors | null {
@@ -57,11 +78,13 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
 }
 
 /**
- * Writes one account a message in the MarketDay email template.
+ * Writes one person a message in the MarketDay email template — an account
+ * picked from the Users screen, or, when `to` is `null`, an address the admin
+ * types: a vendor the team would like to bring on, with no account yet.
  *
- * The form holds only the words — subject, eyebrow, heading, the message as
- * rich text and an optional button — and the preview beside it is the
- * backend's own rendering of them (`previewAdminEmail`), so what the admin
+ * The form holds the mailbox it goes out from and the words — subject,
+ * eyebrow, heading, the message as rich text and an optional button — and the
+ * preview beside it is the backend's own rendering of them, so what the admin
  * reads is what arrives.
  *
  * The preview is drawn like an inbox would: the subject and recipient above,
@@ -80,17 +103,28 @@ function wholeButton(group: AbstractControl): ValidationErrors | null {
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     RichTextEditor,
   ],
   templateUrl: './send-email-dialog.html',
 })
 export class SendEmailDialog {
   protected readonly data = inject<SendEmailDialogData>(MAT_DIALOG_DATA);
-  private readonly ref = inject<MatDialogRef<SendEmailDialog, AdminEmail>>(MatDialogRef);
+  private readonly ref = inject<MatDialogRef<SendEmailDialog, ComposedEmail>>(MatDialogRef);
   private readonly sanitizer = inject(DomSanitizer);
 
   protected readonly form = new FormGroup(
     {
+      // Disabled for a fixed recipient, which takes them out of validation.
+      toEmail: new FormControl(
+        { value: this.data.to?.email ?? '', disabled: this.data.to !== null },
+        { nonNullable: true, validators: [notBlank, Validators.pattern(EMAIL_PATTERN)] },
+      ),
+      toName: new FormControl(
+        { value: this.data.to?.name ?? '', disabled: this.data.to !== null },
+        { nonNullable: true, validators: [notBlank, Validators.maxLength(120)] },
+      ),
+      from: new FormControl<AdminEmailSender>(this.data.from, { nonNullable: true }),
       subject: new FormControl('', {
         nonNullable: true,
         validators: [notBlank, Validators.maxLength(150)],
@@ -117,8 +151,22 @@ export class SendEmailDialog {
     { validators: wholeButton },
   );
 
-  protected readonly subject = toSignal(this.form.controls.subject.valueChanges, {
-    initialValue: '',
+  protected readonly senders = toSignal(this.data.senders, { initialValue: [] });
+
+  private readonly value = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+  protected readonly subject = computed(() => this.value().subject ?? '');
+  /** The From line the preview header shows, once the mailboxes have loaded. */
+  protected readonly fromLine = computed(
+    () => this.senders().find((option) => option.sender === this.value().from)?.from ?? '',
+  );
+  /** "Name <address>", or what of it has been typed. */
+  protected readonly toLine = computed(() => {
+    this.value();
+    const { name, email } = this.recipient();
+    if (!email) return name;
+    return name ? `${name} <${email}>` : email;
   });
 
   /** The last rendering, kept on screen while the next one is drawn. */
@@ -141,7 +189,7 @@ export class SendEmailDialog {
         filter(() => this.form.valid),
         tap(() => this.loading.set(true)),
         switchMap((): Observable<SafeHtml | Error> =>
-          this.data.preview(this.email()).pipe(
+          this.data.preview(this.recipient(), this.email()).pipe(
             // The backend's own template, shown in a sandbox that runs nothing.
             map((preview) => this.sanitizer.bypassSecurityTrustHtml(preview.html)),
             catchError((cause: unknown) =>
@@ -184,7 +232,12 @@ export class SendEmailDialog {
       this.form.markAllAsTouched();
       return;
     }
-    this.ref.close(this.email());
+    this.ref.close({ to: this.recipient(), email: this.email() });
+  }
+
+  private recipient(): EmailRecipient {
+    const value = this.form.getRawValue();
+    return { email: value.toEmail.trim(), name: value.toName.trim() };
   }
 
   private email(): AdminEmail {
@@ -192,6 +245,7 @@ export class SendEmailDialog {
     const label = value.ctaLabel.trim();
     const url = value.ctaUrl.trim();
     return {
+      from: value.from,
       subject: value.subject.trim(),
       eyebrow: value.eyebrow.trim(),
       heading: value.heading.trim(),

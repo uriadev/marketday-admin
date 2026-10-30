@@ -29,6 +29,7 @@ export type AdminEmailInput = {
   ctaLabel?: InputMaybe<Scalars['String']['input']>;
   ctaUrl?: InputMaybe<Scalars['String']['input']>;
   eyebrow: Scalars['String']['input'];
+  from: AdminEmailSender;
   heading: Scalars['String']['input'];
   subject: Scalars['String']['input'];
 };
@@ -38,6 +39,18 @@ export type AdminEmailPreviewModel = {
   html: Scalars['String']['output'];
   subject: Scalars['String']['output'];
   text: Scalars['String']['output'];
+};
+
+export enum AdminEmailSender {
+  Hello = 'HELLO',
+  Support = 'SUPPORT',
+  Vendors = 'VENDORS'
+}
+
+export type AdminEmailSenderModel = {
+  __typename?: 'AdminEmailSenderModel';
+  from: Scalars['String']['output'];
+  sender: AdminEmailSender;
 };
 
 export type AdminPromotionModel = {
@@ -665,6 +678,7 @@ export type Mutation = {
   restoreUser: AdminUserModel;
   revokeVendorInvite: Scalars['Boolean']['output'];
   sendAdminEmail: Scalars['Boolean']['output'];
+  sendOutreachEmail: Scalars['Boolean']['output'];
   sendVendorOnboardingInvite: VendorOnboardingInviteModel;
   setMarketFavorite: Scalars['Boolean']['output'];
   setProductFavorite: Scalars['Boolean']['output'];
@@ -977,6 +991,12 @@ export type MutationSendAdminEmailArgs = {
 };
 
 
+export type MutationSendOutreachEmailArgs = {
+  input: AdminEmailInput;
+  to: OutreachRecipientInput;
+};
+
+
 export type MutationSendVendorOnboardingInviteArgs = {
   vendorId: Scalars['ID']['input'];
 };
@@ -1265,6 +1285,11 @@ export type OrderStatusEventModel = {
   toStatus: OrderStatus;
 };
 
+export type OutreachRecipientInput = {
+  email: Scalars['String']['input'];
+  fullName: Scalars['String']['input'];
+};
+
 export type PasskeyAuthInput = {
   challengeId: Scalars['ID']['input'];
   response: Scalars['JSON']['input'];
@@ -1432,6 +1457,7 @@ export type PromotionsPage = {
 export type Query = {
   __typename?: 'Query';
   accountDeletionLinkValid: Scalars['Boolean']['output'];
+  adminEmailSenders: Array<AdminEmailSenderModel>;
   adminEvent: Maybe<EventModel>;
   adminEvents: EventsPage;
   adminMarkets: Array<MarketModel>;
@@ -1473,6 +1499,7 @@ export type Query = {
   ordersByTokens: Array<OrderModel>;
   pendingVendorInvites: Array<VendorInviteModel>;
   previewAdminEmail: AdminEmailPreviewModel;
+  previewOutreachEmail: AdminEmailPreviewModel;
   product: Maybe<ProductModel>;
   products: ProductsPage;
   promotions: Array<PromotionModel>;
@@ -1647,6 +1674,12 @@ export type QueryPendingVendorInvitesArgs = {
 export type QueryPreviewAdminEmailArgs = {
   input: AdminEmailInput;
   userId: Scalars['ID']['input'];
+};
+
+
+export type QueryPreviewOutreachEmailArgs = {
+  input: AdminEmailInput;
+  to: OutreachRecipientInput;
 };
 
 
@@ -2281,6 +2314,27 @@ export type SendAdminEmailMutationVariables = Exact<{
 
 
 export type SendAdminEmailMutation = { __typename?: 'Mutation', sendAdminEmail: boolean };
+
+export type AdminEmailSendersQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AdminEmailSendersQuery = { __typename?: 'Query', adminEmailSenders: Array<{ __typename?: 'AdminEmailSenderModel', sender: AdminEmailSender, from: string }> };
+
+export type PreviewOutreachEmailQueryVariables = Exact<{
+  to: OutreachRecipientInput;
+  input: AdminEmailInput;
+}>;
+
+
+export type PreviewOutreachEmailQuery = { __typename?: 'Query', previewOutreachEmail: { __typename?: 'AdminEmailPreviewModel', subject: string, html: string } };
+
+export type SendOutreachEmailMutationVariables = Exact<{
+  to: OutreachRecipientInput;
+  input: AdminEmailInput;
+}>;
+
+
+export type SendOutreachEmailMutation = { __typename?: 'Mutation', sendOutreachEmail: boolean };
 
 export type LoginMutationVariables = Exact<{
   input: LoginInput;

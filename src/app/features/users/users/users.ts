@@ -36,7 +36,6 @@ import {
   AccountFilters,
   AccountRole,
   AccountStatus,
-  AdminEmail,
   SIGN_UP_FILTERS,
   SignUpFilter,
 } from '../../../core/models/account.model';
@@ -46,7 +45,11 @@ import {
   SuspendAccountDialog,
   SuspendAccountDialogData,
 } from '../suspend-account-dialog/suspend-account-dialog';
-import { SendEmailDialog, SendEmailDialogData } from '../send-email-dialog/send-email-dialog';
+import {
+  ComposedEmail,
+  SendEmailDialog,
+  SendEmailDialogData,
+} from '../../../shared/components/send-email-dialog/send-email-dialog';
 
 /** Long enough to let a name be typed, short enough not to feel like lag. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -286,19 +289,21 @@ export class Users {
 
   protected sendEmail(account: Account): void {
     const data: SendEmailDialogData = {
-      account,
-      preview: (email) => this.store.previewEmail(account, email),
+      to: { email: account.email, name: account.name },
+      from: 'SUPPORT',
+      senders: this.store.emailSenders(),
+      preview: (_to, email) => this.store.previewEmail(account, email),
     };
     this.dialog
-      .open<SendEmailDialog, SendEmailDialogData, AdminEmail>(SendEmailDialog, {
+      .open<SendEmailDialog, SendEmailDialogData, ComposedEmail>(SendEmailDialog, {
         data,
         width: '1080px',
         maxWidth: '95vw',
       })
       .afterClosed()
-      .subscribe((email) => {
-        if (!email) return;
-        this.store.sendEmail(account, email, () =>
+      .subscribe((composed) => {
+        if (!composed) return;
+        this.store.sendEmail(account, composed.email, () =>
           this.notifications.success(`Email sent to ${account.email}.`),
         );
       });
